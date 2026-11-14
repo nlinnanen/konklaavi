@@ -5,6 +5,7 @@ import anthropic
 from psycopg import Connection
 from psycopg.rows import dict_row
 
+from app import trust
 from app.config import settings
 from app.jobs import register
 
@@ -177,4 +178,6 @@ def analyze_vote(conn: Connection, vote_id: int, analyze: Analyzer) -> None:
 
 @register("analyze")
 def handle(conn: Connection, payload: dict) -> None:
+    """Analyse the vote, then move the narratives it counts towards to the state their votes call for."""
     analyze_vote(conn, payload["vote_id"], claude_analyze)
+    trust.update_states(conn, trust.vote_narratives(conn, payload["vote_id"]))
