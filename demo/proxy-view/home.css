@@ -29,3 +29,9 @@ button:hover { opacity: .88; }
 .meta { color: var(--ink-3); font-size: 13px; }
 code { font-size: 12.5px; }
 .err { color: var(--danger); }
+.source { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 7px 12px 7px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper-2); color: var(--ink); font-size: 14px; font-weight: 600; text-decoration: none; }
+.source:hover { border-color: var(--ink-3); }
+.source:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(0.6 0.14 255 / 0.35); }
+.source svg { flex: none; transition: transform .35s cubic-bezier(.3, 1.6, .5, 1); }
+.source:hover svg { transform: rotate(-14deg) scale(1.15); }
+@media (prefers-reduced-motion: reduce) { .source svg { transition: none; } }
