@@ -60,6 +60,43 @@ def show_misses(pages: list[dict]) -> None:
     )
 
 
+SWEEP_COLUMNS = {
+    "false_positive_rate": "False-positive rate",
+    "known_precision": "Known precision",
+    "known_recall": "Known recall",
+    "unseen_precision": "Unseen precision",
+    "unseen_recall": "Unseen recall",
+}
+
+
+def show_sweep(section: dict) -> None:
+    st.header("Narrative-level matching")
+    limit = percent(section["max_false_positive_rate"])
+    best = section["best_threshold"]
+    st.write(
+        f"A block of {section['min_words']} or more words without an exact or variant match is flagged when its"
+        f" cosine to one of an active narrative's vectors reaches the threshold ({section['vectors']} vectors of"
+        f" {section['narratives']} narratives). Precision and recall count exact and variant matches too."
+    )
+    sweep = (
+        pd.DataFrame(section["sweep"])
+        .set_index("threshold")[list(SWEEP_COLUMNS)]
+        .rename(columns=SWEEP_COLUMNS)
+    )
+    st.line_chart(sweep, x_label="Cosine threshold", y_label="Rate")
+    st.table(sweep.map(lambda v: percent(None if pd.isna(v) else v)))
+    if best is None:
+        st.warning(f"No threshold keeps the false-positive rate at or below {limit}.")
+        return
+    st.metric(f"Best known recall at a false-positive rate of at most {limit}", f"threshold {best}")
+    st.subheader(f"Narrative-level false positives at {best} ({len(section['false_positives'])})")
+    show_matches(section["false_positives"])
+    with st.expander(
+        f"Positives flagged only at the narrative level at {best} ({len(section['true_positives'])})"
+    ):
+        show_matches(section["true_positives"])
+
+
 def show_evaluation(results: dict) -> None:
     known, unseen, neg = results["known"], results["unseen"], results["negatives"]
     st.caption(
@@ -85,6 +122,9 @@ def show_evaluation(results: dict) -> None:
         " shares are left out)."
     )
     show_metrics(unseen["metrics"])
+
+    if "narrative" in results:
+        show_sweep(results["narrative"])
 
     st.header("Pages")
     st.subheader(f"False positives ({len(neg['false_positives'])})")
