@@ -128,6 +128,19 @@ async function main() {
     void refreshAccount();
     setTimeout(refreshPage, 400); // give the content script a moment to look the page up again
   });
+  $('#refresh').addEventListener('click', async () => {
+    const button = $<HTMLButtonElement>('#refresh');
+    button.disabled = true;
+    try {
+      await callBackground('refreshIndex', null);
+      await sendToContent({ type: 'rescan' });
+      await refreshPage();
+    } catch (e) {
+      $('#page').insertAdjacentHTML('beforeend', `<p class="error">${escapeHtml(e instanceof Error ? e.message : String(e))}</p>`);
+    } finally {
+      button.disabled = false;
+    }
+  });
   $('#rescan').addEventListener('click', async () => {
     await sendToContent({ type: 'rescan' });
     await refreshPage();

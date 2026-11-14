@@ -96,3 +96,16 @@ def test_a_moderator_approves_a_queued_note_and_others_are_refused(client, signe
     assert response.status_code == 200
     [result] = client.post("/lookup", json={"hashes": ["p1"]}).json()["results"]
     assert (result["narrative"]["state"], len(result["narrative"]["notes"])) == ("needs_ratings", 1)
+
+
+def test_a_burst_of_ratings_queues_one_scoring_run(client, conn, narrative, signed_in):
+    narrative(["s1"])
+    note_id = conn.execute("SELECT id FROM note").fetchone()[0]
+    for helpfulness in ("helpful", "not_helpful"):
+        for _ in range(2):
+            response = client.post(
+                f"/notes/{note_id}/ratings", json={"userId": str(signed_in()), "helpfulness": helpfulness}
+            )
+            assert response.status_code == 200
+    conn.commit()
+    assert conn.execute("SELECT state FROM job WHERE kind = 'score_notes'").fetchall() == [("queued",)]

@@ -15,7 +15,7 @@ from pydantic import Field
 from app import trust
 from app.api.narratives import Body
 from app.db import connection
-from app.jobs import enqueue
+from app.jobs import enqueue, enqueue_unless_queued
 
 router = APIRouter()
 
@@ -153,7 +153,10 @@ def note_author(conn: Connection, note_id: int) -> UUID:
 
 @router.post("/notes/{note_id}/ratings")
 def post_rating(note_id: int, request: RatingRequest) -> dict:
-    """Store the install's rating of a note, replacing its earlier one. Authors don't rate their own notes."""
+    """Store the install's rating of a note, replacing its earlier one. Authors don't rate their own notes.
+
+    A rating that scoring counts queues a score_notes run.
+    """
     with connection() as conn:
         author = note_author(conn, note_id)
         conn.execute("INSERT INTO install (id) VALUES (%s) ON CONFLICT DO NOTHING", (request.user_id,))
@@ -162,7 +165,7 @@ def post_rating(note_id: int, request: RatingRequest) -> dict:
         ).fetchone()[0]
         if account_id is not None and account_id == author:
             raise HTTPException(403, "you wrote this note")
-        conn.execute(
+        changed = conn.execute(
             """
             INSERT INTO note_rating (note_id, install, account_id, helpfulness) VALUES (%s, %s, %s, %s)
             ON CONFLICT (note_id, install) DO UPDATE SET
@@ -170,7 +173,9 @@ def post_rating(note_id: int, request: RatingRequest) -> dict:
             WHERE note_rating.helpfulness <> EXCLUDED.helpfulness
             """,
             (note_id, request.user_id, account_id, request.helpfulness),
-        )
+        ).rowcount
+        if changed and account_id is not None:
+            enqueue_unless_queued(conn, "score_notes")
     return {"ok": True}
 
 
@@ -187,6 +192,7 @@ def post_report(note_id: int, request: ReportRequest) -> dict:
         ).rowcount
         if updated:
             enqueue(conn, "moderate_note", {"note_id": note_id})
+            enqueue_unless_queued(conn, "score_notes")
     return {"ok": True}
 
 
@@ -240,4 +246,5 @@ def post_moderation(note_id: int, request: ModerationRequest) -> dict:
             )
         else:
             conn.execute("UPDATE note SET moderation = 'hidden' WHERE id = %s", (note_id,))
+        enqueue_unless_queued(conn, "score_notes")
     return {"ok": True}

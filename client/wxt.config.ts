@@ -16,7 +16,7 @@ export default defineConfig({
     name: 'HashTrust',
     description:
       'HashTrust: flag misinformation and manipulative content, and see what others have flagged.',
-    permissions: browser === 'firefox' ? ['storage'] : ['storage', 'offscreen'],
+    permissions: browser === 'firefox' ? ['storage', 'alarms'] : ['storage', 'alarms', 'offscreen'],
     // The embedding model downloads from the Hugging Face hub, which redirects to its CDN.
     host_permissions: ['https://huggingface.co/*', 'https://*.hf.co/*'],
     // The ONNX runtime compiles WebAssembly.

@@ -3,7 +3,8 @@ import { cleanUrl } from '@/lib/domain';
 import { fingerprintSentences, splitSentences, type Sentence } from '@/lib/fingerprint';
 import { BackgroundError, callBackground, type ContentRequest, type PageStatus } from '@/lib/messages';
 import { getSettings, onSettingsChanged } from '@/lib/settings';
-import type { Helpfulness, Narrative } from '@/lib/types';
+import { INDEX_REFRESH_MS } from '@/lib/api';
+import type { Helpfulness, Narrative, Settings } from '@/lib/types';
 import { Highlighter, highlightSupported, type FlaggedRange } from './highlighter';
 import { PageScanner } from './scanner';
 import { blockFor, buildModel, offsetsOf, textNodesUnder } from './textModel';
@@ -23,9 +24,13 @@ export default defineContentScript({
 
     const settings = await getSettings();
     highlighter.setEnabled(settings.highlight);
+    // Remote lookups answer from the backend at the time; the local index pushes its changes instead.
+    const resultAge = (s: Settings) => (s.backendMode === 'remote' ? INDEX_REFRESH_MS : Infinity);
+    scanner.maxResultAge = resultAge(settings);
     let backendKey = `${settings.backendMode}|${settings.backendUrl}`;
     onSettingsChanged((s) => {
       highlighter.setEnabled(s.highlight);
+      scanner.maxResultAge = resultAge(s);
       const key = `${s.backendMode}|${s.backendUrl}`;
       if (key !== backendKey) {
         backendKey = key;
@@ -56,6 +61,8 @@ export default defineContentScript({
       } else if (req.type === 'rescan') {
         void scanner.refresh().then(() => sendResponse(null));
         return true;
+      } else if (req.type === 'indexChanged') {
+        if (req.added || scanner.shows(req.narrativeIds)) void scanner.refresh();
       }
       return false;
     });

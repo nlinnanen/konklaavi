@@ -12,7 +12,7 @@ import anthropic
 from psycopg import Connection
 
 from app.config import settings
-from app.jobs import register
+from app.jobs import enqueue_unless_queued, register
 
 log = logging.getLogger(__name__)
 
@@ -106,6 +106,7 @@ def moderate(conn: Connection, note_id: int, review: Reviewer | None) -> None:
         conn.execute(
             "UPDATE note SET moderation = 'visible', moderation_reason = NULL WHERE id = %s", (note_id,)
         )
+        enqueue_unless_queued(conn, "score_notes")
 
 
 @register("moderate_note")

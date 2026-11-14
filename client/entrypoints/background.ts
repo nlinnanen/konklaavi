@@ -1,7 +1,17 @@
 import { browser, type Browser } from 'wxt/browser';
-import { ApiError, HitReporter, LocalIndexApi, MockApi, RemoteApi, type KeyValueStore, type TrustApi } from '@/lib/api';
+import {
+  ApiError,
+  HitReporter,
+  INDEX_REFRESH_MS,
+  LocalIndexApi,
+  MockApi,
+  RemoteApi,
+  type IndexChange,
+  type KeyValueStore,
+  type TrustApi,
+} from '@/lib/api';
 import type { Embedder } from '@/lib/embed';
-import type { BackgroundRequest, EmbedRequest, Envelope } from '@/lib/messages';
+import type { BackgroundRequest, ContentRequest, EmbedRequest, Envelope } from '@/lib/messages';
 import { getSettings, onSettingsChanged } from '@/lib/settings';
 import type { Helpfulness, LookupResult, Settings } from '@/lib/types';
 
@@ -83,11 +93,28 @@ function getApi(settings: Settings): TrustApi {
     case 'local':
       if (localApi?.baseUrl !== settings.backendUrl) {
         localApi = new LocalIndexApi(settings.backendUrl, indexStore, Date.now, embedder);
+        localApi.onChange = broadcastChange;
       }
       return localApi;
     case 'mock':
       return mockApi;
   }
+}
+
+/** Tells every tab's content script which narratives a download changed, so pages showing them look up again. */
+async function broadcastChange(change: IndexChange): Promise<void> {
+  const req: ContentRequest = { target: 'content', type: 'indexChanged', ...change };
+  for (const tab of await browser.tabs.query({})) {
+    if (tab.id !== undefined) browser.tabs.sendMessage(tab.id, req).catch(() => {}); // a tab without the content script
+  }
+}
+
+const REFRESH_ALARM = 'index-refresh';
+
+/** Pulls the index delta in local mode; the alarm wakes a suspended service worker for it. */
+async function refreshIndex(): Promise<void> {
+  const api = getApi(await getSettings());
+  if (api instanceof LocalIndexApi) await api.refresh();
 }
 
 /** Loads and parses the local index as soon as it is chosen, before the pages' lookups wait for it. */
@@ -158,6 +185,9 @@ async function handle(msg: BackgroundRequest, sender: Browser.runtime.MessageSen
       return null;
     case 'myRatings':
       return myRatings();
+    case 'refreshIndex':
+      if (api instanceof LocalIndexApi) await api.refresh();
+      return null;
     case 'clearMock':
       await mockApi.clear();
       return null;
@@ -178,6 +208,10 @@ export default defineBackground(() => {
   browser.runtime.onInstalled.addListener(() => void getUserId());
   onSettingsChanged(warmUp);
   void getSettings().then(warmUp);
+  void browser.alarms.create(REFRESH_ALARM, { periodInMinutes: INDEX_REFRESH_MS / 60_000 });
+  browser.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === REFRESH_ALARM) refreshIndex().catch((e) => console.warn('[hashtrust] index refresh failed', e));
+  });
 
   browser.runtime.onMessage.addListener((msg: any, sender, sendResponse: (r: Envelope<unknown>) => void) => {
     if (msg?.target !== 'background') return false;

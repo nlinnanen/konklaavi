@@ -38,6 +38,13 @@ def test_concurrent_claimers_get_a_job_once(database_url, conn):
     assert job_row(conn, job_id)[:2] == ("running", 1)
 
 
+def test_note_jobs_are_claimed_before_page_jobs_queued_earlier(conn):
+    jobs.enqueue(conn, "fetch", {"url": "https://example.com/a"})
+    score_id = jobs.enqueue(conn, "score_notes")
+    conn.commit()
+    assert jobs.claim(conn).id == score_id
+
+
 def test_failing_handler_retries_then_fails(conn, handlers):
     @jobs.register("boom")
     def boom(_conn, payload):

@@ -104,6 +104,10 @@ export class PageScanner {
   private timer?: ReturnType<typeof setTimeout>;
   private running: Promise<void> = Promise.resolve();
   private stopped = false;
+  /** When the cached results were last cleared. */
+  private resultsSince = Date.now();
+  /** How old the cached results get before the next scan pass forgets them and looks every block up again. */
+  maxResultAge = Infinity;
 
   constructor(private highlighter: Highlighter) {}
 
@@ -167,13 +171,28 @@ export class PageScanner {
         this.unitResults.delete(h);
       }
     } else {
-      this.results.clear();
-      this.unitResults.clear();
+      this.forgetResults();
     }
     return this.enqueue(() => this.lookupBlocks([...this.blocks.values()]));
   }
 
+  private forgetResults() {
+    this.results.clear();
+    this.unitResults.clear();
+    this.resultsSince = Date.now();
+  }
+
+  /** True when one of the narratives is matched on this page. */
+  shows(narrativeIds: Iterable<string>): boolean {
+    const shown = new Set<string>();
+    for (const r of [...this.results.values(), ...this.unitResults.values()]) if (r) shown.add(r.narrative.narrativeId);
+    for (const id of narrativeIds) if (shown.has(id)) return true;
+    return false;
+  }
+
   private async doScan(roots: Node[]) {
+    const stale = Date.now() - this.resultsSince > this.maxResultAge;
+    if (stale) this.forgetResults();
     const touched: ScannedBlock[] = [];
     let budget = MAX_SENTENCES_PER_PASS;
     const pause = slicer();
@@ -198,7 +217,7 @@ export class PageScanner {
     }
     for (const block of this.blocks.keys()) if (!block.isConnected) this.blocks.delete(block);
     this.highlighter.prune();
-    await this.lookupBlocks(touched);
+    await this.lookupBlocks(stale ? [...this.blocks.values()] : touched);
   }
 
   /** Looks up the blocks' hashes without a cached result and repaints them. */
