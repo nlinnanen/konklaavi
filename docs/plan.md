@@ -1,68 +1,74 @@
 # Build plan
 
-The plan gets to a deployed end-to-end demo as early as possible and then deepens it. Every milestone ends with something that runs on the Hostinger URL and can be shown to the judges. Four workstreams run in parallel against contracts fixed in the first two hours. The design is in [north-star.md](north-star.md), [components.md](components.md) and [decisions.md](decisions.md).
+One integrator (Claude on `main`) writes the contracts and a runnable skeleton, then runs four workstreams in parallel, each in its own git worktree with its own agent. Every milestone ends with a merged `main` that runs end to end. The design is in [north-star.md](north-star.md), [components.md](components.md) and [decisions.md](decisions.md).
 
-## Starting point
+## Step 0: contracts and skeleton
 
-The extension in `client/` already does most of the browser work, described in [client/PLAN.md](../client/PLAN.md):
+The integrator does this alone on `main`, before any workstream starts:
 
-- A DOM text model that groups text into blocks and maps offsets back to ranges.
-- Sentence splitting with `Intl.Segmenter`, normalisation and SHA-256 per sentence.
-- Highlighting through the CSS Custom Highlight API, with a tooltip, rate button, verdict picker and popup.
-- A `TrustApi` interface with a mock and a remote implementation, and the `POST /votes`, `POST /lookup` and `GET /domains/:domain` contract.
+- `backend/migrations/000_init.sql`: the base schema. Workstreams add migrations in their own number range: 1xx core, 2xx pipeline, 3xx data.
+- `backend/app/`: config, database pool, migration runner, the job runner with a handler registry and periodic jobs, and a FastAPI app with one router file per workstream.
+- `fingerprint-service/`: a Node HTTP service that runs `client/lib` fingerprinting, with the exact level working.
+- `client/lib/types.ts`: an optional `signature` on `LookupResult`.
+- `docs/api.md`: the HTTP contract, the fingerprint service contract, and the job kinds and payloads.
+- `compose.yaml` at the root: Timescale, the API, the worker and the fingerprint service. Ports come from a per-worktree `.env`, so all worktrees can run their stacks at once.
 
-The plan builds on this. The backend implements that contract first, so the extension works against a real server on day one. New capabilities arrive as optional fields on the existing types and as new `TrustApi` implementations, not as renames.
+Step 0 is done when `docker compose up` applies migrations, `/health` answers, `/lookup` returns an empty result, and the fingerprint service returns the same hashes as the extension for the same text.
 
-## One fingerprint implementation
+## Workstreams
 
-The fingerprint code in `client/lib/` is the only implementation. The backend runs it in a small Node service that the Python worker calls over HTTP, so sentence splitting, normalisation, MinHash and embeddings produce identical output on both sides. transformers.js runs the same embedding model in Node and in the browser.
+Each workstream owns its files. Nobody edits another workstream's files; a needed change to someone else's file or to a contract goes to the integrator.
 
-## Contracts (hours 0 to 2)
+- ext: `client/entrypoints/`, `client/lib/api.ts`, the popup.
+- pipeline: `client/lib/` fingerprinting (normalise, sentences, MinHash, embeddings), `fingerprint-service/`, and the fetch, variant and lineage jobs.
+- core: the API routes for votes, lookup, domains, index and hits, the analysis job, signature lifecycle, continuous aggregates, Dockerfiles and deployment.
+- data: the EUvsDisinfo importer, narrative clustering, the dashboard and its API routes, the simulation and the evaluation.
 
-Everyone works on these together before splitting up:
+## Milestones and deliverables
 
-- API: the existing contract from `client/lib/types.ts`, plus an optional `signature` field on `LookupResult` carrying the narrative id, techniques, explanation and source (an EUvsDisinfo case or a user report).
-- Schema: the SQL in [data-model.md](data-model.md) as migration files, with the jobs table.
-- Fingerprint service: `POST /fingerprint` taking text and returning sentences with hashes, and later block MinHash signatures and embeddings.
-- Compose: the root `compose.yaml` with Timescale, the API, the worker and the fingerprint service, deployed to the VPS once with an empty database.
+### M1: exact matching on real data
 
-## Milestones
+The demo: a Pravda-network article is highlighted, and the tooltip shows the EUvsDisinfo case.
 
-### M1, exact matching on real data (by hour 7)
+- ext: Remote mode against the backend, the `signature` in the tooltip with a link to the source case.
+- pipeline: the fingerprint service at the exact level, and the fetch job that fetches a page anonymously, extracts text with trafilatura, and stores the page, fingerprints, sentences and observations, attached to a narrative when the job carries one.
+- core: `/votes`, `/lookup` and `/domains/:domain` on Postgres, matching the extension's existing contract. A vote enqueues a fetch and an analysis job.
+- data: the EUvsDisinfo importer creating narratives and enqueuing fetch jobs for the linked articles, with cases split into a seed set and a test set.
 
-The demo: open an article from the Pravda network and see sentences highlighted, with the EUvsDisinfo case summary in the tooltip.
+### M2: edited copies, narratives and explanations
 
-- Extension: point Remote mode at the deployed API, and show `signature` in the tooltip when it is present.
-- Content pipeline: the fingerprint service wrapping `client/lib/fingerprint.ts`, and the fetch job that extracts text with trafilatura and stores sentence hashes.
-- Backend core: the API implementing `/votes`, `/lookup` and `/domains/:domain` on Postgres.
-- Data and evaluation: the EUvsDisinfo seed importer, which creates narratives with verdicts and enqueues fetch jobs for the articles each case links to.
+The demo: an edited copy on another site still matches, and a fresh report comes back with named techniques and a plain-language explanation.
 
-### M2, edited copies, narratives and explanations (by hour 13)
+- ext: MinHash bands per block in `/lookup`, technique labels in the tooltip.
+- pipeline: MinHash and LSH bands in `client/lib` and the service, embeddings with transformers.js in the service, the variant matcher and `DERIVED_FROM` lineage.
+- core: the analysis job calling Claude through the Hostinger AI Router, and band matching in `/lookup`.
+- data: HDBSCAN narrative clustering on embeddings and `EVOLVED_INTO` edges.
 
-The demo: an edited copy of a seeded article on another site still matches, and a fresh user report comes back within a minute with named techniques and a plain-language explanation.
+### M3: graph, privacy and numbers
 
-- Extension: MinHash per block alongside the sentence hashes, and the techniques and explanation in the tooltip.
-- Content pipeline: MinHash and LSH bands in the fingerprint service, the variant matcher, and `DERIVED_FROM` lineage.
-- Backend core: the analysis job calling Claude through the AI Router, and LSH band lookup in `/lookup`.
-- Data and evaluation: embeddings, HDBSCAN narrative clustering, and the evaluation split of EUvsDisinfo cases into seed and test sets.
+The demo: the dashboard shows a narrative's lineage and spread over time; the extension matches locally; the evaluation shows precision and false-positive rate.
 
-### M3, the graph and the numbers (by hour 19)
+- ext: `LocalIndexApi`, which downloads the index and matches on the client behind the `TrustApi` interface, and detection hits sent to `/hits`.
+- pipeline: fetch jobs triggered by detection hits.
+- core: `/index` and `/hits`, the signature lifecycle, continuous aggregates on observations, and the production compose file with a deployment runbook.
+- data: the dashboard served by the API, the narrative and spread endpoints, the simulation of honest, partisan and coordinated users, and the evaluation report.
 
-The demo: the dashboard shows a narrative's lineage from its first account to mainstream sites, its spread over time, and the precision and false-positive rate on held-out cases.
+## Integration
 
-- Extension: a `LocalIndexApi` that downloads the signature index and matches on the client, behind the same `TrustApi` interface, plus detection hits sent as telemetry.
-- Content pipeline: fetch jobs triggered by detection hits, so the graph grows where narratives appear.
-- Backend core: the index endpoint, the signature lifecycle, and the observation hypertable with continuous aggregates.
-- Data and evaluation: the dashboard with the lineage tree and spread charts, and the simulation of honest, partisan and coordinated users.
+At the end of each milestone the integrator merges the four branches into `main`, runs every test suite and an end-to-end check against the compose stack, and pushes. Workstreams rebase on `main` before starting the next milestone. Contract changes happen only on `main`.
 
-### M4, freeze and pitch (hours 19 to 24)
+## Testing conventions
 
-Feature freeze at hour 21. The rest goes to bug fixes on the demo path, reseeding the production database, the evaluation slide and rehearsing the demo.
+- Pure logic gets unit tests: Vitest for TypeScript, pytest for Python. One test per behaviour the code promises, not one per branch, as the `unit-tests` skill describes. No tests that restate configuration values.
+- Code that touches the database is tested with pytest against a real Timescale container from the worktree's compose stack. No database mocks.
+- Fingerprint parity has one cross-runtime test: the same texts through the extension's `client/lib` and through the fingerprint service must give identical hashes, bands and embeddings.
+- The fetch job is tested against local HTML fixtures served in the test, never the internet.
+- The analysis job is tested with a fake LLM client. One live test, marked `live`, runs only when an API key is set.
+- The extension gets a Playwright smoke test that loads the built extension on a fixture page against a local backend and checks that a seeded sentence is highlighted.
+- Every commit passes `npm test` and `npm run compile` in TypeScript packages and `uv run pytest` and `uv run ruff check` in `backend/`.
+- Evaluation numbers are reported from the evaluation script's output, never retyped.
 
-## Demo script
+## Needs from the team
 
-1. Open a Pravda-network article. Sentences are highlighted, and the tooltip names the narrative, its techniques and the EUvsDisinfo case.
-2. Open a site that republished it with edits. It still matches as a variant.
-3. Select a sentence on a fresh page and report it. Within a minute the highlight appears with an LLM explanation.
-4. Open the dashboard. Show the narrative's lineage, its spread over time and the accounts that posted it first.
-5. Show the evaluation: precision and false-positive rate on held-out cases, and how far a simulated brigade moves a verdict.
+- A Hostinger AI Router key, set as `ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL`. The analysis job fails when they are missing.
+- Deployment to the VPS, from the runbook core writes.
