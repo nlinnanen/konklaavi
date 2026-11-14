@@ -50,5 +50,18 @@ services:
     <<: *backend
     command: ["python", "-m", "app.worker"]
 
+  dashboard:
+    build: ./dashboard
+    image: ${COMPOSE_PROJECT_NAME:-junction26}-dashboard
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
+    ports:
+      - "${DASH_PORT:-8501}:8501"
+    depends_on:
+      db:
+        condition: service_healthy
+    init: true
+    restart: unless-stopped
+
 volumes:
   pgdata:
