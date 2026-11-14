@@ -20,6 +20,11 @@ class Settings:
     moderator_reputation: float
     # Counted ratings a note needs before scoring can decide its status.
     note_min_ratings: int
+    # Counted ratings on other notes a rater needs before bridging can place them on the viewpoint axis.
+    bridging_min_history: int
+    # Mean helpfulness at or above which, or at or below which, agreement decides a note helpful or not.
+    agreement_helpful: float
+    agreement_not_helpful: float
     # Cosine at which a block matches a narrative's vectors.
     narrative_match_threshold: float
     # Cosine at which a block is related to a narrative, below the match threshold.
@@ -42,6 +47,9 @@ def load() -> Settings:
         ),
         moderator_reputation=float(_env("MODERATOR_REPUTATION") or "0.8"),
         note_min_ratings=int(_env("NOTE_MIN_RATINGS") or "5"),
+        bridging_min_history=int(_env("BRIDGING_MIN_HISTORY") or "3"),
+        agreement_helpful=float(_env("AGREEMENT_HELPFUL") or "0.75"),
+        agreement_not_helpful=float(_env("AGREEMENT_NOT_HELPFUL") or "0.25"),
         narrative_match_threshold=float(_env("NARRATIVE_MATCH_THRESHOLD") or "0.825"),
         related_match_threshold=float(_env("RELATED_MATCH_THRESHOLD") or "0.70"),
         version=_env("APP_VERSION") or "dev",

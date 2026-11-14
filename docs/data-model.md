@@ -115,6 +115,7 @@ erDiagram
     text body
     text_array sources
     text status
+    text decided_by
     float intercept
     float factor
     timestamptz decided_at

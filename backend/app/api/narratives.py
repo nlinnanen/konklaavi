@@ -51,7 +51,7 @@ def display_state(notes: list[dict]) -> str:
 def shown_notes(conn: Connection, narrative_ids: list[int]) -> dict[int, list[dict]]:
     rows = conn.execute(
         """
-        SELECT n.narrative_id, n.id, n.classification, n.body, n.sources, n.status, n.created_at,
+        SELECT n.narrative_id, n.id, n.classification, n.body, n.sources, n.status, n.decided_by, n.created_at,
                count(r.*) FILTER (WHERE r.helpfulness = 'helpful'),
                count(r.*) FILTER (WHERE r.helpfulness = 'somewhat'),
                count(r.*) FILTER (WHERE r.helpfulness = 'not_helpful')
@@ -69,6 +69,7 @@ def shown_notes(conn: Connection, narrative_ids: list[int]) -> dict[int, list[di
         body,
         sources,
         status,
+        decided_by,
         created,
         helpful,
         somewhat,
@@ -81,6 +82,7 @@ def shown_notes(conn: Connection, narrative_ids: list[int]) -> dict[int, list[di
                 "body": body,
                 "sources": sources,
                 "status": status,
+                "decidedBy": decided_by,
                 "ratings": {"helpful": helpful, "somewhat": somewhat, "not_helpful": unhelpful},
                 "createdAt": created.isoformat(),
             }
