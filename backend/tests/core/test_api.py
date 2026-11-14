@@ -114,3 +114,84 @@ def test_check_matches_text_blocks_against_narratives(client, narrative):
     [match] = response.json()["matches"]
     assert match["text"] == known
     assert match["result"]["flagged"] is True
+
+
+def add_bands(conn, content_hash, bands):
+    """Store LSH bands for the fingerprint with this content hash; bands[i] is band i."""
+    conn.execute(
+        "INSERT INTO lsh_band (band, hash, fingerprint_id)"
+        " SELECT b.band - 1, b.hash, f.id FROM fingerprint f, unnest(%s::text[]) WITH ORDINALITY b(hash, band)"
+        " WHERE f.content_hash = %s",
+        (bands, content_hash),
+    )
+    conn.commit()
+
+
+def lookup_blocks(client, blocks):
+    response = client.post("/lookup", json={"hashes": [], "blocks": blocks})
+    assert response.status_code == 200, response.text
+    return {r["hash"]: r for r in response.json()["results"]}
+
+
+def test_block_sharing_two_bands_with_a_narrative_matches_at_the_variant_level(client, narrative, conn):
+    narrative_id = narrative([], content_hash="fp-1")
+    add_bands(conn, "fp-1", ["b0", "b1", "b2", "b3"])
+    result = lookup_blocks(client, [{"hash": "edited", "bands": ["b0", "x1", "b2", "x3"]}])["edited"]
+    assert (result["flagged"], result["total"], result["topVerdict"]) == (True, 0, "misinformation")
+    assert (result["signature"]["narrativeId"], result["signature"]["matchLevel"]) == (
+        str(narrative_id),
+        "variant",
+    )
+
+
+def test_block_sharing_one_band_does_not_match(client, narrative, conn):
+    narrative([], content_hash="fp-1")
+    add_bands(conn, "fp-1", ["b0", "b1", "b2", "b3"])
+    assert lookup_blocks(client, [{"hash": "other", "bands": ["b0", "x1", "x2", "x3"]}]) == {}
+
+
+def test_bands_match_only_at_the_same_band_index(client, narrative, conn):
+    narrative([], content_hash="fp-1")
+    add_bands(conn, "fp-1", ["b0", "b1", "b2", "b3"])
+    assert lookup_blocks(client, [{"hash": "shifted", "bands": ["b1", "b0", "b3", "b2"]}]) == {}
+
+
+def test_block_hash_that_is_also_a_matched_sentence_keeps_the_exact_signature(client, narrative, conn):
+    narrative(["h1"], content_hash="fp-1")
+    add_bands(conn, "fp-1", ["b0", "b1"])
+    response = client.post(
+        "/lookup", json={"hashes": ["h1"], "blocks": [{"hash": "h1", "bands": ["b0", "b1"]}]}
+    )
+    [result] = response.json()["results"]
+    assert result["signature"]["matchLevel"] == "exact"
+
+
+def test_check_reports_a_block_matching_only_at_the_variant_level(client, narrative, conn, monkeypatch):
+    narrative([], content_hash="fp-1")
+    add_bands(conn, "fp-1", ["b0", "b1"])
+    edited = "An edited copy of the narrative paragraph with a few words changed."
+    monkeypatch.setattr(
+        fpclient,
+        "fingerprint",
+        lambda blocks, embed=False: {
+            "version": "v1",
+            "blocks": [
+                {
+                    "index": 0,
+                    "contentHash": "edited",
+                    "sentences": [{"text": edited, "start": 0, "end": len(edited), "hash": "s-edited"}],
+                    "minhash": None,
+                    "bands": ["b0", "b1"],
+                    "embedding": None,
+                }
+            ],
+        },
+    )
+    response = client.post("/check", json={"text": edited})
+    assert response.status_code == 200, response.text
+    [match] = response.json()["matches"]
+    assert (match["text"], match["result"]["hash"], match["result"]["signature"]["matchLevel"]) == (
+        edited,
+        "edited",
+        "variant",
+    )

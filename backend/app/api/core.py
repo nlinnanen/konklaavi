@@ -23,6 +23,8 @@ FLAG_THRESHOLD = 0.5
 # One vote is never enough to flag content on votes alone.
 MIN_VOTES = 2
 MAX_LOOKUP_HASHES = 500
+# LSH bands a block must share with a fingerprint to match it at the variant level.
+MIN_SHARED_BANDS = 2
 
 Verdict = Literal["misinformation", "manipulative", "misleading", "trustworthy"]
 
@@ -50,7 +52,7 @@ class BlockBands(Body):
 
 class LookupRequest(Body):
     hashes: list[str] = Field(max_length=MAX_LOOKUP_HASHES)
-    blocks: list[BlockBands] | None = None
+    blocks: list[BlockBands] = Field(default=[], max_length=MAX_LOOKUP_HASHES)
 
 
 class CheckRequest(Body):
@@ -106,12 +108,29 @@ def vote_counts(conn: Connection, hashes: list[str]) -> dict[str, dict[str, int]
     return counts
 
 
+SIGNATURE_COLUMNS = "n.id, n.title, n.verdict, n.techniques, n.explanation, n.source, n.source_url, n.state"
+
+
+def signature(row: tuple, match_level: str) -> dict:
+    narrative_id, title, verdict, techniques, explanation, source, source_url, state = row
+    return {
+        "narrativeId": str(narrative_id),
+        "title": title,
+        "verdict": verdict,
+        "techniques": techniques,
+        "explanation": explanation,
+        "source": source,
+        "sourceUrl": source_url,
+        "state": state,
+        "matchLevel": match_level,
+    }
+
+
 def exact_signatures(conn: Connection, hashes: list[str]) -> dict[str, dict]:
     """The signature of each sentence hash that belongs to an active or under-review narrative."""
     rows = conn.execute(
-        """
-        SELECT DISTINCT ON (s.hash)
-          s.hash, n.id, n.title, n.verdict, n.techniques, n.explanation, n.source, n.source_url, n.state
+        f"""
+        SELECT DISTINCT ON (s.hash) s.hash, {SIGNATURE_COLUMNS}
         FROM sentence s
         JOIN fingerprint f ON f.id = s.fingerprint_id
         JOIN variant va ON va.id = f.variant_id
@@ -121,30 +140,57 @@ def exact_signatures(conn: Connection, hashes: list[str]) -> dict[str, dict]:
         """,
         (hashes,),
     ).fetchall()
-    return {
-        hash: {
-            "narrativeId": str(narrative_id),
-            "title": title,
-            "verdict": verdict,
-            "techniques": techniques,
-            "explanation": explanation,
-            "source": source,
-            "sourceUrl": source_url,
-            "state": state,
-            "matchLevel": "exact",
-        }
-        for hash, narrative_id, title, verdict, techniques, explanation, source, source_url, state in rows
-    }
+    return {row[0]: signature(row[1:], "exact") for row in rows}
 
 
-def lookup_hashes(conn: Connection, hashes: list[str]) -> dict[str, dict]:
-    """LookupResults keyed by hash, for the hashes that have votes or a signature."""
+def variant_signatures(conn: Connection, blocks: list[BlockBands]) -> dict[str, dict]:
+    """The signature of each block sharing MIN_SHARED_BANDS LSH bands with a narrative's fingerprint.
+
+    Among several matching narratives an active one wins, then the one sharing the most bands.
+    """
+    if not blocks:
+        return {}
+    keys, bands, hashes = [], [], []
+    for block in blocks:
+        for band, hash in enumerate(block.bands):
+            keys.append(block.hash)
+            bands.append(band)
+            hashes.append(hash)
+    rows = conn.execute(
+        f"""
+        WITH q AS (
+          SELECT * FROM unnest(%(keys)s::text[], %(bands)s::smallint[], %(hashes)s::text[]) AS q(block, band, hash)
+        ), shared AS (
+          SELECT q.block, l.fingerprint_id, count(*) AS bands
+          FROM q JOIN lsh_band l ON l.band = q.band AND l.hash = q.hash
+          GROUP BY q.block, l.fingerprint_id
+          HAVING count(*) >= %(min_shared)s
+        )
+        SELECT DISTINCT ON (sh.block) sh.block, {SIGNATURE_COLUMNS}
+        FROM shared sh
+        JOIN fingerprint f ON f.id = sh.fingerprint_id
+        JOIN variant va ON va.id = f.variant_id
+        JOIN narrative n ON n.id = va.narrative_id
+        WHERE n.state IN ('active', 'under_review')
+        ORDER BY sh.block, n.state = 'active' DESC, sh.bands DESC, n.updated_at DESC
+        """,
+        {"keys": keys, "bands": bands, "hashes": hashes, "min_shared": MIN_SHARED_BANDS},
+    ).fetchall()
+    return {row[0]: signature(row[1:], "variant") for row in rows}
+
+
+def lookup(conn: Connection, hashes: list[str], blocks: list[BlockBands]) -> dict[str, dict]:
+    """LookupResults keyed by sentence or block hash, for the hashes that have votes or a signature.
+
+    A hash that is both a sentence and a block hash keeps its exact signature.
+    """
     hashes = list(dict.fromkeys(hashes))
     counts = vote_counts(conn, hashes)
-    signatures = exact_signatures(conn, hashes)
+    signatures = {**variant_signatures(conn, blocks), **exact_signatures(conn, hashes)}
+    keys = dict.fromkeys([*hashes, *(block.hash for block in blocks)])
     return {
         h: summarize(h, counts.get(h, empty_counts()), signatures.get(h))
-        for h in hashes
+        for h in keys
         if h in counts or h in signatures
     }
 
@@ -174,7 +220,7 @@ def post_vote(vote: VoteRequest) -> dict:
 @router.post("/lookup")
 def post_lookup(request: LookupRequest) -> dict:
     with connection() as conn:
-        results = lookup_hashes(conn, request.hashes)
+        results = lookup(conn, request.hashes, request.blocks)
     return {"results": list(results.values())}
 
 
@@ -218,19 +264,30 @@ def fetch_blocks(url: str) -> list[str]:
 
 @router.post("/check")
 def post_check(request: CheckRequest) -> dict:
+    """Matches per sentence, and per block for blocks that match only at the variant level."""
     if request.text:
         blocks = text_blocks(request.text)
     elif request.url:
         blocks = fetch_blocks(request.url)
     else:
         raise HTTPException(422, "give text or url")
-    sentences = (
-        [s for block in fpclient.fingerprint(blocks)["blocks"] for s in block["sentences"]] if blocks else []
-    )
+    fingerprinted = fpclient.fingerprint(blocks)["blocks"] if blocks else []
+    hashes = [s["hash"] for block in fingerprinted for s in block["sentences"]]
+    banded = [
+        BlockBands(hash=block["contentHash"], bands=block["bands"])
+        for block in fingerprinted
+        if block["contentHash"] and block["bands"]
+    ]
     with connection() as conn:
-        results = lookup_hashes(conn, [s["hash"] for s in sentences])
-    return {
-        "matches": [
-            {"text": s["text"], "result": results[s["hash"]]} for s in sentences if s["hash"] in results
+        results = lookup(conn, hashes, banded)
+    matches = []
+    for block in fingerprinted:
+        sentence_matches = [
+            {"text": s["text"], "result": results[s["hash"]]}
+            for s in block["sentences"]
+            if s["hash"] in results
         ]
-    }
+        matches += sentence_matches
+        if not sentence_matches and block["contentHash"] in results:
+            matches.append({"text": blocks[block["index"]], "result": results[block["contentHash"]]})
+    return {"matches": matches}
