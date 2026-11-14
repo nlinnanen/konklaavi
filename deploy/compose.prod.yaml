@@ -60,10 +60,35 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    networks: [default, proxy-view]
     depends_on:
       - api
       - dashboard
+      - proxy-view
     restart: unless-stopped
+
+  # The demo proxy view (demo/proxy-view) at https://DOMAIN/proxy/. It renders allowlisted sites in
+  # Chromium, on a network it shares only with Caddy, so it can't reach the database or internal services.
+  # It calls the API at its public address.
+  proxy-view:
+    image: ${IMAGE_PREFIX:-ghcr.io/nlinnanen/junction26}-proxy-view:${IMAGE_TAG:?set IMAGE_TAG (the release script does)}
+    environment:
+      HASHTRUST_API: https://${DOMAIN:?set DOMAIN in .env}/api
+      PUBLIC_BASE: https://${DOMAIN:?set DOMAIN in .env}/proxy
+    networks: [proxy-view]
+    shm_size: 1gb
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8787/', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    init: true
+    restart: unless-stopped
+
+networks:
+  proxy-view:
 
 volumes:
   caddy_data:

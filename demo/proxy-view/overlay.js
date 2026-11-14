@@ -49,6 +49,7 @@
   const shell = window !== window.top ? window.top.document : null;
   const doc = shell || document;
   doc.getElementById('ht-host')?.remove();
+  doc.getElementById('ht-loading')?.remove();
   if (shell) shell.title = document.title || cfg.host;
   const host = doc.createElement('div');
   host.id = 'ht-host';
@@ -109,7 +110,8 @@
   const tip = $('.tip');
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-  // ---- Find text in the DOM across element boundaries, ignoring whitespace differences.
+  // ---- Find text in the DOM across element boundaries. Whitespace is ignored entirely, since
+  // extracted text adds spaces at line breaks and block edges that the DOM may not have.
   function textIndex() {
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
       acceptNode: (n) =>
@@ -119,23 +121,17 @@
     });
     let flat = '';
     const map = []; // flat index -> [node, offset]
-    let lastSpace = true;
     for (let n; (n = walker.nextNode()); ) {
       const t = n.nodeValue;
       for (let i = 0; i < t.length; i++) {
-        let c = t[i];
-        if (/\s/.test(c)) {
-          if (lastSpace) continue;
-          c = ' ';
-          lastSpace = true;
-        } else lastSpace = false;
-        flat += c;
+        if (/\s/.test(t[i])) continue;
+        flat += t[i];
         map.push([n, i]);
       }
     }
     return { flat, lower: flat.toLowerCase(), map };
   }
-  const norm = (s) => s.replace(/\s+/g, ' ').trim();
+  const norm = (s) => s.replace(/\s+/g, '');
   const fold = (s) => s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-');
 
   function wrap(idx, start, end, style, id) {
@@ -153,7 +149,8 @@
       let node = n;
       const s = node === sn ? so : 0;
       const e = node === en ? eo + 1 : node.nodeValue.length;
-      if (!node.nodeValue.slice(s, e).trim()) continue;
+      // A stronger match already highlights this text: keep it, so highlights never nest.
+      if (!node.nodeValue.slice(s, e).trim() || node.parentElement.closest('mark.ht-mark')) continue;
       if (e < node.nodeValue.length) node.splitText(e);
       if (s > 0) node = node.splitText(s);
       const mark = document.createElement('mark');
@@ -177,8 +174,9 @@
 
   // ---- Run the scan.
   const items = [];
+  const groups = new Map(); // narrativeId -> { narrative, best, items }
   statusEl.innerHTML = cfg.blocks.length
-    ? `Extracted <b>${cfg.blocks.length}</b> text blocks from <b>${esc(cfg.host)}</b>. Checking…`
+    ? `Extracted <b>${cfg.blocks.length}</b> text blocks from <b>${esc(cfg.host)}</b> (${esc(cfg.mode)}). Checking…`
     : `<span class="err">No article text extracted from ${esc(cfg.host)}: the content is probably rendered by JavaScript.</span>`;
   if (!cfg.blocks.length) return;
 
@@ -191,20 +189,28 @@
     })
     .then(({ matches }) => {
       if (cfg.test) matches = matches.concat(testMatches());
+      // Strongest first, so where matches overlap the stronger one is highlighted.
+      const LEVEL_RANK = { exact: 3, variant: 3, narrative: 2, related: 1 };
+      matches = matches
+        .filter((m) => m.result?.narrative)
+        .sort((a, b) => (LEVEL_RANK[b.result.matchLevel] || 0) - (LEVEL_RANK[a.result.matchLevel] || 0) || (b.result.similarity ?? 1) - (a.result.similarity ?? 1));
       const seen = new Set();
       for (const m of matches) {
-        if (!m.result?.narrative || seen.has(m.text)) continue;
-        const state = m.result.narrative.state;
+        if (seen.has(m.text)) continue;
         seen.add(m.text);
         const id = String(items.length);
         const hit = locate(m.text);
         const marks = hit ? wrap(hit.idx, hit.start, hit.end, styleOf(m.result), id) : [];
-        items.push({ id, state, text: m.text, narrative: m.result.narrative, result: m.result, marks });
+        const n = m.result.narrative;
+        const item = { id, state: n.state, text: m.text, narrative: n, result: m.result, marks, located: !!hit };
+        items.push(item);
+        if (!groups.has(n.narrativeId)) groups.set(n.narrativeId, { narrative: n, best: item, items: [] });
+        groups.get(n.narrativeId).items.push(item);
       }
       const secs = ((performance.now() - t0) / 1000).toFixed(1);
-      const shown = items.filter((i) => i.marks.length).length;
-      statusEl.innerHTML = `<b>${cfg.blocks.length}</b> blocks checked in ${secs}s · <b>${items.length}</b> matched` +
-        (items.length !== shown ? ` (${items.length - shown} not located in page)` : '');
+      const missing = items.filter((i) => !i.located).length;
+      statusEl.innerHTML = `<b>${cfg.blocks.length}</b> blocks (${esc(cfg.mode)}) checked in ${secs}s · <b>${groups.size}</b> narrative${groups.size === 1 ? '' : 's'}, <b>${items.length}</b> passage${items.length === 1 ? '' : 's'}` +
+        (missing ? ` (${missing} not located in page)` : '');
       render();
     })
     .catch((e) => {
@@ -236,26 +242,34 @@
     });
   }
 
+  const clip = (t, max) => (t.length > max ? t.slice(0, max) + '…' : t);
+
   function render() {
-    if (!items.length) {
+    if (!groups.size) {
       listEl.innerHTML = '<div class="empty">Nothing on this page matches a tracked narrative.</div>';
       return;
     }
-    listEl.innerHTML = items
-      .map((i) => `<div class="item" data-id="${i.id}" style="border-color:${STATE_COLOR[i.state]}">
-        <div class="tier" style="color:${STATE_COLOR[i.state]}">${STATE_LABEL[i.state] || esc(i.state)} · ${esc(levelLine(i.result))}</div>
-        <div class="title">${esc(i.narrative.title)}</div>
-        <div class="quote">“${esc(i.text.length > 180 ? i.text.slice(0, 180) + '…' : i.text)}”</div>
-        ${i.marks.length ? '' : '<div class="miss">Not located in the rendered page</div>'}
-      </div>`)
+    const list = [...groups.values()];
+    listEl.innerHTML = list
+      .map((g, i) => {
+        const n = g.narrative;
+        const count = g.items.length;
+        return `<div class="item" data-group="${i}" style="border-color:${STATE_COLOR[n.state]}">
+        <div class="tier" style="color:${STATE_COLOR[n.state]}">${STATE_LABEL[n.state] || esc(n.state)} · ${esc(levelLine(g.best.result))}</div>
+        <div class="title">${esc(clip(n.title, 140))}</div>
+        <div class="quote">“${esc(clip(g.best.text, 160))}”</div>
+        <div class="src">${count} passage${count === 1 ? '' : 's'} on this page${n.notes.length ? ` · ${n.notes.length} note${n.notes.length === 1 ? '' : 's'}` : ''}</div>
+        ${g.items.some((x) => x.located) ? '' : '<div class="miss">Not located in the rendered page</div>'}
+      </div>`;
+      })
       .join('');
     listEl.querySelectorAll('.item').forEach((el) =>
       el.addEventListener('click', () => {
-        const item = items[+el.dataset.id];
-        if (!item.marks.length) return;
-        item.marks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-        item.marks.forEach((m) => m.classList.add('ht-flash'));
-        setTimeout(() => item.marks.forEach((m) => m.classList.remove('ht-flash')), 1600);
+        const marks = list[+el.dataset.group].items.flatMap((x) => x.marks);
+        if (!marks.length) return;
+        marks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        marks.forEach((m) => m.classList.add('ht-flash'));
+        setTimeout(() => marks.forEach((m) => m.classList.remove('ht-flash')), 1600);
       }),
     );
   }
@@ -267,9 +281,8 @@
     const item = items[+mark.dataset.ht];
     const n = item.narrative;
     const note = leadNote(n);
-    const clip = (t, max) => (t.length > max ? t.slice(0, max) + '…' : t);
     tip.innerHTML = `<div class="tier" style="color:${STATE_COLOR[item.state]}">${STATE_LABEL[item.state] || esc(item.state)} · ${esc(levelLine(item.result))}</div>
-      <div class="title">${esc(n.title)}</div>
+      <div class="title">${esc(clip(n.title, 200))}</div>
       ${note ? `<p>${note.classification === 'misleading' ? 'Note: misleading. ' : 'Note: '}${esc(clip(note.body, 400))}</p>` : '<p>No notes yet.</p>'}
       ${note?.sources?.length ? `<p>Sources: ${note.sources.map((u) => esc(clip(u, 60))).join(', ')}</p>` : ''}
       <div class="src">${esc(spreadLine(n.spread))}${n.notes.length > 1 ? ` · ${n.notes.length} notes` : ''}</div>`;
