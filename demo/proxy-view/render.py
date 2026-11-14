@@ -75,9 +75,17 @@ SNAPSHOT_JS = r"""
   const CMP = '[id^=sp_message_container],#onetrust-consent-sdk,#usercentrics-root,#didomi-host,' +
     '#CybotCookiebotDialog,#qc-cmp2-container,.fc-consent-root,#cmpbox,#cmpbox2,.cmp-root,#truste-consent-track';
   for (const el of document.querySelectorAll(CMP)) el.remove();
-  // A modal or the consent dialog may have locked scrolling.
+  // A modal or the consent dialog may have locked scrolling: by a class on <html> or <body> (Sourcepoint's
+  // sp-message-open pins the body with position: fixed), by overflow: hidden, or by a fixed body.
+  const LOCK = /^(sp-message-open|modal-open|no-?scroll|noScroll|overflow-hidden|scroll-?lock(ed)?|is-locked|locked|didomi-popup-open|ot-overflow-hidden|disable-?scroll|has-modal|fc-consent-open)$/i;
   for (const el of [document.documentElement, document.body]) {
-    if (getComputedStyle(el).overflowY === 'hidden') el.style.setProperty('overflow-y', 'auto', 'important');
+    for (const c of [...el.classList]) if (LOCK.test(c)) el.classList.remove(c);
+    const style = getComputedStyle(el);
+    if (style.overflowY === 'hidden') el.style.setProperty('overflow-y', 'auto', 'important');
+    if (style.position === 'fixed') {
+      el.style.setProperty('position', 'static', 'important');
+      el.style.setProperty('top', 'auto', 'important');
+    }
   }
   // Empty ad slots leave large blank boxes.
   const AD = /(^|[\s_-])(ad|ads|advert|advertisement|ad-slot|adslot|ad-container|banner-ad)([\s_-]|$)/i;
