@@ -5,8 +5,8 @@
 		reverse_proxy api:8000
 	}
 
-	redir /proxy /proxy/
-	handle_path /proxy/* {
+	redir /demo /demo/
+	handle_path /demo/* {
 		reverse_proxy proxy-view:8787
 	}
 
