@@ -27,7 +27,7 @@ export interface Signature {
   verdict: NegativeVerdict;
   techniques: string[];
   explanation: string | null;
-  source: 'euvsdisinfo' | 'report' | 'cluster';
+  source: 'euvsdisinfo' | 'report' | 'cluster' | 'network';
   sourceUrl: string | null;
   state: 'under_review' | 'active';
   matchLevel: 'exact' | 'variant' | 'narrative';

@@ -84,6 +84,7 @@ export const SOURCE_LABELS: Record<Signature['source'], string> = {
   euvsdisinfo: 'EUvsDisinfo',
   report: 'User reports',
   cluster: 'Detected cluster',
+  network: 'Documented network (VIGINUM)',
 };
 
 /** The signature's source URL when it is safe to link to (http or https), else null. */
