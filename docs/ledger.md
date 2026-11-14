@@ -105,6 +105,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: Votes are weighted by user reputation and discounted in coordinated bursts, and the simulation compares raw and weighted votes.
 - integrator: Testing is the minimum necessary: tests only for logic that would fail silently or that the demo depends on, and agents run only the test file they touch while iterating, with one full run before a commit.
 - integrator: Workstreams start in parallel against contracts and mocks; nothing waits on another workstream's branch. Stacks start with `docker compose up --wait` instead of polling loops.
+- integrator: No build or merge step runs a full-scale import or evaluation. Full-scale runs happen only as separate background jobs that nothing waits on, and their results are read when they finish.
 
 ## Deferred
 
