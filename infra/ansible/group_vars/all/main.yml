@@ -54,5 +54,5 @@ moderation_model: ""
 # Comma-separated emails of moderators; accounts above moderator_reputation moderate too.
 moderator_emails: "rvirtaha@gmail.com"
 moderator_reputation: ""
-note_min_ratings: ""
+note_min_ratings: "2"
 narrative_match_threshold: ""
