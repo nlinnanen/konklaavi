@@ -40,6 +40,9 @@ input:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px o
 .btn:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .status { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 8px; }
 .status b { color: var(--ink); font-weight: 650; }
+.btn.next[hidden] { display: none; }
+.btn.next .pos { margin-left: 4px; font-weight: 500; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.btn.next:hover { border-color: var(--ink-3); }
 .err { color: var(--danger); }
 .readme { flex: none; margin-left: auto; color: var(--ink); font-weight: 600; text-underline-offset: 2px; }
 .spinner {
@@ -48,7 +51,7 @@ input:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px o
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
-@media (max-width: 760px) { .status, [data-act=guide] { display: none; } }
+@media (max-width: 860px) { .status, [data-act=guide] { display: none; } }
 `;
 
 /** The guided tour over the page, on the same tokens. */

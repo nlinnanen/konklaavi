@@ -108,6 +108,7 @@ root.innerHTML = `<style>${barCss}</style>
   <span class="badge" title="A copy of the page rendered by Konklaavi; links, videos and logins on it may not work">DEMO</span>
   <form target="_top"><input name="url" type="url" required aria-label="Article address"><button class="btn primary">Open</button></form>
   <div class="status" role="status"></div>
+  <button class="btn next" data-act="next" hidden title="Jump to the next narrative on the page (N)">Next narrative <span class="pos"></span></button>
   <button class="btn quiet" data-act="guide">How it works</button>
   <a class="readme" target="_blank" rel="noopener">Get the extension →</a>
 </div>`;
@@ -116,6 +117,7 @@ $<HTMLInputElement>('input').value = cfg.url;
 $<HTMLFormElement>('form').action = cfg.proxy + 'view';
 $<HTMLAnchorElement>('.readme').href = cfg.readme;
 $<HTMLButtonElement>('[data-act=guide]').addEventListener('click', () => showGuide());
+$<HTMLButtonElement>('[data-act=next]').addEventListener('click', () => nextNarrative());
 const statusEl = $<HTMLDivElement>('.status');
 const esc = (s: unknown) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -356,6 +358,59 @@ function setupCards() {
     if (e.key === 'Escape' && ui.cardPinned) ui.hideCard();
   });
   window.addEventListener('scroll', () => ui.hideCard(), { passive: true });
+  return { pin };
+}
+
+// ---- Next narrative: steps through the page's narratives in reading order, scrolling to each one's
+// first passage, flashing its highlights and opening its card.
+
+const before = (a: Range, b: Range) => a.compareBoundaryPoints(Range.START_TO_START, b) < 0;
+let narrativeAt = -1;
+
+/** The narratives with highlights, in the order they first appear, each with its passages in order. */
+function narrativesInOrder(): FlaggedRange[][] {
+  return [...groups.values()]
+    .map((g) => [...g.items].sort((a, b) => (before(a.range, b.range) ? -1 : 1)))
+    .filter((items) => items.length)
+    .sort((a, b) => (before(a[0].range, b[0].range) ? -1 : 1));
+}
+
+function nextNarrative() {
+  const list = narrativesInOrder();
+  if (!list.length) return;
+  narrativeAt = (narrativeAt + 1) % list.length;
+  const items = list[narrativeAt];
+  const first = items[0];
+  first.range.startContainer.parentElement?.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
+  $('.pos').textContent = `${narrativeAt + 1} / ${list.length}`;
+  flash(items.map((x) => x.range));
+  // After the scroll's own event, which closes cards, has fired.
+  setTimeout(() => {
+    const rect = first.range.getClientRects()[0] ?? first.range.getBoundingClientRect();
+    cards.pin(rect.left + Math.min(rect.width / 2, 40), rect.bottom, first);
+  }, 120);
+}
+
+/** Outlines ranges for a moment, as the page jumps to them. */
+function flash(ranges: Range[]) {
+  if (!('highlights' in CSS)) return;
+  if (!document.getElementById('ht-flash-style')) {
+    const style = document.createElement('style');
+    style.id = 'ht-flash-style';
+    style.textContent = '::highlight(ht-flash) { background-color: oklch(0.7 0.15 255 / 0.45); }';
+    document.head.append(style);
+  }
+  CSS.highlights.set('ht-flash', new Highlight(...ranges));
+  setTimeout(() => CSS.highlights.delete('ht-flash'), 1400);
+}
+
+/** N jumps to the next narrative, unless the reader is typing. */
+function onNextKey(e: KeyboardEvent) {
+  const target = e.composedPath()[0] as HTMLElement | undefined;
+  if (e.key !== 'n' || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (target && (/^(input|textarea|select)$/i.test(target.tagName) || target.isContentEditable)) return;
+  if (doc.getElementById('ht-guide') || ui.panelOpen) return;
+  nextNarrative();
 }
 
 // ---- ?test=1: fake matches on real sentences, to check highlighting on a site without a real hit.
@@ -475,7 +530,7 @@ function steps(): Step[] {
     {
       title: 'Open another article',
       body: `Paste an article's address in the bar and click <b>Open</b>. The bar also shows how many narratives were found
-        on the page, and <b>How it works</b> brings this tour back.`,
+        on the page; <b>Next narrative</b> (or the N key) jumps to each one in turn, and <b>How it works</b> brings this tour back.`,
       target: () => root.querySelector('form')?.getBoundingClientRect() ?? null,
     },
     {
@@ -589,7 +644,9 @@ function showGuide() {
 // ---- Run.
 
 setupSelection();
-setupCards();
+const cards = setupCards();
+document.addEventListener('keydown', onNextKey);
+if (shell) shell.addEventListener('keydown', onNextKey);
 // The tour starts once the page is checked, so it can point at a real highlight.
 const firstVisit = !store.get(GUIDE_KEY, false);
 
@@ -609,6 +666,11 @@ if (!cfg.blocks.length) {
         ? `<b>${shown}</b> narrative${shown === 1 ? '' : 's'} on this page, <b>${flagged.length}</b> passage${flagged.length === 1 ? '' : 's'} highlighted`
         : 'No tracked narratives on this page';
       statusEl.title = `${cfg.blocks.length} text blocks (${cfg.mode}) checked in ${secs}s`;
+      const count = narrativesInOrder().length;
+      if (count) {
+        $<HTMLButtonElement>('[data-act=next]').hidden = false;
+        $('.pos').textContent = `0 / ${count}`;
+      }
       if (firstVisit) showGuide();
     })
     .catch((e) => {
