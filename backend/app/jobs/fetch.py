@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from http.cookiejar import CookieJar, DefaultCookiePolicy
 from urllib.parse import urlsplit
 
@@ -22,6 +22,8 @@ TIMEOUT = 20.0
 MAX_BYTES = 5 * 1024 * 1024
 # Cosine between a block and the narrative's title and claim above which the block carries the narrative.
 RELEVANCE_THRESHOLD = 0.5
+# A hit refetches a page fetched longer ago than this.
+HIT_REFETCH_AFTER = timedelta(hours=24)
 
 log = logging.getLogger(__name__)
 
@@ -245,9 +247,20 @@ def repick(conn: Connection, narrative_ids: set[int]) -> None:
         attach_relevant(conn, narrative_id, fingerprint_ids, block["embedding"])
 
 
+def fetched_recently(conn: Connection, url: str) -> bool:
+    return (
+        conn.execute(
+            "SELECT 1 FROM page WHERE url = %s AND fetched_at > now() - %s", (url, HIT_REFETCH_AFTER)
+        ).fetchone()
+        is not None
+    )
+
+
 @register("fetch")
 def handle(conn: Connection, payload: dict) -> None:
     url = payload["url"]
+    if payload.get("reason") == "hit" and fetched_recently(conn, url):
+        return
     narrative_id = payload.get("narrative_id")
     text = narrative_text(conn, narrative_id) if narrative_id is not None else None
     if narrative_id is not None and text is None:

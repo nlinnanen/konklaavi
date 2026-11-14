@@ -6,6 +6,7 @@ import pytest
 
 from app import fpclient
 from app.jobs.fetch import handle
+from app.jobs.variants import handle as match_variants
 
 PARAGRAPHS = [
     "The election was rigged by foreign agents according to many anonymous sources today.",
@@ -243,3 +244,45 @@ def test_a_narrative_left_without_blocks_gets_the_next_best_block_of_its_pages(c
     handle(conn, {"url": f"{base}/other", "reason": "vote"})
 
     assert attached(conn, narrative_id) == {OFF_TOPIC[0]}
+
+
+def test_a_hit_refetches_only_a_page_not_fetched_in_the_last_day(conn, site):
+    routes, base = site
+    routes["/a"] = (200, "text/html", page(ON_TOPIC))
+    handle(conn, {"url": f"{base}/a", "reason": "seed"})
+    routes["/a"] = (200, "text/html", page(ON_TOPIC, OFF_TOPIC[0]))
+
+    handle(conn, {"url": f"{base}/a", "reason": "hit"})
+    assert conn.execute("SELECT count(*) FROM fingerprint").fetchone()[0] == 1
+
+    conn.execute("UPDATE page SET fetched_at = now() - interval '25 hours'")
+    handle(conn, {"url": f"{base}/a", "reason": "hit"})
+    assert conn.execute("SELECT count(*) FROM fingerprint").fetchone()[0] == 2
+
+
+def test_a_hit_page_joins_the_hits_narrative_and_derives_from_the_seed(conn, site):
+    routes, base = site
+    original = (
+        "Western sanctions against Russia have backfired and are destroying the European economy, while"
+        " ordinary citizens in Germany and France pay record prices for gas and electricity."
+    )
+    edited = original.replace("record prices", "insane prices")
+    routes["/seed"] = (200, "text/html", page(original, OFF_TOPIC[0]))
+    routes["/copy"] = (200, "text/html", page(edited, OFF_TOPIC[1]))
+    narrative_id = add_narrative(
+        conn, "Sanctions backfire", "Western sanctions against Russia are destroying the European economy."
+    )
+    handle(conn, {"url": f"{base}/seed", "reason": "seed", "narrative_id": narrative_id})
+    conn.execute("DELETE FROM job")
+
+    # Another domain for the same server, so the copy is not boilerplate of the seed's domain.
+    copy_url = f"{base.replace('127.0.0.1', 'localhost')}/copy"
+    handle(conn, {"url": copy_url, "reason": "hit", "narrative_id": narrative_id})
+    [(payload,)] = conn.execute("SELECT payload FROM job WHERE kind = 'match_variants'").fetchall()
+    match_variants(conn, payload)
+
+    assert attached(conn, narrative_id) == {original, edited}
+    assert conn.execute(
+        "SELECT s.content, d.content FROM edge e"
+        " JOIN fingerprint s ON s.id = e.src JOIN fingerprint d ON d.id = e.dst WHERE e.type = 'DERIVED_FROM'"
+    ).fetchall() == [(edited, original)]
