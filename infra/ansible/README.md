@@ -112,7 +112,7 @@ Without `-v`, the volumes stay. The new stack uses the same compose project name
 The ssh role removes the old root CI key. Afterwards, on your machine:
 
 ```sh
-gh secret delete VPS_USER --repo nlinnanen/junction26
+gh secret delete VPS_USER --repo nlinnanen/konklaavi
 git push origin --delete deploy
 ```
 

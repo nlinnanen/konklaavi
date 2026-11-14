@@ -51,7 +51,7 @@ UA = render.UA
 RENDER = os.environ.get("KONKLAAVI_RENDER", os.environ.get("HASHTRUST_RENDER", "1")) != "0"
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "").rstrip("/")
 # Where the extension's install instructions are.
-README_URL = os.environ.get("README_URL", "https://github.com/nlinnanen/junction26#try-it")
+README_URL = os.environ.get("README_URL", "https://github.com/nlinnanen/konklaavi#try-it")
 NOTICE = (
     "This demo renders the page again on our server, without its scripts, and shows what the Konklaavi "
     "browser extension would highlight on it. It may not work on every site: some block automated "
