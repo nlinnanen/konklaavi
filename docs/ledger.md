@@ -222,6 +222,24 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - team: No seed content and no source-based labels: the EUvsDisinfo, ClaimReview and Pravda-network seeds and their verdicts, and LLM-generated labels, leave the product. The product isn't framed around Kremlin propaganda.
 - team: Note consensus uses the open-source Community Notes bridging algorithm: a note is shown when raters who usually disagree both rate it helpful. Writing notes and counting ratings need a verified (signed-in) account; reputation follows a user's track record.
 - team: Moderation is reputation gating, LLM review of submitted notes, and a volunteer human review queue, and the pitch states it openly.
+- integrator: A shipped narrative has source `note` and is not one whose every note moderators hid; a note narrative without notes (the offline benchmark's) ships too. Cluster candidates never ship.
+- integrator: Rating counts on the wire are `{helpful, somewhat, not_helpful}`, matching the stored helpfulness values. Ids are strings. `firstSeen` is always set: the first observation, or the narrative's creation.
+- integrator: A match's `matchLevel` and `similarity` sit on the LookupResult, not on its narrative. Matches rank by level, then by state urgency misleading > controversial > context > needs_ratings > tracked, in the API and the extension alike.
+- integrator: GET /me lists notes flat with `narrativeId` and `title`, carries `moderator`, and gives `reputation` null for an install without an account; the popup shows null as 0.
+- integrator: Paraphrase vectors and their column are dropped in migration 251. The vote table and the narrative columns verdict, explanation, techniques, settled_by and settled_at stay, unused, until the dashboard and simulation stop reading them.
+- integrator: `backend/app/reliable.py` is deleted with settlement; `backend/app/eval/negatives.txt` stays, read by the benchmark and the simulation.
+- integrator: The local dev database was cleared of the euvsdisinfo, factcheck, network and report narratives with their variants, fingerprints, unassigned fingerprints, sentences, bands, vectors, observations, unreferenced pages and domains, eval cases, votes and jobs. Cluster candidates and accounts stay.
+- core: Note regularisation is 0.15 on intercepts and 0.03 on factors, as in the Community Notes paper; the fit is alternating least squares with a fixed seed, one rating per account and note.
+- core: Reputation is (good + 1) / (good + bad + 4) per verified account: a note decided helpful adds 2 good, not helpful 2 bad; a rating cast before the decision adds 1 good when it agrees, 1 bad when not. The moderator bar is MODERATOR_REPUTATION, default 0.8.
+- core: Readers see visible notes not rated not helpful, ordered helpful misleading, helpful context, controversial, undecided. Reporting needs a verified account; a moderator's decision holds until the next report.
+- core: A passage already stored as a cluster candidate's fingerprint moves into the new note narrative.
+- pipeline: Note and hit fetches attach a block by a shared sentence hash, an LSH near-duplicate, or cosine >= NARRATIVE_MATCH_THRESHOLD to the passage or a narrative vector. The claim vector embeds the passage alone.
+- pipeline: seed and eval fetches use the same attach rule, so the benchmark measures matches to claim summaries, not the closest block.
+- ext: Each sentence takes its strongest match by level (exact = variant > narrative > related), then state urgency; narrative and related matches draw a lighter style. Detection hits go out for every match but related.
+- ext: The client requires at least one http(s) source before submitting a note; sign-in for writing happens inline in the page card. The install's own ratings are remembered locally (`myRatings`).
+- ext: Fingerprinting stays on the main thread in 8 ms slices; index parsing and matching run in the background worker.
+- data: The offline benchmark lives in `backend/app/eval/benchmark/`, runs only against BENCHMARK_DATABASE_URL (a different database name than the product's), and imports cases as note narratives without notes.
+- data: The dashboard computes narrative state in SQL with the same precedence as the API, reads the moderation queue from the database and acts through the API.
 
 ## Deferred
 
@@ -308,3 +326,23 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: `RELATED_MATCH_THRESHOLD` is not in `infra/ansible/roles/app/templates/env.j2`; production uses the 0.70 default.
 - data: the Feedback page makes one GET /me call per distinct feedback voter; many voters need a batch weight endpoint.
 - data: recent disputes counts votes, not distinct voters.
+- integrator: docs/architecture.md, components.md, data-model.md, north-star.md, evaluation.md, README.md and client/PLAN.md still describe votes, verdicts, tiers and seeds; rewrite them for the context-notes product.
+- integrator: production's database still holds the seed content; clearing it needs the same deletion as the local one, run by the user.
+- integrator: the vote table and narrative verdict, explanation, techniques, settled_by and settled_at columns can be dropped once the dashboard and simulation stop reading them.
+- data: simulation/ posts to /votes and reads index['signatures']; it is broken until rewritten for notes and ratings.
+- data: the dashboard's state colours approximate `HIGHLIGHT_STYLES` in client/lib/state.ts by hand.
+- data: the benchmark's case file ships in the backend image; backend/app/eval/results/latest.json is in the signature-era shape until the benchmark runs again.
+- data: the Reputation page makes one GET /me call per account, capped at 50.
+- core: spread in /index refreshes only when a narrative changes for another reason; hits and fetch observations don't mark it changed.
+- core: every rating marks its narrative changed in index_change, so a busy narrative is resent in every delta.
+- core: POST /notes has no rate limit beyond a verified account; GET /me and the moderation queue authenticate by install id only.
+- core: backend LEVELS ranks exact above variant while the extension treats them as equal.
+- pipeline: a passage fingerprint that later becomes boilerplate is detached, leaving a note narrative with no sentence rows.
+- pipeline: exact attach joins on any shared sentence hash, so a generic sentence can pull unrelated blocks into a narrative.
+- pipeline: a hit for a page fetched in the last 24 hours is skipped even when that fetch carried no narrative_id.
+- pipeline: a changed claim does not refresh the claim vector.
+- pipeline: leftover narrative_vector rows of cluster candidates stay in existing databases; nothing refreshes or ships them.
+- ext: in local mode a rating changes the highlight only at the next index delta; the pinned card fetches fresh notes.
+- ext: matching 32 units against a 90k-vector index takes about 1.3 s in the service worker; moving it to the offscreen document would remove the delay.
+- ext: the e2e test does not cover sign-in, reporting a note, or the popup.
+- impeccable: its shape gate needs a user-confirmed brief, which an unattended subagent can't get; UI briefs should say whether the gate is waived.

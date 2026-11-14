@@ -30,7 +30,8 @@ if submitted:
         st.stop()
     rows = []
     for match in response.json()["matches"]:
-        narrative = match["result"].get("narrative")
+        result = match["result"]
+        narrative = result.get("narrative")
         if not narrative:
             continue
         notes = narrative.get("notes") or []
@@ -39,8 +40,8 @@ if submitted:
             {
                 "state": narrative.get("state"),
                 "passage": match["text"],
-                "match": narrative.get("matchLevel"),
-                "similarity": narrative.get("similarity"),
+                "match": result.get("matchLevel"),
+                "similarity": result.get("similarity"),
                 "narrative": narrative.get("title"),
                 "sites": spread.get("sites"),
                 "first seen": spread.get("firstSeen"),

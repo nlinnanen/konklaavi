@@ -17,11 +17,13 @@ from app.db import connection
 router = APIRouter()
 
 # Strongest first; a passage matching several narratives shows the strongest.
-STATES = ("misleading", "context", "controversial", "needs_ratings", "tracked")
-# Narratives born from a note, unless every note on them is hidden.
+STATES = ("misleading", "controversial", "context", "needs_ratings", "tracked")
+# Narratives born from a note, unless moderators hid every note on them. The offline benchmark's
+# narratives have no notes and ship.
 SHIPPED = (
-    "n.source = 'note' AND EXISTS ("
-    " SELECT 1 FROM note x WHERE x.narrative_id = n.id AND x.moderation <> 'hidden')"
+    "n.source = 'note' AND ("
+    " EXISTS (SELECT 1 FROM note x WHERE x.narrative_id = n.id AND x.moderation <> 'hidden')"
+    " OR NOT EXISTS (SELECT 1 FROM note x WHERE x.narrative_id = n.id))"
 )
 
 
@@ -79,7 +81,7 @@ def shown_notes(conn: Connection, narrative_ids: list[int]) -> dict[int, list[di
                 "body": body,
                 "sources": sources,
                 "status": status,
-                "ratings": {"helpful": helpful, "somewhat": somewhat, "notHelpful": unhelpful},
+                "ratings": {"helpful": helpful, "somewhat": somewhat, "not_helpful": unhelpful},
                 "createdAt": created.isoformat(),
             }
         )

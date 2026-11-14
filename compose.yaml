@@ -87,15 +87,10 @@ services:
   dashboard:
     build:
       context: ./dashboard
-      additional_contexts:
-        eval: ./backend/app/eval/results
     image: ${COMPOSE_PROJECT_NAME:-junction26}-dashboard
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
       - API_URL=http://api:8000
-      - EVAL_RESULTS=/eval/latest.json
-    volumes:
-      - ./backend/app/eval/results:/eval:ro
     ports:
       - "${DASH_PORT:-8501}:8501"
     healthcheck:

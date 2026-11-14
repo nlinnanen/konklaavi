@@ -60,7 +60,7 @@ describe('RemoteApi.lookup', () => {
 });
 
 function narrative(narrativeId: string, state: NarrativeState = 'misleading'): Narrative {
-  return { narrativeId, title: `Narrative ${narrativeId}`, state, notes: [], spread: { sites: 1, firstSeen: null } };
+  return { narrativeId, title: `Narrative ${narrativeId}`, state, notes: [], spread: { sites: 1, firstSeen: '2026-11-01T00:00:00Z' } };
 }
 
 function index(over: Partial<IndexResponse> = {}): IndexResponse {

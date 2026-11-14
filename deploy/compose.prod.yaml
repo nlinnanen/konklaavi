@@ -38,7 +38,6 @@ services:
     build: !reset null
     environment:
       - *database-url
-    # The eval results are baked into the image.
     volumes: !reset []
     ports: !override
       - "127.0.0.1:${DASH_PORT:-8501}:8501"

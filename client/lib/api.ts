@@ -615,6 +615,7 @@ export class MockApi implements TrustApi {
       email: 'you@mock.invalid',
       verified: true,
       reputation: 0.5,
+      moderator: false,
       notes: state.notes
         .filter((n) => n.author === userId)
         .map((n) => ({
@@ -624,7 +625,8 @@ export class MockApi implements TrustApi {
           status: this.statusOf(state, n.id).status,
           moderation: 'visible',
           createdAt: n.createdAt,
-          narrative: { narrativeId: n.narrativeId, title: state.narratives.find((x) => x.narrativeId === n.narrativeId)!.title },
+          narrativeId: n.narrativeId,
+          title: state.narratives.find((x) => x.narrativeId === n.narrativeId)!.title,
         })),
       ratings: { count: ratings.length, agreed },
     };

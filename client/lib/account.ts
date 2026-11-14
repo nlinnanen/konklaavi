@@ -24,12 +24,12 @@ export function renderAccount(me: MeResponse): string {
   const notes = me.notes
     .map(
       (n) => `<li>
-        <div class="row"><b>${escapeHtml(n.narrative.title)}</b>${noteBadge(n)}</div>
+        <div class="row"><b>${escapeHtml(n.title)}</b>${noteBadge(n)}</div>
         <p class="clamp">${escapeHtml(n.body)}</p>
       </li>`,
     )
     .join('');
-  const reputation = Math.round(me.reputation * 100);
+  const reputation = Math.round((me.reputation ?? 0) * 100);
   return `
     <p class="who">${escapeHtml(me.email ?? '')}</p>
     <dl class="stats">

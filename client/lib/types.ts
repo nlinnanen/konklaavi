@@ -36,13 +36,13 @@ export interface Narrative {
   state: NarrativeState;
   /** Visible notes, the decided helpful one first. */
   notes: Note[];
-  /** `firstSeen` is ISO 8601, null before any page was seen. */
-  spread: { sites: number; firstSeen: string | null };
+  /** `firstSeen` is ISO 8601: the first observation, or the narrative's creation before any. */
+  spread: { sites: number; firstSeen: string };
 }
 
 /** Response of GET /narratives/{id}. */
 export interface NarrativeDetail extends Narrative {
-  spread: { sites: number; pages: number; firstSeen: string | null };
+  spread: { sites: number; pages: number; firstSeen: string };
 }
 
 /** One entry of the POST /lookup `blocks`: a text block's content hash and LSH bands, matched at the variant level. */
@@ -169,15 +169,18 @@ export interface AccountNote {
   status: NoteStatus;
   moderation: 'visible' | 'pending_review' | 'hidden';
   createdAt: string;
-  narrative: { narrativeId: string; title: string };
+  narrativeId: string;
+  title: string;
 }
 
-/** Response of GET /me?userId=...; `reputation` is in [0, 1] and 0 for an unverified install. */
+/** Response of GET /me?userId=...; `reputation` is in [0, 1], null for an install not linked to an account. */
 export interface MeResponse {
   userId: string;
   email: string | null;
   verified: boolean;
-  reputation: number;
+  reputation: number | null;
+  /** May work the moderation queue: MODERATOR_EMAILS or reputation above MODERATOR_REPUTATION. */
+  moderator: boolean;
   notes: AccountNote[];
   /** Ratings cast, and those cast before the note was decided that agree with its status. */
   ratings: { count: number; agreed: number };

@@ -39,7 +39,7 @@ from app.jobs import enqueue
 from app.jobs.cluster import is_chrome
 
 HERE = Path(__file__).resolve().parent
-# Shared with app/reliable.py.
+# Shared with simulation/crowd.py.
 NEGATIVES_FILE = HERE.parent / "negatives.txt"
 RESULTS_FILE = HERE.parent / "results" / "latest.json"
 MAX_LOOKUP_HASHES = 500

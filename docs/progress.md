@@ -8,4 +8,4 @@
   - At the 0.85 default a close rewording of a claim matches (cosine 0.90), a looser one does not (0.67); the threshold waits for a full evaluation.
 - [x] M5: crowdsourcing
 - [x] M6: graded highlights
-- [ ] M7: context notes (crowd labels, Community Notes consensus, moderation)
+- [x] M7: context notes (crowd labels, Community Notes consensus, moderation)

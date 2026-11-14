@@ -16,11 +16,19 @@ def insert(conn, sql, *params):
 
 
 def add_note(conn, narrative, classification, status, moderation="visible"):
+    account = conn.execute(
+        "INSERT INTO user_account (email) VALUES (gen_random_uuid() || '@example.com') RETURNING id"
+    ).fetchone()[0]
+    author = conn.execute(
+        "INSERT INTO install (id, account_id) VALUES (gen_random_uuid(), %s) RETURNING id", (account,)
+    ).fetchone()[0]
     return insert(
         conn,
-        "INSERT INTO note (narrative_id, author_install, classification, body, status, moderation)"
-        " VALUES (%s, gen_random_uuid(), %s, 'Context.', %s, %s)",
+        "INSERT INTO note (narrative_id, author_install, account_id, classification, body, status, moderation)"
+        " VALUES (%s, %s, %s, %s, 'Context.', %s, %s)",
         narrative,
+        author,
+        account,
         classification,
         status,
         moderation,

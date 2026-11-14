@@ -36,7 +36,7 @@ In `group_vars/all/vault.yml`, set the secrets and encrypt the file:
 
 - `vault_postgres_password`: `openssl rand -hex 24`. It takes effect only when the database volume is created.
 - `vault_ghcr_token`: a classic personal access token with only `read:packages`, created under GitHub Settings, Developer settings.
-- `vault_hostinger_router_key`: the Hostinger AI Router key. `anthropic_base_url`, `analysis_model` and `paraphrase_model` go in `main.yml`; empty values keep compose.yaml's defaults (`https://router.hostinger.com`, `claude-opus-5.5`, `claude-haiku-5.5`).
+- `vault_hostinger_router_key`: the Hostinger AI Router key. `anthropic_base_url`, `moderation_model`, `moderator_emails`, `moderator_reputation` and `note_min_ratings` go in `main.yml`; empty values keep the defaults (`https://router.hostinger.com`, `claude-haiku-5.5`, no moderator emails, 0.8, 5).
 - `vault_smtp_url`: the SMTP server for magic-link sign-in email, as `smtp[s]://user:pass@host:port`, with `mail_from` in `main.yml`. Without it, sign-in email fails in production. `PUBLIC_API_URL`, the API address in those emails, is set to `https://<app_domain>/api`.
 
 ```sh
@@ -114,15 +114,7 @@ git push origin --delete deploy
 
 ## First release
 
-After `site.yml`, push to `main` or run the release workflow by hand. The first start downloads the embedding model and initialises the database, so it takes several minutes. Then import the EUvsDisinfo seed cases:
-
-```sh
-ssh admin@$VPS_HOST
-cd /srv/junction26
-sudo docker compose exec api python -m app.seed.euvsdisinfo
-```
-
-The import enqueues a fetch job per case, which the worker works through over the next minutes. Rerunning it adds only cases it has not imported.
+After `site.yml`, push to `main` or run the release workflow by hand. The first start downloads the embedding model and initialises the database, so it takes several minutes.
 
 The dashboard is at `https://$VPS_HOST/`. In the extension, set the backend URL to `https://$VPS_HOST/api`.
 
