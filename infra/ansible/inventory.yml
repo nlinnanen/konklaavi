@@ -1,0 +1,7 @@
+# Copy to inventory.yml (gitignored) and set the VPS hostname from hPanel.
+all:
+  hosts:
+    vps:
+      ansible_host: srv2160986.hstgr.cloud
+      # The admin user the harden playbook creates. The very first run uses root: -e ansible_user=root
+      ansible_user: admin
