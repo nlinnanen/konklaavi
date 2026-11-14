@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+import httpx
 import pandas as pd
 import psycopg
 import streamlit as st
@@ -25,3 +26,11 @@ def query(sql: str, params: dict | None = None) -> pd.DataFrame:
     with psycopg.connect(DATABASE_URL) as conn:
         cursor = conn.execute(sql, params)
         return pd.DataFrame(cursor.fetchall(), columns=[c.name for c in cursor.description])
+
+
+@st.cache_data(ttl=10)
+def me(user_id: str) -> dict:
+    """GET /me for an install: its voter's reputation, which is the weight of its votes."""
+    response = httpx.get(f"{API_URL}/me", params={"userId": user_id}, timeout=10)
+    response.raise_for_status()
+    return response.json()
