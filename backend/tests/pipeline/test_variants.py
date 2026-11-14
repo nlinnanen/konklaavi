@@ -43,7 +43,7 @@ def add_fingerprint(conn, text, first_seen, variant_id=None, embed=False):
 
 def add_variant(conn):
     narrative_id = conn.execute(
-        "INSERT INTO narrative (title, source) VALUES ('Sanctions backfire', 'euvsdisinfo') RETURNING id"
+        "INSERT INTO narrative (title, source) VALUES ('Sanctions backfire', 'note') RETURNING id"
     ).fetchone()[0]
     return narrative_id, conn.execute(
         "INSERT INTO variant (narrative_id) VALUES (%s) RETURNING id", (narrative_id,)
@@ -158,7 +158,7 @@ def vectors(conn, narrative_id):
     ).fetchall()
 
 
-def test_narrative_vectors_hold_the_central_blocks_and_the_claim(conn):
+def test_note_narrative_vectors_hold_the_central_blocks_and_the_passage(conn):
     narrative_id, variant_id = add_variant(conn)
     conn.execute(
         "UPDATE narrative SET claim = 'Sanctions against Russia destroy the European economy.' WHERE id = %s",
@@ -168,17 +168,21 @@ def test_narrative_vectors_hold_the_central_blocks_and_the_claim(conn):
     off_topic = add_fingerprint(conn, UNRELATED, T0, variant_id, embed=True)
     unfetched = conn.execute(
         "INSERT INTO narrative (title, claim, source) VALUES"
-        " ('Vaccines', 'Vaccines alter human DNA and the authorities hide it from the public.', 'euvsdisinfo')"
+        " ('Vaccines', 'Vaccines alter human DNA and the authorities hide it from the public.', 'note')"
         " RETURNING id"
     ).fetchone()[0]
+    candidate = conn.execute(
+        "INSERT INTO narrative (title, source) VALUES ('Cluster', 'cluster') RETURNING id"
+    ).fetchone()[0]
 
-    refresh_narrative_vectors(conn, [narrative_id, unfetched])
+    refresh_narrative_vectors(conn, [narrative_id, unfetched, candidate])
 
     kept = vectors(conn, narrative_id)
     assert ("claim", None) in kept
     blocks = {fingerprint_id for kind, fingerprint_id in kept if kind == "block"}
     assert len(blocks) == MAX_BLOCK_VECTORS and blocks < set(related) and off_topic not in blocks
     assert vectors(conn, unfetched) == [("claim", None)]
+    assert vectors(conn, candidate) == []
 
     # Unchanged vectors are not rewritten, so the index sends no delta for them.
     conn.commit()

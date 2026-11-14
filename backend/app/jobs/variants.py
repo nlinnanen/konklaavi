@@ -14,8 +14,6 @@ MIN_SHARED_BANDS = 2
 MIN_JACCARD = 0.5
 # A narrative's vectors hold at most this many of its attached blocks besides its claim.
 MAX_BLOCK_VECTORS = 5
-# Narrative sources that label whole pages of a source, such as a documented network, rather than one claim.
-SOURCE_LEVEL = ("network",)
 
 
 @dataclass(frozen=True)
@@ -125,11 +123,13 @@ def update_centroids(conn: Connection, narrative_ids: set[int]) -> None:
     )
 
 
-def narrative_text(conn: Connection, narrative_id: int) -> str | None:
-    """The narrative's title and claim, the title once when the claim repeats it, or None when there is no
-    such narrative."""
-    row = conn.execute("SELECT title, claim FROM narrative WHERE id = %s", (narrative_id,)).fetchone()
-    return None if row is None else "\n".join(dict.fromkeys(part for part in row if part))
+def narrative_passage(conn: Connection, narrative_id: int) -> str | None:
+    """The passage the narrative's first note was written on (its claim), else its title; None when there
+    is no such narrative."""
+    row = conn.execute(
+        "SELECT coalesce(claim, title) FROM narrative WHERE id = %s", (narrative_id,)
+    ).fetchone()
+    return None if row is None else row[0]
 
 
 def central_blocks(conn: Connection, narrative_ids: list[int]) -> dict[int, set[int]]:
@@ -167,16 +167,16 @@ def central_blocks(conn: Connection, narrative_ids: list[int]) -> dict[int, set[
 
 
 def refresh_narrative_vectors(conn: Connection, narrative_ids: Iterable[int]) -> None:
-    """Bring each narrative's vectors up to date: its central blocks, and its claim when it has none.
+    """Bring each note narrative's vectors up to date: its central blocks, and its passage ('claim') when
+    it has none. Other narratives, such as cluster candidates, are never shipped and get no vectors.
 
     A narrative whose central blocks are unchanged keeps its rows, so GET /index sends it no delta.
     """
-    # A source-level narrative holds no single claim, so it gets no vectors for narrative-level matching.
     ids = [
         row[0]
         for row in conn.execute(
-            "SELECT id FROM narrative WHERE id = ANY(%s) AND source <> ALL(%s) ORDER BY id",
-            (sorted(set(narrative_ids)), list(SOURCE_LEVEL)),
+            "SELECT id FROM narrative WHERE id = ANY(%s) AND source = 'note' ORDER BY id",
+            (sorted(set(narrative_ids)),),
         )
     ]
     if not ids:
@@ -214,7 +214,7 @@ def refresh_narrative_vectors(conn: Connection, narrative_ids: Iterable[int]) ->
     ]
     if not without_claim:
         return
-    texts = [narrative_text(conn, id_) for id_ in without_claim]
+    texts = [narrative_passage(conn, id_) for id_ in without_claim]
     embedded = fpclient.fingerprint(texts, embed=True)["blocks"]
     with conn.cursor() as cur:
         cur.executemany(
@@ -230,13 +230,10 @@ def refresh_narrative_vectors(conn: Connection, narrative_ids: Iterable[int]) ->
 
 @register("narrative_vectors")
 def handle_narrative_vectors(conn: Connection, payload: dict) -> None:
-    """Refresh the given narratives' vectors, or every narrative's that is not retired or rejected."""
+    """Refresh the given narratives' vectors, or every note narrative's."""
     narrative_ids = payload.get("narrative_ids")
     if narrative_ids is None:
-        narrative_ids = [
-            row[0]
-            for row in conn.execute("SELECT id FROM narrative WHERE state NOT IN ('retired', 'rejected')")
-        ]
+        narrative_ids = [row[0] for row in conn.execute("SELECT id FROM narrative WHERE source = 'note'")]
     refresh_narrative_vectors(conn, narrative_ids)
 
 
