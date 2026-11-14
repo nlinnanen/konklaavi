@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { summarize } from './aggregate';
-import { MockApi, type KeyValueStore } from './api';
+import { MOCK_NARRATIVES, MockApi, type KeyValueStore } from './api';
+import { hashNormalized } from './fingerprint';
+import { normalizeText } from './normalize';
 import type { VoteRequest } from './types';
 
 function memoryStore(): KeyValueStore {
@@ -78,5 +80,15 @@ describe('MockApi', () => {
   it('rejects invalid votes', async () => {
     await expect(api.submitVote(vote({ sentenceHashes: [] }))).rejects.toThrow();
     await expect(api.submitVote(vote({ verdict: 'fake' as never }))).rejects.toThrow();
+  });
+});
+
+describe('MockApi narratives', () => {
+  it('flags a seeded narrative sentence with its signature and no votes', async () => {
+    const api = new MockApi(memoryStore());
+    const [narrative] = MOCK_NARRATIVES;
+    const hash = await hashNormalized(normalizeText(narrative!.sentence));
+    const [r] = await api.lookup([hash, 'unknown']);
+    expect(r).toMatchObject({ hash, total: 0, flagged: true, signature: narrative!.signature });
   });
 });

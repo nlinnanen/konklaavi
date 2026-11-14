@@ -1,5 +1,7 @@
 import { emptyCounts, summarize } from './aggregate';
-import { VERDICTS, type DomainStats, type LookupResult, type VoteRequest } from './types';
+import { hashNormalized } from './fingerprint';
+import { normalizeText } from './normalize';
+import { VERDICTS, type DomainStats, type LookupResult, type Signature, type VoteRequest } from './types';
 
 /** The backend contract. See PLAN.md. */
 export interface TrustApi {
@@ -68,12 +70,43 @@ export interface KeyValueStore {
 
 const VOTES_KEY = 'mock:votes';
 
+/**
+ * Sentences the mock backend treats as part of an active narrative, so the
+ * signature UI can be tried without a backend: put one on any page.
+ */
+export const MOCK_NARRATIVES: { sentence: string; signature: Signature }[] = [
+  {
+    sentence: 'The European Union is secretly preparing to ban all private gardens by the end of the decade.',
+    signature: {
+      narrativeId: 'mock-1',
+      title: 'EU plans to ban private gardens',
+      verdict: 'misinformation',
+      techniques: ['fabrication', 'conspiracy framing'],
+      explanation:
+        'No EU institution has proposed restricting private gardens. The claim distorts the Nature Restoration Law, which sets targets for public ecosystems and places no obligations on private households.',
+      source: 'euvsdisinfo',
+      sourceUrl: 'https://euvsdisinfo.eu/',
+      state: 'active',
+      matchLevel: 'exact',
+    },
+  },
+];
+
 export class MockApi implements TrustApi {
   /** minVotes = 1 so a single local vote is enough to see flagging in action. */
   constructor(
     private store: KeyValueStore,
     private minVotes = 1,
   ) {}
+
+  private narratives?: Promise<Map<string, Signature>>;
+
+  private signatures(): Promise<Map<string, Signature>> {
+    this.narratives ??= Promise.all(
+      MOCK_NARRATIVES.map(async (n) => [await hashNormalized(normalizeText(n.sentence)), n.signature] as const),
+    ).then((entries) => new Map(entries));
+    return this.narratives;
+  }
 
   private async votes(): Promise<VoteRequest[]> {
     return (await this.store.get<VoteRequest[]>(VOTES_KEY)) ?? [];
@@ -100,7 +133,14 @@ export class MockApi implements TrustApi {
         counts.set(h, c);
       }
     }
-    return [...counts].map(([hash, c]) => summarize(hash, c, this.minVotes));
+    const signatures = await this.signatures();
+    for (const h of wanted) if (signatures.has(h) && !counts.has(h)) counts.set(h, emptyCounts());
+    return [...counts].map(([hash, c]) => {
+      const result = summarize(hash, c, this.minVotes);
+      const signature = signatures.get(hash);
+      if (!signature) return result;
+      return { ...result, flagged: result.flagged || signature.state === 'active', signature };
+    });
   }
 
   async domainStats(domain: string): Promise<DomainStats> {
