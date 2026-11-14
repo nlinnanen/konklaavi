@@ -1,0 +1,25 @@
+[project]
+name = "hashtrust-crowd"
+version = "0.1.0"
+description = "LLM crowd bots that write and rate HashTrust notes on real news pages"
+requires-python = ">=3.12"
+dependencies = [
+  "anthropic>=2.8.0",
+  "feedparser>=6.0.14",
+  "httpx>=0.28.1",
+  "pyyaml>=6.0.3",
+  "trafilatura>=2.3.1",
+]
+
+[dependency-groups]
+dev = ["pytest>=9.2.0", "ruff"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+extend-select = ["I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

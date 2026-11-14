@@ -1,0 +1,52 @@
+# The overnight run: 30 readers, mostly honest, with two trolls and a four-member brigade.
+domain: crowd.hashtrust.test
+
+sites:
+  rt:
+    feeds:
+      - https://www.rt.com/rss/news/
+      - https://www.rt.com/rss/russia/
+      - https://www.rt.com/rss/business/
+      - https://www.rt.com/rss/op-ed/
+  sputnik:
+    feeds:
+      - https://sputnikglobe.com/export/rss2/archive/index.xml
+  yle:
+    feeds:
+      - https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_NEWS
+  bbc:
+    feeds:
+      - https://feeds.bbci.co.uk/news/world/rss.xml
+      - https://feeds.bbci.co.uk/news/rss.xml
+
+personas:
+  - {name: aino, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: eero, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: helmi, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, yle], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: juho, behaviour: careful_fact_checker, logged_in: false, sites: [sputnik, yle, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: kaisa, behaviour: careful_fact_checker, logged_in: true, sites: [rt, yle], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: lasse, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, rt], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: mikko, behaviour: careful_fact_checker, logged_in: true, sites: [bbc, sputnik], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: noora, behaviour: careful_fact_checker, logged_in: false, sites: [sputnik, yle, rt], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: olli, behaviour: casual_reader, logged_in: true, sites: [rt, bbc], writes_per_hour: 1, rates_per_hour: 6}
+  - {name: pihla, behaviour: casual_reader, logged_in: false, sites: [rt, yle], writes_per_hour: 1, rates_per_hour: 6}
+  - {name: risto, behaviour: casual_reader, logged_in: false, sites: [bbc, rt], writes_per_hour: 1, rates_per_hour: 6}
+  - {name: saara, behaviour: casual_reader, logged_in: true, sites: [rt, bbc, yle], writes_per_hour: 1, rates_per_hour: 6}
+  - {name: tapio, behaviour: casual_reader, logged_in: false, sites: [yle, bbc], writes_per_hour: 1, rates_per_hour: 6}
+  - {name: ulla, behaviour: casual_reader, logged_in: false, sites: [rt, bbc], writes_per_hour: 1, rates_per_hour: 6}
+  - {name: veeti, behaviour: camp_a, logged_in: true, sites: [yle, rt, sputnik], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: aleksi, behaviour: camp_a, logged_in: true, sites: [rt, yle], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: bea, behaviour: camp_a, logged_in: true, sites: [rt, sputnik], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: carl, behaviour: camp_a, logged_in: false, sites: [sputnik, rt], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: dana, behaviour: camp_a, logged_in: true, sites: [rt, sputnik, yle], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: emil, behaviour: camp_b, logged_in: true, sites: [sputnik, yle, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: frida, behaviour: camp_b, logged_in: true, sites: [yle, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: gustav, behaviour: camp_b, logged_in: true, sites: [bbc, sputnik], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: hanna, behaviour: camp_b, logged_in: false, sites: [yle, sputnik, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: ivan, behaviour: camp_b, logged_in: true, sites: [sputnik, yle, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
+  - {name: jonna, behaviour: troll, logged_in: true, sites: [bbc, yle], writes_per_hour: 2, rates_per_hour: 8}
+  - {name: karl, behaviour: troll, logged_in: true, sites: [yle, bbc], writes_per_hour: 2, rates_per_hour: 8}
+  - {name: liisa, behaviour: brigade, logged_in: true, sites: [bbc, rt], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: mats, behaviour: brigade, logged_in: false, sites: [sputnik, bbc], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: nina, behaviour: brigade, logged_in: true, sites: [sputnik, bbc, rt], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: oskar, behaviour: brigade, logged_in: false, sites: [yle, bbc, rt], writes_per_hour: 2, rates_per_hour: 10}
