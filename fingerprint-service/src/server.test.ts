@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { after, before, test } from 'node:test';
 import { fingerprintSentences, hashNormalized, splitSentences } from '../../client/lib/fingerprint';
+import { bands, minhash } from '../../client/lib/minhash';
+import { normalizeText } from '../../client/lib/normalize';
 import { createFingerprintServer, type BlockFingerprint } from './server';
 
 const TEXTS = [
@@ -12,7 +14,18 @@ const TEXTS = [
   'Too short.',
 ];
 
-const server = createFingerprintServer();
+/** Stands in for the model: the vector for a text is [its length]. */
+const embedded: string[][] = [];
+const server = createFingerprintServer(async (texts) => {
+  embedded.push(texts);
+  return texts.map((t) => [t.length]);
+});
+
+async function post(body: unknown): Promise<BlockFingerprint[]> {
+  const res = await fetch(`${baseUrl}/fingerprint`, { method: 'POST', body: JSON.stringify(body) });
+  assert.equal(res.status, 200);
+  return ((await res.json()) as { blocks: BlockFingerprint[] }).blocks;
+}
 let baseUrl = '';
 
 before(async () => {
@@ -21,7 +34,7 @@ before(async () => {
 });
 after(() => server.close());
 
-test('sentence and content hashes over HTTP equal client/lib', async () => {
+test('hashes, MinHash and bands over HTTP equal client/lib', async () => {
   const res = await fetch(`${baseUrl}/fingerprint`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -42,6 +55,9 @@ test('sentence and content hashes over HTTP equal client/lib', async () => {
       blocks[i].contentHash,
       sentences.length > 0 ? (await fingerprintSentences(sentences)).contentHash : null,
     );
+    const signature = sentences.length > 0 ? minhash(normalizeText(text)) : null;
+    assert.deepEqual(blocks[i].minhash, signature);
+    assert.deepEqual(blocks[i].bands, signature && bands(signature));
   }
   assert.equal(blocks[4].contentHash, null);
 });
@@ -50,6 +66,21 @@ test('sentence offsets point at the sentence text', async () => {
   const res = await fetch(`${baseUrl}/fingerprint`, { method: 'POST', body: JSON.stringify({ blocks: [TEXTS[2]] }) });
   const { blocks } = (await res.json()) as { blocks: BlockFingerprint[] };
   for (const s of blocks[0].sentences) assert.equal(TEXTS[2].slice(s.start, s.end), s.text);
+});
+
+test('embeds the blocks that have a content hash only when asked', async () => {
+  embedded.length = 0;
+  assert.deepEqual(
+    (await post({ blocks: TEXTS })).map((b) => b.embedding),
+    TEXTS.map(() => null),
+  );
+  assert.equal(embedded.length, 0);
+
+  const blocks = await post({ blocks: TEXTS, embed: true });
+  assert.deepEqual(
+    blocks.map((b) => b.embedding),
+    TEXTS.map((t, i) => (i === 4 ? null : [t.length])),
+  );
 });
 
 test('rejects a body without a string array of blocks', async () => {
