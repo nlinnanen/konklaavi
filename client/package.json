@@ -13,7 +13,7 @@
     "compile": "tsc --noEmit",
     "test": "vitest run",
     "postinstall": "wxt prepare",
-    "test:e2e": "wxt build && playwright test -c e2e"
+    "test:e2e": "wxt build --mode development && playwright test -c e2e"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
