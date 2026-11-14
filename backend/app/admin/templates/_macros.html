@@ -7,6 +7,15 @@
 <span class="badge" data-state="{{ state }}">{{ note.status.replace('_', ' ')|capitalize }}</span>
 {%- endmacro %}
 
+{% macro decided(note) -%}
+{% if note.decided_by == 'agreement' %}<span class="muted" title="Most raters were new, so the mean rating decided">by agreement</span>
+{%- elif note.decided_by == 'bridging' and note.status != 'controversial' %}<span class="muted" title="Bridging: raters who usually disagree agreed here">by raters who usually disagree</span>{% endif %}
+{%- endmacro %}
+
+{% macro demo_tag(n) -%}
+{% if n.demo %}<span class="tag" title="Seeded by app/demo/seed_raters.py">demo seed</span>{% endif %}
+{%- endmacro %}
+
 {% macro moderation_tag(m) -%}
 <span class="tag" data-moderation="{{ m }}">{{ {'visible': 'Visible', 'pending_review': 'Held', 'hidden': 'Hidden'}[m] }}</span>
 {%- endmacro %}
@@ -16,7 +25,7 @@
 {%- endmacro %}
 
 {% macro ratings(note) -%}
-<span class="ratings" title="{{ note.counted }} of {{ note.ratings }} ratings count (raters signed in)">
+<span class="ratings" title="{{ note.counted }} of {{ note.ratings }} ratings count (one per rater: an account or an install without one, its latest rating)">
   <span class="r-h">{{ note.helpful }} helpful</span> · <span>{{ note.somewhat }} somewhat</span> · <span class="r-n">{{ note.not_helpful }} not helpful</span>{% if note.ratings > note.counted %} <span class="muted">+{{ note.ratings - note.counted }} uncounted</span>{% endif %}
 </span>
 {%- endmacro %}

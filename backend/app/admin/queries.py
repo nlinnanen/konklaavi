@@ -11,6 +11,7 @@ from psycopg.rows import dict_row
 
 from app import trust
 from app.config import settings
+from app.demo.seed_raters import URL_PREFIX as DEMO_SEED
 from app.jobs.variants import MIN_JACCARD
 
 STATES = ("misleading", "controversial", "context", "needs_ratings", "tracked")
@@ -25,8 +26,8 @@ MAX_ROWS = 200
 MAX_MEMBERS = 500
 
 # A narrative's display state follows its visible notes as display_state in app/api/narratives.py does,
-# with its counts of notes, members and spread.
-NARRATIVES = """
+# with its counts of notes, members and spread. `demo` marks the narratives the demo seed wrote.
+NARRATIVES = f"""
 WITH notes AS (
   SELECT narrative_id,
          CASE
@@ -56,6 +57,7 @@ spread AS (
   GROUP BY v.narrative_id
 )
 SELECT n.id, n.title, n.claim, n.source, n.source_url, n.created_at,
+       starts_with(coalesce(n.source_url, ''), '{DEMO_SEED}') AS demo,
        coalesce(nt.state, 'tracked') AS state,
        coalesce(nt.notes, 0) AS notes,
        coalesce(nt.pending, 0) AS pending,
@@ -100,26 +102,38 @@ def narrative(conn: Connection, narrative_id: int) -> dict | None:
     )
 
 
-# Every note with its rating counts: all ratings, and per helpfulness the ones scoring counts (raters
-# whose install is linked to an account).
-NOTES = """
+# Every note with its author and rating counts. A rater is an account, or an install without one, as
+# in app/jobs/score.py: each counts once per note with its latest rating, so `ratings` exceeds `counted`
+# by the earlier ratings of an account's other installs. An install without an account writes notes
+# with no account_id; its author is shown by a short install id.
+NOTES = f"""
 SELECT nt.id, nt.narrative_id, n.title AS narrative, n.claim AS passage, n.source_url AS url,
-       nt.classification, nt.status, nt.moderation, nt.moderation_reason, nt.body, nt.sources,
-       nt.intercept, nt.factor, nt.decided_at, nt.created_at, a.email AS author,
-       count(r.note_id) AS ratings,
-       count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL) AS counted,
-       count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL AND r.helpfulness = 'helpful') AS helpful,
-       count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL AND r.helpfulness = 'somewhat') AS somewhat,
-       count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL AND r.helpfulness = 'not_helpful')
-         AS not_helpful
+       starts_with(coalesce(n.source_url, ''), '{DEMO_SEED}') AS demo,
+       nt.classification, nt.status, nt.decided_by, nt.moderation, nt.moderation_reason, nt.body,
+       nt.sources, nt.intercept, nt.factor, nt.decided_at, nt.created_at,
+       coalesce(a.email, 'Anonymous install ' || left(nt.author_install::text, 8)) AS author,
+       nt.account_id IS NULL AS anonymous,
+       (SELECT count(*) FROM note_rating r WHERE r.note_id = nt.id) AS ratings,
+       rc.counted, rc.helpful, rc.somewhat, rc.not_helpful
 FROM note nt
 JOIN narrative n ON n.id = nt.narrative_id
-JOIN user_account a ON a.id = nt.account_id
-LEFT JOIN note_rating r ON r.note_id = nt.id
-LEFT JOIN install i ON i.id = r.install
+LEFT JOIN user_account a ON a.id = nt.account_id
+CROSS JOIN LATERAL (
+  SELECT count(*) AS counted,
+         count(*) FILTER (WHERE helpfulness = 'helpful') AS helpful,
+         count(*) FILTER (WHERE helpfulness = 'somewhat') AS somewhat,
+         count(*) FILTER (WHERE helpfulness = 'not_helpful') AS not_helpful
+  FROM (
+    SELECT DISTINCT ON (coalesce(i.account_id, r.install)) r.helpfulness
+    FROM note_rating r JOIN install i ON i.id = r.install
+    WHERE r.note_id = nt.id
+    ORDER BY coalesce(i.account_id, r.install), r.created_at DESC
+  ) latest
+) rc
 """
 NOTE_STATUSES = ("needs_more_ratings", "helpful", "not_helpful", "controversial")
 MODERATIONS = ("visible", "pending_review", "hidden")
+RULES = ("bridging", "agreement")
 
 
 def notes(
@@ -128,6 +142,7 @@ def notes(
     moderation: str = "",
     narrative_id: int | None = None,
     note_id: int | None = None,
+    rule: str = "",
 ) -> list[dict]:
     where, params = ["true"], {"limit": MAX_ROWS}
     if status in NOTE_STATUSES:
@@ -136,6 +151,9 @@ def notes(
     if moderation in MODERATIONS:
         where.append("nt.moderation = %(moderation)s")
         params["moderation"] = moderation
+    if rule in RULES:
+        where.append("nt.decided_by = %(rule)s")
+        params["rule"] = rule
     if narrative_id is not None:
         where.append("nt.narrative_id = %(narrative)s")
         params["narrative"] = narrative_id
@@ -143,9 +161,7 @@ def notes(
         where.append("nt.id = %(note)s")
         params["note"] = note_id
     order = "nt.created_at" if moderation == "pending_review" else "nt.created_at DESC"
-    sql = (
-        f"{NOTES} WHERE {' AND '.join(where)} GROUP BY nt.id, n.id, a.email ORDER BY {order} LIMIT %(limit)s"
-    )
+    sql = f"{NOTES} WHERE {' AND '.join(where)} ORDER BY {order} LIMIT %(limit)s"
     return conn.cursor(row_factory=dict_row).execute(sql, params).fetchall()
 
 
@@ -418,7 +434,8 @@ def last_cluster_run(conn: Connection) -> dict | None:
 
 
 def users(conn: Connection) -> list[dict]:
-    """Accounts with their standing, most active first."""
+    """Accounts and installs without one that wrote or rated notes, with their standing, most active
+    first. An install without an account has the capped reputation of trust.py."""
     rows = conn.execute(
         """
         SELECT a.id, a.email, a.created_at,
@@ -436,7 +453,8 @@ def users(conn: Connection) -> list[dict]:
         result.append(
             {
                 "id": account_id,
-                "email": email,
+                "name": email,
+                "anonymous": False,
                 "created_at": created,
                 "installs": installs,
                 "notes": note_count,
@@ -450,5 +468,41 @@ def users(conn: Connection) -> list[dict]:
                 "listed": email in settings.moderator_emails,
             }
         )
-    result.sort(key=lambda u: (-(u["notes"] + u["ratings"]), u["email"]))
+    anonymous = (
+        conn.cursor(row_factory=dict_row)
+        .execute(
+            """
+            SELECT i.id, i.created_at,
+                   count(nt.id) AS notes,
+                   count(nt.id) FILTER (WHERE nt.status = 'helpful') AS helpful_notes,
+                   count(nt.id) FILTER (WHERE nt.status = 'not_helpful') AS unhelpful_notes,
+                   (SELECT count(*) FROM note_rating r WHERE r.install = i.id) AS ratings
+            FROM install i
+            LEFT JOIN note nt ON nt.author_install = i.id AND nt.account_id IS NULL
+            WHERE i.account_id IS NULL
+              AND (EXISTS (SELECT 1 FROM note_rating r WHERE r.install = i.id)
+                   OR EXISTS (SELECT 1 FROM note n WHERE n.author_install = i.id AND n.account_id IS NULL))
+            GROUP BY i.id
+            LIMIT %s
+            """,
+            (MAX_ROWS,),
+        )
+        .fetchall()
+    )
+    capped = trust.Standing(None, None).reputation
+    for row in anonymous:
+        result.append(
+            {
+                **row,
+                "name": f"Anonymous install {str(row['id'])[:8]}",
+                "anonymous": True,
+                "installs": None,
+                "agreed": None,
+                "disagreed": None,
+                "reputation": capped,
+                "moderator": False,
+                "listed": False,
+            }
+        )
+    result.sort(key=lambda u: (-(u["notes"] + u["ratings"]), u["anonymous"], u["name"]))
     return result

@@ -1,4 +1,4 @@
-{% from "_macros.html" import state_badge, when %}
+{% from "_macros.html" import state_badge, demo_tag, when %}
 <div id="narrative-rows" class="table-wrap">
 {% if rows %}
 <table class="data">
@@ -10,7 +10,7 @@
   <tr>
     <td>{{ state_badge(n.state) }}</td>
     <td class="title-cell">
-      <a href="narratives/{{ n.id }}">{{ n.title }}</a>
+      <a href="narratives/{{ n.id }}">{{ n.title }}</a> {{ demo_tag(n) }}
       <span class="sub">#{{ n.id }}{% if n.source == 'cluster' %} · cluster candidate{% endif %}{% if n.variants > 1 %} · {{ n.variants }} variants{% endif %}{% if n.detections %} · {{ n.detections }} detections{% endif %}</span>
     </td>
     <td class="num">{{ n.members }}</td>

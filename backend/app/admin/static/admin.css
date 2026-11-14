@@ -297,6 +297,11 @@ blockquote {
 .dot[data-status="not_helpful"] { fill: var(--misleading); background: var(--misleading); }
 .dot[data-status="needs_more_ratings"] { fill: var(--needs_ratings); background: var(--needs_ratings); }
 .legend .key.dot { border-radius: 50%; }
+.dot.agreement { fill: var(--paper); stroke: currentColor; stroke-width: 2; }
+.dot.agreement[data-status="helpful"] { color: var(--context); }
+.dot.agreement[data-status="not_helpful"] { color: var(--misleading); }
+.dot.agreement:hover { stroke: var(--ink); }
+.legend .key.dot.agreement { background: none; border: 2px solid var(--context); }
 
 .meter { display: inline-block; width: 64px; height: 5px; border-radius: 3px; background: var(--paper-3); overflow: hidden; vertical-align: middle; }
 .meter span { display: block; height: 100%; background: var(--context); }

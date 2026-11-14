@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import state_badge, when, host %}
+{% from "_macros.html" import state_badge, demo_tag, when, host %}
 {% block title %}{{ n.title }}{% endblock %}
 {% macro member(m, level, n) %}
         <li id="m{{ m.id }}">
@@ -19,7 +19,7 @@
 {% block content %}
 <nav class="crumbs"><a href="./">Narratives</a> / #{{ n.id }}</nav>
 <div class="head narrative-head">
-  <div class="head-line">{{ state_badge(n.state) }}<span class="muted">{{ 'Noted by a reader' if n.source == 'note' else 'Cluster candidate' if n.source == 'cluster' else n.source }} · created {{ when(n.created_at) }}</span></div>
+  <div class="head-line">{{ state_badge(n.state) }}{{ demo_tag(n) }}<span class="muted">{{ 'Noted by a reader' if n.source == 'note' else 'Cluster candidate' if n.source == 'cluster' else n.source }} · created {{ when(n.created_at) }}</span></div>
   <h1>{{ n.title }}</h1>
   <p class="summary">
     <b>{{ n.members }}</b> blocks on <b>{{ n.sites }}</b> {{ 'site' if n.sites == 1 else 'sites' }} and <b>{{ n.pages }}</b> {{ 'page' if n.pages == 1 else 'pages' }}

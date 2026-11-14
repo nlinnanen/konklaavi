@@ -1,7 +1,7 @@
-{% from "_macros.html" import status_badge, moderation_tag, when, ratings, score, host %}
+{% from "_macros.html" import status_badge, decided, moderation_tag, when, ratings, score, host %}
 <article class="note{% if action %} moderated{% endif %}" id="note-{{ note.id }}">
   <div class="note-meta">
-    {{ status_badge(note) }} {{ moderation_tag(note.moderation) }}
+    {{ status_badge(note) }} {{ decided(note) }} {{ moderation_tag(note.moderation) }}
     <span>{{ 'Misleading' if note.classification == 'misleading' else 'Not misleading' }}</span>
     <span class="muted">by {{ note.author }} · {{ when(note.created_at) }} · #{{ note.id }}</span>
   </div>

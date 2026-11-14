@@ -193,9 +193,9 @@ def moderation_action(
 
 
 @router.get("/notes", response_class=HTMLResponse)
-def notes_page(request: Request, admin: CurrentAdmin, status: str = "", moderation: str = ""):
+def notes_page(request: Request, admin: CurrentAdmin, status: str = "", moderation: str = "", rule: str = ""):
     with connection() as conn:
-        notes = queries.notes(conn, status, moderation)
+        notes = queries.notes(conn, status, moderation, rule=rule)
     return render(
         request,
         "notes.html",
@@ -205,6 +205,8 @@ def notes_page(request: Request, admin: CurrentAdmin, status: str = "", moderati
         moderation=moderation,
         statuses=queries.NOTE_STATUSES,
         moderations=queries.MODERATIONS,
+        rule=rule,
+        rules=queries.RULES,
         plot=charts.bridging(notes),
         page="notes",
     )

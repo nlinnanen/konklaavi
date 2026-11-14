@@ -107,6 +107,40 @@ def test_only_moderators_approve_or_hide_notes(client, conn, account, monkeypatc
     assert conn.execute("SELECT moderation FROM note WHERE id = %s", (note_id,)).fetchone()[0] == "visible"
 
 
+def test_an_anonymous_note_is_listed_with_its_install_and_counts_one_rating_per_rater(client, conn, account):
+    reader = account("mod@example.org")
+    author, rater, phone, laptop = (
+        conn.execute(
+            "INSERT INTO install (id, account_id) VALUES (gen_random_uuid(), %s) RETURNING id", (a,)
+        ).fetchone()[0]
+        for a in (None, None, reader, reader)
+    )
+    narrative_id = conn.execute(
+        "INSERT INTO narrative (title, claim, source) VALUES ('Claim', 'Claim.', 'note') RETURNING id"
+    ).fetchone()[0]
+    note_id = conn.execute(
+        "INSERT INTO note (narrative_id, author_install, classification, body, status, decided_by, moderation)"
+        " VALUES (%s, %s, 'misleading', 'Context.', 'helpful', 'agreement', 'visible') RETURNING id",
+        (narrative_id, author),
+    ).fetchone()[0]
+    for install in (rater, phone, laptop):
+        conn.execute(
+            "INSERT INTO note_rating (note_id, install, helpfulness) VALUES (%s, %s, 'helpful')",
+            (note_id, install),
+        )
+    conn.commit()
+    sign_in(client, "mod@example.org")
+
+    anonymous = f"Anonymous install {str(author)[:8]}"
+    for page in (client.get("/admin/notes?rule=agreement"), client.get(f"/admin/narratives/{narrative_id}")):
+        assert anonymous in page.text
+        assert "by agreement" in page.text
+        # The reader's two installs count once.
+        assert "2 helpful" in page.text and "+1 uncounted" in page.text
+    assert "Context." not in client.get("/admin/notes?rule=bridging").text
+    assert anonymous in client.get("/admin/users").text
+
+
 def unit(i):
     """A 384-dimension unit vector pointing mostly along axis 0, tilted towards axis i."""
     v = [0.0] * 384
