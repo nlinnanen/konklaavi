@@ -165,6 +165,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - data: the eval leaves out narrative candidates for blocks /lookup flagged through their block hash or any sentence hash.
 - data: the negatives are 313 reliable-outlet articles in nine languages; Reuters, AP, Le Monde, France 24 and LSM refuse anonymous fetches and are left out.
 - integrator: The narrative match threshold is 0.85, the best recall on known narratives at a false-positive rate of at most 1% in the full evaluation (0.0% on 312 reliable-outlet pages).
+- integrator: Text longer than the embedding model's input is chunked into overlapping sentence windows, each embedded on its own, on the client and when building narrative vectors; nothing is truncated.
 
 ## Deferred
 
