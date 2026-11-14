@@ -51,7 +51,6 @@ def site():
     server.server_close()
 
 
-ELECTION = "Rigged election", "Foreign agents rigged the national election and changed the results overnight."
 ON_TOPIC = "The election was rigged by foreign agents according to many anonymous sources today."
 OFF_TOPIC = [
     "The local football club won its third match in a row after a late goal in the second half.",
@@ -63,11 +62,26 @@ def page(*paragraphs: str) -> str:
     return f"<html><body><article>{''.join(f'<p>{p}</p>' for p in paragraphs)}</article></body></html>"
 
 
-def add_narrative(conn, title, claim):
-    return conn.execute(
-        "INSERT INTO narrative (title, claim, source) VALUES (%s, %s, 'euvsdisinfo') RETURNING id",
-        (title, claim),
+def add_note_narrative(conn, passage):
+    """A narrative born from a note on the passage, stored as POST /notes stores it."""
+    [block] = fpclient.fingerprint([passage])["blocks"]
+    narrative_id = conn.execute(
+        "INSERT INTO narrative (title, claim, source) VALUES (%s, %s, 'note') RETURNING id",
+        (passage.split(". ")[0], passage),
     ).fetchone()[0]
+    variant_id = conn.execute(
+        "INSERT INTO variant (narrative_id) VALUES (%s) RETURNING id", (narrative_id,)
+    ).fetchone()[0]
+    fingerprint_id = conn.execute(
+        "INSERT INTO fingerprint (content_hash, content, variant_id) VALUES (%s, %s, %s) RETURNING id",
+        (block["contentHash"], passage, variant_id),
+    ).fetchone()[0]
+    with conn.cursor() as cur:
+        cur.executemany(
+            "INSERT INTO sentence (hash, fingerprint_id) VALUES (%s, %s)",
+            [(sentence["hash"], fingerprint_id) for sentence in block["sentences"]],
+        )
+    return narrative_id
 
 
 def attached(conn, narrative_id):
@@ -164,34 +178,30 @@ def test_refetch_fills_the_signature_of_a_fingerprint_stored_without_one(conn, s
     ).fetchone() == (True, True, 32)
 
 
-def test_only_blocks_relevant_to_the_narrative_are_attached(conn, site):
+def test_a_page_carrying_a_noted_passage_attaches_its_block_to_the_narrative(conn, site):
     routes, base = site
-    routes["/article"] = (200, "text/html", page(ON_TOPIC, *OFF_TOPIC))
-    narrative_id = add_narrative(conn, *ELECTION)
+    passage = "Foreign agents rigged the national election and changed the results overnight."
+    paragraph = f"{passage} Officials in the capital have refused to answer any questions about it."
+    routes["/article"] = (200, "text/html", page(paragraph, *OFF_TOPIC))
+    narrative_id = add_note_narrative(conn, passage)
 
-    handle(conn, {"url": f"{base}/article", "reason": "seed", "narrative_id": narrative_id})
+    handle(conn, {"url": f"{base}/article", "reason": "note", "narrative_id": narrative_id})
 
-    assert attached(conn, narrative_id) == {ON_TOPIC}
-
-
-def test_the_closest_block_is_attached_when_none_is_relevant(conn, site):
-    routes, base = site
-    routes["/article"] = (200, "text/html", page(ON_TOPIC, *OFF_TOPIC))
-    narrative_id = add_narrative(
-        conn, "Healthy pasta", "Pasta cooked with fresh tomatoes and basil is the healthiest dinner at home."
-    )
-
-    handle(conn, {"url": f"{base}/article", "reason": "seed", "narrative_id": narrative_id})
-
-    assert attached(conn, narrative_id) == {OFF_TOPIC[1]}
+    assert attached(conn, narrative_id) == {passage, paragraph}
+    # The passage gets the signature and bands GET /index ships for variant matching.
+    assert conn.execute(
+        "SELECT minhash IS NOT NULL, embedding IS NOT NULL, (SELECT count(*) FROM lsh_band b WHERE b.fingerprint_id = f.id)"
+        " FROM fingerprint f WHERE content = %s",
+        (passage,),
+    ).fetchone() == (True, True, 32)
 
 
 def test_narrative_centroid_is_the_mean_of_its_attached_embeddings(conn, site):
     routes, base = site
     routes["/article"] = (200, "text/html", ARTICLE)
-    narrative_id = add_narrative(conn, *ELECTION)
+    narrative_id = add_note_narrative(conn, PARAGRAPHS[0])
 
-    handle(conn, {"url": f"{base}/article", "reason": "seed", "narrative_id": narrative_id})
+    handle(conn, {"url": f"{base}/article", "reason": "note", "narrative_id": narrative_id})
 
     embeddings = [
         row[0]
@@ -209,41 +219,28 @@ def test_narrative_centroid_is_the_mean_of_its_attached_embeddings(conn, site):
 
 def test_a_near_duplicate_on_two_pages_of_a_domain_is_detached_as_boilerplate(conn, site):
     routes, base = site
-    teaser = "Updated {}: read our full investigation into how foreign agents rigged the national election."
-    second = "Anonymous sources say foreign agents rigged the election and changed the results overnight."
-    routes["/first"] = (200, "text/html", page(ON_TOPIC, teaser.format("12 March 2025")))
-    routes["/second"] = (200, "text/html", page(second, teaser.format("3 April 2025")))
-    narrative_id = add_narrative(conn, *ELECTION)
+    passage = "Foreign agents rigged the national election and changed the results overnight."
+    teaser = "Our investigation was updated on {} with reports from officials in the capital. " + passage
+    routes["/first"] = (200, "text/html", page(teaser.format("12 March 2025")))
+    routes["/second"] = (200, "text/html", page(teaser.format("3 April 2025"), passage))
+    narrative_id = add_note_narrative(conn, passage)
 
-    handle(conn, {"url": f"{base}/first", "reason": "seed", "narrative_id": narrative_id})
-    assert attached(conn, narrative_id) == {ON_TOPIC, teaser.format("12 March 2025")}
-    handle(conn, {"url": f"{base}/second", "reason": "seed", "narrative_id": narrative_id})
+    handle(conn, {"url": f"{base}/first", "reason": "note", "narrative_id": narrative_id})
+    assert attached(conn, narrative_id) == {passage, teaser.format("12 March 2025")}
+    handle(conn, {"url": f"{base}/second", "reason": "hit", "narrative_id": narrative_id})
 
-    assert attached(conn, narrative_id) == {ON_TOPIC, second}
+    assert attached(conn, narrative_id) == {passage}
 
 
 def test_a_short_line_is_never_attached(conn, site):
     routes, base = site
     short = "Foreign agents rigged the election."
     routes["/article"] = (200, "text/html", page(short, ON_TOPIC))
-    narrative_id = add_narrative(conn, *ELECTION)
+    narrative_id = add_note_narrative(conn, f"{short} {ON_TOPIC}")
 
-    handle(conn, {"url": f"{base}/article", "reason": "seed", "narrative_id": narrative_id})
+    handle(conn, {"url": f"{base}/article", "reason": "note", "narrative_id": narrative_id})
 
-    assert attached(conn, narrative_id) == {ON_TOPIC}
-
-
-def test_a_narrative_left_without_blocks_gets_the_next_best_block_of_its_pages(conn, site):
-    routes, base = site
-    routes["/first"] = (200, "text/html", page(ON_TOPIC, OFF_TOPIC[0]))
-    routes["/other"] = (200, "text/html", page(ON_TOPIC, OFF_TOPIC[1]))
-    narrative_id = add_narrative(conn, *ELECTION)
-
-    handle(conn, {"url": f"{base}/first", "reason": "seed", "narrative_id": narrative_id})
-    assert attached(conn, narrative_id) == {ON_TOPIC}
-    handle(conn, {"url": f"{base}/other", "reason": "vote"})
-
-    assert attached(conn, narrative_id) == {OFF_TOPIC[0]}
+    assert attached(conn, narrative_id) == {f"{short} {ON_TOPIC}", ON_TOPIC}
 
 
 def test_a_hit_refetches_only_a_page_not_fetched_in_the_last_day(conn, site):
@@ -260,22 +257,20 @@ def test_a_hit_refetches_only_a_page_not_fetched_in_the_last_day(conn, site):
     assert conn.execute("SELECT count(*) FROM fingerprint").fetchone()[0] == 2
 
 
-def test_a_hit_page_joins_the_hits_narrative_and_derives_from_the_seed(conn, site):
+def test_an_edited_copy_on_a_hit_page_joins_the_narrative_and_derives_from_the_original(conn, site):
     routes, base = site
     original = (
         "Western sanctions against Russia have backfired and are destroying the European economy, while"
         " ordinary citizens in Germany and France pay record prices for gas and electricity."
     )
     edited = original.replace("record prices", "insane prices")
-    routes["/seed"] = (200, "text/html", page(original, OFF_TOPIC[0]))
+    routes["/original"] = (200, "text/html", page(original, OFF_TOPIC[0]))
     routes["/copy"] = (200, "text/html", page(edited, OFF_TOPIC[1]))
-    narrative_id = add_narrative(
-        conn, "Sanctions backfire", "Western sanctions against Russia are destroying the European economy."
-    )
-    handle(conn, {"url": f"{base}/seed", "reason": "seed", "narrative_id": narrative_id})
+    narrative_id = add_note_narrative(conn, original)
+    handle(conn, {"url": f"{base}/original", "reason": "note", "narrative_id": narrative_id})
     conn.execute("DELETE FROM job")
 
-    # Another domain for the same server, so the copy is not boilerplate of the seed's domain.
+    # Another domain for the same server, so the copy is not boilerplate of the original's domain.
     copy_url = f"{base.replace('127.0.0.1', 'localhost')}/copy"
     handle(conn, {"url": copy_url, "reason": "hit", "narrative_id": narrative_id})
     [(payload,)] = conn.execute("SELECT payload FROM job WHERE kind = 'match_variants'").fetchall()
