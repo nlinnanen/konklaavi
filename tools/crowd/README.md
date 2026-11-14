@@ -1,8 +1,8 @@
 # Crowd bots
 
-LLM personas that read real news sites and write and rate Konklaavi notes through the public API, so that scoring, moderation and reputation run on realistic data. Each persona has a behaviour: `careful_fact_checker`, `casual_reader`, `camp_a` and `camp_b` are honest (the camps differ only in political framing), `troll` and `brigade` act in bad faith. `crowd.yaml` is a trial of 8 personas on 4 sites and `crowd-overnight.yaml` an overnight run of 100 on 49.
+LLM personas that read real news sites and write and rate Konklaavi notes through the public API, so that scoring, moderation and reputation run on realistic data. Each persona has a behaviour: `careful_fact_checker`, `casual_reader`, `camp_a` and `camp_b` are honest (the camps differ only in political framing), `troll` and `brigade` act in bad faith. The runner, not the model, does the bad part, since the model declines to deceive in character: a bad persona's note labels an article of a site marked `accurate` misleading and any other not misleading, and the model only writes the one-sided opinion in it. A troll rates bad personas' notes helpful and other notes on accurate sites not helpful; a brigade member rates fellow members' notes helpful and all others not helpful. Neither calls the model to rate. `crowd.yaml` is a trial of 8 personas on 4 sites and `crowd-overnight.yaml` an overnight run of 100 on 49.
 
-A persona with `logged_in: true` signs in as `bot-<name>@crowd.hashtrust.test`, with the password in `CROWD_BOT_PASSWORD` or one generated into the state file; one without writes as an anonymous install. The state file `.crowd-state-<api host>.json` beside the config holds those identities and every note and rating each persona made, which is the ground truth for checking whether reputation separates the good personas from the bad ones. It holds passwords and stays out of git; the run appends one line per action to `crowd-<api host>.log`.
+A persona with `logged_in: true` signs in as `bot-<name>@crowd.hashtrust.test`, with the password in `CROWD_BOT_PASSWORD` or one generated into the state file; one without writes as an anonymous install. The state file `.crowd-state-<api host>.json` beside the config, named by the canonical host (`konklaavi.tech` for its alias `srv2160986.hstgr.cloud`, whose files a run takes over), holds those identities and every note and rating each persona made, which is the ground truth for checking whether reputation separates the good personas from the bad ones. It holds passwords and stays out of git; the run appends one line per action to `crowd-<api host>.log`.
 
 ## Sites
 
@@ -17,7 +17,7 @@ Left out:
 
 ## Running
 
-Every command runs in this directory with the router key from the worktree's `.env`. Sonnet costs about 0.57 credits per note decision (0.05 to 1.2) and 0.21 per batch of three ratings (mostly 0.13); brigade members rate without the model.
+Every command runs in this directory with the router key in `HOSTINGER_ROUTER_KEY` or `ANTHROPIC_API_KEY`, here from the worktree's `.env`. Sonnet costs about 0.57 credits per note decision (0.05 to 1.2) and 0.21 per batch of three ratings (mostly 0.13); trolls and brigade members rate without the model.
 
 The 30-minute trial against production, stopping at 20 credits:
 
@@ -25,11 +25,7 @@ The 30-minute trial against production, stopping at 20 credits:
 set -a; . ../../.env; set +a; uv run python -m crowd run --config crowd.yaml --api https://konklaavi.tech/api --minutes 30 --budget-credits 20
 ```
 
-The overnight run, ten hours at about 280 credits an hour:
-
-```sh
-set -a; . ../../.env; set +a; uv run python -m crowd run --config crowd-overnight.yaml --api https://konklaavi.tech/api --minutes 600 --budget-credits 3000 --workers 32 --llm-concurrency 32
-```
+The overnight run of six hours at about 500 credits an hour runs on the VPS, as "Run on the server" below describes.
 
 Due actions run on a pool of `--workers` threads (default 16). A persona has at most one action in flight, so its hourly caps hold, while different personas act at once. `--llm-concurrency` (default 16) caps the model calls in flight; a call the router turns away (rate limit, overload, server error) or drops is retried a few times with jittered backoff. The 3-second interval per news host holds across all workers.
 
@@ -46,6 +42,40 @@ Removal runs on the server, since anonymous installs can only be named by their 
 ```sh
 uv run python -m crowd remove --config crowd.yaml --api https://konklaavi.tech/api
 ```
+
+## Run on the server
+
+The overnight run runs on the VPS as `admin`, in a tmux session that outlives the SSH login. The repository is private, so the clone uses the GitHub key forwarded from your machine:
+
+```sh
+ssh -A admin@srv2160986.hstgr.cloud
+git clone git@github.com:nlinnanen/konklaavi.git ~/konklaavi-crowd
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+On your machine, copy the trial's state file over so the bots keep their accounts; the first run renames it after `konklaavi.tech`:
+
+```sh
+scp -p ~/code/junction26/main/tools/crowd/.crowd-state-srv2160986.hstgr.cloud.json admin@srv2160986.hstgr.cloud:konklaavi-crowd/tools/crowd/
+```
+
+Back on the server, take the router key from the app's `.env` and start the run:
+
+```sh
+export HOSTINGER_ROUTER_KEY="$(sudo sed -n 's/^HOSTINGER_ROUTER_KEY=//p' /srv/junction26/.env)"
+cd ~/konklaavi-crowd/tools/crowd
+tmux new-session -d -s crowd "~/.local/bin/uv run python -m crowd run --config crowd-overnight.yaml --api https://konklaavi.tech/api --minutes 360 --budget-credits 3000 --workers 48 --llm-concurrency 32 2>&1 | tee -a run.out"
+```
+
+Follow the actions, attach to the session (detach with Ctrl-B D), or stop the run as Ctrl-C does:
+
+```sh
+tail -f ~/konklaavi-crowd/tools/crowd/crowd-konklaavi.tech.log
+tmux attach -t crowd
+tmux send-keys -t crowd C-c
+```
+
+`report` and `remove` run in the same directory, with the state file the run left there.
 
 ## What to check in the admin panel
 

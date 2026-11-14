@@ -4,28 +4,25 @@ import argparse
 import logging
 from collections import Counter
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from crowd import config as crowd_config
 from crowd.api import Api, ApiError
 from crowd.behaviours import GOOD
-from crowd.state import State, path_for
+from crowd.state import State, paths_for
 
 
-def run(args, config, state: State) -> None:
+def run(args, config, state: State, log_path: Path) -> None:
     from crowd.llm import Llm
     from crowd.runner import Runner
     from crowd.web import Web
 
-    host = urlsplit(args.api).netloc.replace(":", "_")
-    log_path = args.config.parent / f"crowd-{host}.log"
     llm = Llm(args.model, args.llm_concurrency)
     Runner(config, Api(args.api), state, llm, Web(), log_path, args.workers).run(
         args.minutes, args.budget_credits
     )
 
 
-def report(args, config, state: State) -> None:
+def report(args, config, state: State, _log: Path) -> None:
     api = Api(args.api)
     reputations: dict[bool, list[float]] = {True: [], False: []}
     print(f"{'persona':<16} {'behaviour':<21} {'in':<3} notes  statuses{'':<36} ratings agreed  rep")
@@ -55,7 +52,7 @@ def report(args, config, state: State) -> None:
     print(f"credits used across runs: {state.data.get('credits', 0):.3f}")
 
 
-def remove(args, config, state: State) -> None:
+def remove(args, config, state: State, _log: Path) -> None:
     anonymous = [r["install"] for r in state.data["personas"].values() if not r["logged_in"]]
     command = f"python -m app.demo.remove_bots --domain {config.domain}"
     command += "".join(f" --install {install}" for install in anonymous)
@@ -81,8 +78,9 @@ def main() -> None:
     args.config = args.config.resolve()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     config = crowd_config.load(args.config)
-    state = State(path_for(args.config, args.api), args.api)
-    {"run": run, "report": report, "remove": remove}[args.command](args, config, state)
+    state_path, log_path = paths_for(args.config, args.api)
+    state = State(state_path, args.api)
+    {"run": run, "report": report, "remove": remove}[args.command](args, config, state, log_path)
 
 
 if __name__ == "__main__":

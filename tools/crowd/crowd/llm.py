@@ -35,9 +35,9 @@ class Call:
 
 class Llm:
     def __init__(self, model: str = MODEL, concurrency: int = 16):
-        key = os.environ.get("HOSTINGER_ROUTER_KEY")
+        key = os.environ.get("HOSTINGER_ROUTER_KEY") or os.environ.get("ANTHROPIC_API_KEY")
         if not key:
-            raise SystemExit("HOSTINGER_ROUTER_KEY is not set")
+            raise SystemExit("neither HOSTINGER_ROUTER_KEY nor ANTHROPIC_API_KEY is set")
         # call() retries a busy router itself, waiting outside the concurrency slots.
         self.client = anthropic.Anthropic(
             api_key=key, base_url=os.environ.get("CROWD_ROUTER_URL", ROUTER), max_retries=0

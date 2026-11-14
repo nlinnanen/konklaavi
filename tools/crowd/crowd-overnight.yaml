@@ -1,72 +1,99 @@
 # The overnight run: 100 readers across 49 sites, 85 honest, with nine trolls and a six-member brigade.
-# At about 0.57 credits per note decision and 0.21 per batch of three ratings they spend about 280 credits
-# an hour. Fact-checkers read across the spectrum, camp_a leans to mainstream and liberal outlets and
-# camp_b to sceptical ones, each with one outlet of the other side, trolls read accurate outlets, and the
-# brigade reads accurate outlets to flag and hyperpartisan ones to defend.
+# At about 0.57 credits per note decision and 0.21 per batch of three honest ratings they spend about 500
+# credits an hour, 3000 in six hours. Fact-checkers read across the spectrum, camp_a leans to mainstream
+# and liberal outlets and camp_b to sceptical ones, each with one outlet of the other side, trolls read
+# accurate outlets, and the brigade reads accurate outlets to flag and hyperpartisan ones to defend.
 domain: crowd.hashtrust.test
 
 sites:
   # International public and mainstream
   bbc:
+    accurate: true
+    domains: [bbc.co.uk, bbc.com]
     feeds:
       - https://feeds.bbci.co.uk/news/world/rss.xml
       - https://feeds.bbci.co.uk/news/rss.xml
   guardian:
+    accurate: true
     feeds:
       - https://www.theguardian.com/world/rss
       - https://www.theguardian.com/uk-news/rss
   dw:
+    accurate: true
     feeds: [https://rss.dw.com/rdf/rss-en-all]
   france24:
+    accurate: true
     feeds: [https://www.france24.com/en/rss]
   aljazeera:
+    accurate: true
     feeds: [https://www.aljazeera.com/xml/rss/all.xml]
   npr:
+    accurate: true
     feeds:
       - https://feeds.npr.org/1001/rss.xml
       - https://feeds.npr.org/1004/rss.xml
   cbc:
+    accurate: true
     feeds:
       - https://www.cbc.ca/webfeed/rss/rss-world
       - https://www.cbc.ca/webfeed/rss/rss-topstories
   abc_au:
+    accurate: true
     feeds: [https://www.abc.net.au/news/feed/51120/rss.xml]
   politico_eu:
+    accurate: true
     feeds: [https://www.politico.eu/feed/]
   euronews:
+    accurate: true
     feeds: ["https://www.euronews.com/rss?format=mrss&level=theme&name=news"]
   independent:
+    accurate: true
     feeds: [https://www.independent.co.uk/news/world/rss]
   thehill:
+    accurate: true
     feeds: [https://thehill.com/feed/]
   newsweek:
+    accurate: true
     feeds: [https://www.newsweek.com/rss]
   kyivindependent:
+    accurate: true
     feeds: [https://kyivindependent.com/news-archive/rss/]
   meduza:
+    accurate: true
     feeds: [https://meduza.io/rss/en/all]
   err:
+    accurate: true
     feeds: [https://news.err.ee/rss]
   tagesschau:
+    accurate: true
     feeds: [https://www.tagesschau.de/xml/rss2/]
   # Finnish and Nordic
   yle:
+    accurate: true
     feeds: ["https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_NEWS"]
   yle_fi:
+    accurate: true
     feeds: ["https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET"]
   iltalehti:
+    accurate: true
     feeds: [https://www.iltalehti.fi/rss/uutiset.xml]
   iltasanomat:
+    accurate: true
     feeds: [https://www.is.fi/rss/tuoreimmat.xml]
   helsinkitimes:
+    accurate: true
     feeds: ["https://www.helsinkitimes.fi/?format=feed&type=rss"]
   svt:
+    accurate: true
     feeds: [https://www.svt.se/nyheter/rss.xml]
   aftonbladet:
+    accurate: true
     feeds: [https://rss.aftonbladet.se/rss2/small/pages/sections/senastenytt/]
   nrk:
+    accurate: true
     feeds: [https://www.nrk.no/toppsaker.rss]
   dr:
+    accurate: true
     feeds: [https://www.dr.dk/nyheder/service/feeds/allenyheder]
   # US right, partisan to hyperpartisan
   foxnews:
@@ -127,103 +154,103 @@ sites:
     feeds: [https://hnrss.org/frontpage]
 
 personas:
-  - {name: aino, behaviour: careful_fact_checker, logged_in: false, sites: [politico_eu, iltasanomat, gatewaypundit, alternet, cgtn, lifesitenews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: eero, behaviour: careful_fact_checker, logged_in: true, sites: [tagesschau, iltalehti, foxnews, dailykos, rt, activistpost], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: helmi, behaviour: careful_fact_checker, logged_in: true, sites: [guardian, yle, theblaze, commondreams, tass, lifesitenews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: juho, behaviour: careful_fact_checker, logged_in: true, sites: [dw, helsinkitimes, breitbart, dailykos, cgtn, naturalnews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: kaisa, behaviour: careful_fact_checker, logged_in: true, sites: [kyivindependent, aftonbladet, gatewaypundit, dailykos, rt, lewrockwell], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: lasse, behaviour: careful_fact_checker, logged_in: true, sites: [france24, iltasanomat, foxnews, commondreams, tass, lewrockwell], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: mikko, behaviour: careful_fact_checker, logged_in: false, sites: [kyivindependent, nrk, gatewaypundit, alternet, cgtn, consortium], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: noora, behaviour: careful_fact_checker, logged_in: true, sites: [guardian, yle, newsmax, intercept, rt, lifesitenews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: olli, behaviour: careful_fact_checker, logged_in: true, sites: [france24, aftonbladet, foxnews, intercept, sputnik, lifesitenews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: pihla, behaviour: careful_fact_checker, logged_in: true, sites: [guardian, yle, theblaze, dailykos, tass, offguardian], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: risto, behaviour: careful_fact_checker, logged_in: true, sites: [npr, yle_fi, breitbart, commondreams, rt, naturalnews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: saara, behaviour: careful_fact_checker, logged_in: true, sites: [guardian, yle, zerohedge, alternet, rt, lewrockwell], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: tapio, behaviour: careful_fact_checker, logged_in: true, sites: [err, nrk, zerohedge, intercept, cgtn, naturalnews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: ulla, behaviour: careful_fact_checker, logged_in: true, sites: [france24, yle_fi, newsmax, alternet, sputnik, lewrockwell], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: veeti, behaviour: careful_fact_checker, logged_in: true, sites: [abc_au, iltalehti, gatewaypundit, intercept, cgtn, offguardian], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: akseli, behaviour: careful_fact_checker, logged_in: true, sites: [independent, yle_fi, gatewaypundit, dailykos, sputnik, consortium], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: aada, behaviour: careful_fact_checker, logged_in: false, sites: [guardian, yle, newsmax, alternet, sputnik, lewrockwell], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: elias, behaviour: careful_fact_checker, logged_in: false, sites: [dw, iltasanomat, breitbart, motherjones, cgtn, offguardian], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: ella, behaviour: careful_fact_checker, logged_in: true, sites: [cbc, aftonbladet, newsmax, dailykos, rt, naturalnews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: hugo, behaviour: careful_fact_checker, logged_in: false, sites: [bbc, iltasanomat, newsmax, dailykos, sputnik, lifesitenews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: iris, behaviour: careful_fact_checker, logged_in: true, sites: [aljazeera, yle, gatewaypundit, intercept, sputnik, activistpost], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: joel, behaviour: careful_fact_checker, logged_in: true, sites: [tagesschau, yle, foxnews, alternet, cgtn, lifesitenews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: kerttu, behaviour: careful_fact_checker, logged_in: false, sites: [france24, dr, zerohedge, commondreams, tass, activistpost], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: leo, behaviour: careful_fact_checker, logged_in: true, sites: [abc_au, yle, gatewaypundit, dailykos, tass, lewrockwell], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: lumi, behaviour: careful_fact_checker, logged_in: true, sites: [kyivindependent, iltasanomat, zerohedge, intercept, cgtn, lifesitenews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: aleksi, behaviour: casual_reader, logged_in: true, sites: [dr, err, independent, yle_fi], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: bea, behaviour: casual_reader, logged_in: true, sites: [aftonbladet, helsinkitimes, politico_eu, offguardian], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: carl, behaviour: casual_reader, logged_in: true, sites: [euronews, yle_fi, err, france24], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: dana, behaviour: casual_reader, logged_in: false, sites: [politico_eu, newsweek, guardian, aljazeera], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: emil, behaviour: casual_reader, logged_in: true, sites: [iltalehti, helsinkitimes, euronews, newsweek], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: frida, behaviour: casual_reader, logged_in: true, sites: [iltalehti, euronews, abc_au, tagesschau], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: gustav, behaviour: casual_reader, logged_in: false, sites: [yle_fi, politico_eu, tagesschau, hackernews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: hanna, behaviour: casual_reader, logged_in: true, sites: [kyivindependent, nrk, iltalehti, guardian], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: ivan, behaviour: casual_reader, logged_in: true, sites: [iltalehti, nrk, independent, meduza], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: jonna, behaviour: casual_reader, logged_in: true, sites: [meduza, euronews, france24, bbc], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: karl, behaviour: casual_reader, logged_in: true, sites: [aftonbladet, tagesschau, france24, bbc], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: liisa, behaviour: casual_reader, logged_in: false, sites: [guardian, dr, svt, naturalnews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: mats, behaviour: casual_reader, logged_in: false, sites: [aftonbladet, yle_fi, helsinkitimes, aljazeera], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: nina, behaviour: casual_reader, logged_in: true, sites: [aljazeera, newsweek, svt, offguardian], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: matias, behaviour: casual_reader, logged_in: true, sites: [nrk, dw, aftonbladet, noahpinion], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: nelli, behaviour: casual_reader, logged_in: true, sites: [nrk, thehill, france24, commondreams], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: onni, behaviour: casual_reader, logged_in: true, sites: [newsweek, err, aftonbladet, offguardian], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: pinja, behaviour: casual_reader, logged_in: true, sites: [cbc, aftonbladet, kyivindependent, yle_fi], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: saga, behaviour: casual_reader, logged_in: true, sites: [iltalehti, politico_eu, aftonbladet, cbc], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: sisu, behaviour: casual_reader, logged_in: true, sites: [iltasanomat, helsinkitimes, err, offguardian], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: toni, behaviour: casual_reader, logged_in: true, sites: [dw, thehill, meduza, yle], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: venla, behaviour: casual_reader, logged_in: false, sites: [politico_eu, aljazeera, nrk, abc_au], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: aaron, behaviour: casual_reader, logged_in: true, sites: [euronews, aftonbladet, yle, err], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: astrid, behaviour: casual_reader, logged_in: false, sites: [dr, svt, yle_fi, helsinkitimes], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: benjamin, behaviour: casual_reader, logged_in: false, sites: [aljazeera, err, guardian, cgtn], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: clara, behaviour: casual_reader, logged_in: true, sites: [aftonbladet, iltalehti, meduza, cbc], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: david, behaviour: casual_reader, logged_in: true, sites: [meduza, err, euronews, yle], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: eva, behaviour: casual_reader, logged_in: true, sites: [nrk, meduza, dr, zerohedge], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: felix, behaviour: casual_reader, logged_in: true, sites: [err, cbc, npr, abc_au], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: hilda, behaviour: casual_reader, logged_in: true, sites: [politico_eu, dw, iltalehti, tagesschau], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: oskar, behaviour: camp_a, logged_in: true, sites: [yle_fi, dr, commondreams, foxnews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: petra, behaviour: camp_a, logged_in: true, sites: [france24, politico_eu, commondreams, cgtn], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: quentin, behaviour: camp_a, logged_in: true, sites: [meduza, france24, commondreams, zerohedge], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: rasmus, behaviour: camp_a, logged_in: true, sites: [yle_fi, kyivindependent, alternet, rt], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: sofia, behaviour: camp_a, logged_in: true, sites: [tagesschau, cbc, motherjones, theblaze], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: teemu, behaviour: camp_a, logged_in: true, sites: [svt, france24, intercept, breitbart], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: urho, behaviour: camp_a, logged_in: true, sites: [yle, newsweek, motherjones, sputnik], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: valtteri, behaviour: camp_a, logged_in: true, sites: [iltasanomat, dw, alternet, tass], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: wilma, behaviour: camp_a, logged_in: true, sites: [tagesschau, guardian, motherjones, breitbart], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: xavier, behaviour: camp_a, logged_in: true, sites: [iltalehti, iltasanomat, motherjones, sputnik], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: ylva, behaviour: camp_a, logged_in: true, sites: [tagesschau, thehill, intercept, zerohedge], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: isak, behaviour: camp_a, logged_in: false, sites: [iltasanomat, nrk, intercept, foxnews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: julia, behaviour: camp_a, logged_in: true, sites: [svt, independent, alternet, foxnews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: kasper, behaviour: camp_a, logged_in: false, sites: [dr, bbc, motherjones, breitbart], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: lotta, behaviour: camp_a, logged_in: true, sites: [dr, thehill, motherjones, theblaze], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: zoe, behaviour: camp_b, logged_in: true, sites: [gatewaypundit, rt, lifesitenews, thehill], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: arttu, behaviour: camp_b, logged_in: false, sites: [foxnews, tass, rt, abc_au], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: birgit, behaviour: camp_b, logged_in: true, sites: [gatewaypundit, offguardian, consortium, npr], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: cecilia, behaviour: camp_b, logged_in: false, sites: [gatewaypundit, lifesitenews, sputnik, helsinkitimes], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: daniel, behaviour: camp_b, logged_in: false, sites: [theblaze, lewrockwell, naturalnews, guardian], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: elina, behaviour: camp_b, logged_in: false, sites: [theblaze, consortium, naturalnews, err], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: fredrik, behaviour: camp_b, logged_in: true, sites: [gatewaypundit, cgtn, rt, meduza], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: greta, behaviour: camp_b, logged_in: true, sites: [zerohedge, cgtn, tass, commondreams, thehill], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: heikki, behaviour: camp_b, logged_in: false, sites: [foxnews, activistpost, lifesitenews, err], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: iida, behaviour: camp_b, logged_in: true, sites: [newsmax, activistpost, consortium, helsinkitimes], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: jari, behaviour: camp_b, logged_in: true, sites: [breitbart, lewrockwell, offguardian, politico_eu], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: magnus, behaviour: camp_b, logged_in: false, sites: [theblaze, activistpost, lewrockwell, intercept, euronews], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: maria, behaviour: camp_b, logged_in: false, sites: [zerohedge, lifesitenews, naturalnews, intercept, politico_eu], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: nils, behaviour: camp_b, logged_in: false, sites: [theblaze, activistpost, naturalnews, svt], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: oona, behaviour: camp_b, logged_in: true, sites: [foxnews, activistpost, lewrockwell, yle_fi], writes_per_hour: 3.5, rates_per_hour: 12}
-  - {name: katja, behaviour: troll, logged_in: false, sites: [politico_eu, helsinkitimes, svt, npr], writes_per_hour: 4, rates_per_hour: 12}
-  - {name: leevi, behaviour: troll, logged_in: true, sites: [svt, abc_au, iltalehti, cbc], writes_per_hour: 4, rates_per_hour: 12}
-  - {name: minna, behaviour: troll, logged_in: true, sites: [err, svt, cbc, dw], writes_per_hour: 4, rates_per_hour: 12}
-  - {name: niko, behaviour: troll, logged_in: false, sites: [dw, iltalehti, thehill, aljazeera], writes_per_hour: 4, rates_per_hour: 12}
-  - {name: patrik, behaviour: troll, logged_in: true, sites: [cbc, err, independent, guardian], writes_per_hour: 4, rates_per_hour: 12}
-  - {name: rebecka, behaviour: troll, logged_in: true, sites: [nrk, err, politico_eu, aftonbladet], writes_per_hour: 4, rates_per_hour: 12}
-  - {name: simon, behaviour: troll, logged_in: true, sites: [abc_au, tagesschau, euronews, kyivindependent], writes_per_hour: 4, rates_per_hour: 12}
-  - {name: tilda, behaviour: troll, logged_in: true, sites: [dr, npr, yle, svt], writes_per_hour: 4, rates_per_hour: 12}
-  - {name: viktor, behaviour: troll, logged_in: true, sites: [guardian, newsweek, cbc, yle], writes_per_hour: 4, rates_per_hour: 12}
-  - {name: otto, behaviour: brigade, logged_in: true, sites: [guardian, dr, nrk, naturalnews, zerohedge], writes_per_hour: 4, rates_per_hour: 15}
-  - {name: paula, behaviour: brigade, logged_in: false, sites: [cbc, thehill, newsweek, offguardian, cgtn], writes_per_hour: 4, rates_per_hour: 15}
-  - {name: rauli, behaviour: brigade, logged_in: true, sites: [euronews, guardian, dw, breitbart, naturalnews], writes_per_hour: 4, rates_per_hour: 15}
-  - {name: sanna, behaviour: brigade, logged_in: false, sites: [independent, thehill, yle_fi, breitbart, sputnik], writes_per_hour: 4, rates_per_hour: 15}
-  - {name: tuomas, behaviour: brigade, logged_in: false, sites: [tagesschau, bbc, politico_eu, foxnews, tass], writes_per_hour: 4, rates_per_hour: 15}
-  - {name: tuuli, behaviour: brigade, logged_in: false, sites: [iltasanomat, politico_eu, france24, tass, lewrockwell], writes_per_hour: 4, rates_per_hour: 15}
+  - {name: aino, behaviour: careful_fact_checker, logged_in: false, sites: [politico_eu, iltasanomat, gatewaypundit, alternet, cgtn, lifesitenews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: eero, behaviour: careful_fact_checker, logged_in: true, sites: [tagesschau, iltalehti, foxnews, dailykos, rt, activistpost], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: helmi, behaviour: careful_fact_checker, logged_in: true, sites: [guardian, yle, theblaze, commondreams, tass, lifesitenews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: juho, behaviour: careful_fact_checker, logged_in: true, sites: [dw, helsinkitimes, breitbart, dailykos, cgtn, naturalnews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: kaisa, behaviour: careful_fact_checker, logged_in: true, sites: [kyivindependent, aftonbladet, gatewaypundit, dailykos, rt, lewrockwell], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: lasse, behaviour: careful_fact_checker, logged_in: true, sites: [france24, iltasanomat, foxnews, commondreams, tass, lewrockwell], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: mikko, behaviour: careful_fact_checker, logged_in: false, sites: [kyivindependent, nrk, gatewaypundit, alternet, cgtn, consortium], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: noora, behaviour: careful_fact_checker, logged_in: true, sites: [guardian, yle, newsmax, intercept, rt, lifesitenews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: olli, behaviour: careful_fact_checker, logged_in: true, sites: [france24, aftonbladet, foxnews, intercept, sputnik, lifesitenews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: pihla, behaviour: careful_fact_checker, logged_in: true, sites: [guardian, yle, theblaze, dailykos, tass, offguardian], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: risto, behaviour: careful_fact_checker, logged_in: true, sites: [npr, yle_fi, breitbart, commondreams, rt, naturalnews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: saara, behaviour: careful_fact_checker, logged_in: true, sites: [guardian, yle, zerohedge, alternet, rt, lewrockwell], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: tapio, behaviour: careful_fact_checker, logged_in: true, sites: [err, nrk, zerohedge, intercept, cgtn, naturalnews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: ulla, behaviour: careful_fact_checker, logged_in: true, sites: [france24, yle_fi, newsmax, alternet, sputnik, lewrockwell], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: veeti, behaviour: careful_fact_checker, logged_in: true, sites: [abc_au, iltalehti, gatewaypundit, intercept, cgtn, offguardian], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: akseli, behaviour: careful_fact_checker, logged_in: true, sites: [independent, yle_fi, gatewaypundit, dailykos, sputnik, consortium], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: aada, behaviour: careful_fact_checker, logged_in: false, sites: [guardian, yle, newsmax, alternet, sputnik, lewrockwell], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: elias, behaviour: careful_fact_checker, logged_in: false, sites: [dw, iltasanomat, breitbart, motherjones, cgtn, offguardian], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: ella, behaviour: careful_fact_checker, logged_in: true, sites: [cbc, aftonbladet, newsmax, dailykos, rt, naturalnews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: hugo, behaviour: careful_fact_checker, logged_in: false, sites: [bbc, iltasanomat, newsmax, dailykos, sputnik, lifesitenews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: iris, behaviour: careful_fact_checker, logged_in: true, sites: [aljazeera, yle, gatewaypundit, intercept, sputnik, activistpost], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: joel, behaviour: careful_fact_checker, logged_in: true, sites: [tagesschau, yle, foxnews, alternet, cgtn, lifesitenews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: kerttu, behaviour: careful_fact_checker, logged_in: false, sites: [france24, dr, zerohedge, commondreams, tass, activistpost], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: leo, behaviour: careful_fact_checker, logged_in: true, sites: [abc_au, yle, gatewaypundit, dailykos, tass, lewrockwell], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: lumi, behaviour: careful_fact_checker, logged_in: true, sites: [kyivindependent, iltasanomat, zerohedge, intercept, cgtn, lifesitenews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: aleksi, behaviour: casual_reader, logged_in: true, sites: [dr, err, independent, yle_fi], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: bea, behaviour: casual_reader, logged_in: true, sites: [aftonbladet, helsinkitimes, politico_eu, offguardian], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: carl, behaviour: casual_reader, logged_in: true, sites: [euronews, yle_fi, err, france24], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: dana, behaviour: casual_reader, logged_in: false, sites: [politico_eu, newsweek, guardian, aljazeera], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: emil, behaviour: casual_reader, logged_in: true, sites: [iltalehti, helsinkitimes, euronews, newsweek], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: frida, behaviour: casual_reader, logged_in: true, sites: [iltalehti, euronews, abc_au, tagesschau], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: gustav, behaviour: casual_reader, logged_in: false, sites: [yle_fi, politico_eu, tagesschau, hackernews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: hanna, behaviour: casual_reader, logged_in: true, sites: [kyivindependent, nrk, iltalehti, guardian], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: ivan, behaviour: casual_reader, logged_in: true, sites: [iltalehti, nrk, independent, meduza], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: jonna, behaviour: casual_reader, logged_in: true, sites: [meduza, euronews, france24, bbc], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: karl, behaviour: casual_reader, logged_in: true, sites: [aftonbladet, tagesschau, france24, bbc], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: liisa, behaviour: casual_reader, logged_in: false, sites: [guardian, dr, svt, naturalnews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: mats, behaviour: casual_reader, logged_in: false, sites: [aftonbladet, yle_fi, helsinkitimes, aljazeera], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: nina, behaviour: casual_reader, logged_in: true, sites: [aljazeera, newsweek, svt, offguardian], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: matias, behaviour: casual_reader, logged_in: true, sites: [nrk, dw, aftonbladet, noahpinion], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: nelli, behaviour: casual_reader, logged_in: true, sites: [nrk, thehill, france24, commondreams], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: onni, behaviour: casual_reader, logged_in: true, sites: [newsweek, err, aftonbladet, offguardian], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: pinja, behaviour: casual_reader, logged_in: true, sites: [cbc, aftonbladet, kyivindependent, yle_fi], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: saga, behaviour: casual_reader, logged_in: true, sites: [iltalehti, politico_eu, aftonbladet, cbc], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: sisu, behaviour: casual_reader, logged_in: true, sites: [iltasanomat, helsinkitimes, err, offguardian], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: toni, behaviour: casual_reader, logged_in: true, sites: [dw, thehill, meduza, yle], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: venla, behaviour: casual_reader, logged_in: false, sites: [politico_eu, aljazeera, nrk, abc_au], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: aaron, behaviour: casual_reader, logged_in: true, sites: [euronews, aftonbladet, yle, err], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: astrid, behaviour: casual_reader, logged_in: false, sites: [dr, svt, yle_fi, helsinkitimes], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: benjamin, behaviour: casual_reader, logged_in: false, sites: [aljazeera, err, guardian, cgtn], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: clara, behaviour: casual_reader, logged_in: true, sites: [aftonbladet, iltalehti, meduza, cbc], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: david, behaviour: casual_reader, logged_in: true, sites: [meduza, err, euronews, yle], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: eva, behaviour: casual_reader, logged_in: true, sites: [nrk, meduza, dr, zerohedge], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: felix, behaviour: casual_reader, logged_in: true, sites: [err, cbc, npr, abc_au], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: hilda, behaviour: casual_reader, logged_in: true, sites: [politico_eu, dw, iltalehti, tagesschau], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: oskar, behaviour: camp_a, logged_in: true, sites: [yle_fi, dr, commondreams, foxnews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: petra, behaviour: camp_a, logged_in: true, sites: [france24, politico_eu, commondreams, cgtn], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: quentin, behaviour: camp_a, logged_in: true, sites: [meduza, france24, commondreams, zerohedge], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: rasmus, behaviour: camp_a, logged_in: true, sites: [yle_fi, kyivindependent, alternet, rt], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: sofia, behaviour: camp_a, logged_in: true, sites: [tagesschau, cbc, motherjones, theblaze], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: teemu, behaviour: camp_a, logged_in: true, sites: [svt, france24, intercept, breitbart], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: urho, behaviour: camp_a, logged_in: true, sites: [yle, newsweek, motherjones, sputnik], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: valtteri, behaviour: camp_a, logged_in: true, sites: [iltasanomat, dw, alternet, tass], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: wilma, behaviour: camp_a, logged_in: true, sites: [tagesschau, guardian, motherjones, breitbart], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: xavier, behaviour: camp_a, logged_in: true, sites: [iltalehti, iltasanomat, motherjones, sputnik], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: ylva, behaviour: camp_a, logged_in: true, sites: [tagesschau, thehill, intercept, zerohedge], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: isak, behaviour: camp_a, logged_in: false, sites: [iltasanomat, nrk, intercept, foxnews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: julia, behaviour: camp_a, logged_in: true, sites: [svt, independent, alternet, foxnews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: kasper, behaviour: camp_a, logged_in: false, sites: [dr, bbc, motherjones, breitbart], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: lotta, behaviour: camp_a, logged_in: true, sites: [dr, thehill, motherjones, theblaze], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: zoe, behaviour: camp_b, logged_in: true, sites: [gatewaypundit, rt, lifesitenews, thehill], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: arttu, behaviour: camp_b, logged_in: false, sites: [foxnews, tass, rt, abc_au], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: birgit, behaviour: camp_b, logged_in: true, sites: [gatewaypundit, offguardian, consortium, npr], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: cecilia, behaviour: camp_b, logged_in: false, sites: [gatewaypundit, lifesitenews, sputnik, helsinkitimes], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: daniel, behaviour: camp_b, logged_in: false, sites: [theblaze, lewrockwell, naturalnews, guardian], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: elina, behaviour: camp_b, logged_in: false, sites: [theblaze, consortium, naturalnews, err], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: fredrik, behaviour: camp_b, logged_in: true, sites: [gatewaypundit, cgtn, rt, meduza], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: greta, behaviour: camp_b, logged_in: true, sites: [zerohedge, cgtn, tass, commondreams, thehill], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: heikki, behaviour: camp_b, logged_in: false, sites: [foxnews, activistpost, lifesitenews, err], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: iida, behaviour: camp_b, logged_in: true, sites: [newsmax, activistpost, consortium, helsinkitimes], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: jari, behaviour: camp_b, logged_in: true, sites: [breitbart, lewrockwell, offguardian, politico_eu], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: magnus, behaviour: camp_b, logged_in: false, sites: [theblaze, activistpost, lewrockwell, intercept, euronews], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: maria, behaviour: camp_b, logged_in: false, sites: [zerohedge, lifesitenews, naturalnews, intercept, politico_eu], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: nils, behaviour: camp_b, logged_in: false, sites: [theblaze, activistpost, naturalnews, svt], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: oona, behaviour: camp_b, logged_in: true, sites: [foxnews, activistpost, lewrockwell, yle_fi], writes_per_hour: 6, rates_per_hour: 24}
+  - {name: katja, behaviour: troll, logged_in: false, sites: [politico_eu, helsinkitimes, svt, npr], writes_per_hour: 7, rates_per_hour: 24}
+  - {name: leevi, behaviour: troll, logged_in: true, sites: [svt, abc_au, iltalehti, cbc], writes_per_hour: 7, rates_per_hour: 24}
+  - {name: minna, behaviour: troll, logged_in: true, sites: [err, svt, cbc, dw], writes_per_hour: 7, rates_per_hour: 24}
+  - {name: niko, behaviour: troll, logged_in: false, sites: [dw, iltalehti, thehill, aljazeera], writes_per_hour: 7, rates_per_hour: 24}
+  - {name: patrik, behaviour: troll, logged_in: true, sites: [cbc, err, independent, guardian], writes_per_hour: 7, rates_per_hour: 24}
+  - {name: rebecka, behaviour: troll, logged_in: true, sites: [nrk, err, politico_eu, aftonbladet], writes_per_hour: 7, rates_per_hour: 24}
+  - {name: simon, behaviour: troll, logged_in: true, sites: [abc_au, tagesschau, euronews, kyivindependent], writes_per_hour: 7, rates_per_hour: 24}
+  - {name: tilda, behaviour: troll, logged_in: true, sites: [dr, npr, yle, svt], writes_per_hour: 7, rates_per_hour: 24}
+  - {name: viktor, behaviour: troll, logged_in: true, sites: [guardian, newsweek, cbc, yle], writes_per_hour: 7, rates_per_hour: 24}
+  - {name: otto, behaviour: brigade, logged_in: true, sites: [guardian, dr, nrk, naturalnews, zerohedge], writes_per_hour: 7, rates_per_hour: 30}
+  - {name: paula, behaviour: brigade, logged_in: false, sites: [cbc, thehill, newsweek, offguardian, cgtn], writes_per_hour: 7, rates_per_hour: 30}
+  - {name: rauli, behaviour: brigade, logged_in: true, sites: [euronews, guardian, dw, breitbart, naturalnews], writes_per_hour: 7, rates_per_hour: 30}
+  - {name: sanna, behaviour: brigade, logged_in: false, sites: [independent, thehill, yle_fi, breitbart, sputnik], writes_per_hour: 7, rates_per_hour: 30}
+  - {name: tuomas, behaviour: brigade, logged_in: false, sites: [tagesschau, bbc, politico_eu, foxnews, tass], writes_per_hour: 7, rates_per_hour: 30}
+  - {name: tuuli, behaviour: brigade, logged_in: false, sites: [iltasanomat, politico_eu, france24, tass, lewrockwell], writes_per_hour: 7, rates_per_hour: 30}

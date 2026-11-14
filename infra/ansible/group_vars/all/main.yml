@@ -53,7 +53,7 @@ postgres_password: "{{ vault_postgres_password }}"
 # Hostinger AI Router. Empty values keep the defaults: https://router.hostinger.com and
 # claude-haiku-5.5; model ids are listed at https://router.hostinger.com/v1/models.
 hostinger_router_key: "{{ vault_hostinger_router_key | default('') }}"
-anthropic_base_url: "https://router.hostinger.com/v1"
+anthropic_base_url: ""
 moderation_model: ""
 # Comma-separated emails of moderators; accounts above moderator_reputation moderate too.
 moderator_emails: "rvirtaha@gmail.com,test@test.test,mikael@a.com,hashtrust@linnanen.fi"
