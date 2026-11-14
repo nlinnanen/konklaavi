@@ -7,6 +7,7 @@ generated passwords, so it stays out of git.
 import json
 import os
 import secrets
+import threading
 import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -22,6 +23,8 @@ def path_for(config_path: Path, api: str) -> Path:
 class State:
     def __init__(self, path: Path, api: str):
         self.path = path
+        # Held by whoever mutates or reads the records while workers run, and by save().
+        self.lock = threading.RLock()
         self.data = json.loads(path.read_text()) if path.exists() else {"api": api, "personas": {}}
 
     def persona(self, persona: Persona, domain: str) -> dict:
@@ -41,7 +44,9 @@ class State:
         return os.environ.get("CROWD_BOT_PASSWORD") or record["password"]
 
     def save(self) -> None:
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.data, indent=1))
-        tmp.chmod(0o600)
-        tmp.replace(self.path)
+        with self.lock:
+            text = json.dumps(self.data, indent=1)
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(text)
+            tmp.chmod(0o600)
+            tmp.replace(self.path)

@@ -1,3 +1,8 @@
+import itertools
+import threading
+import time
+
+from crowd import web
 from crowd.web import Robots, clean
 
 RT = """
@@ -36,3 +41,17 @@ def test_a_group_naming_the_crowd_agent_replaces_the_star_group():
 def test_feed_tracking_parameters_are_dropped():
     url = "https://www.bbc.co.uk/news/articles/c1?at_medium=RSS&at_campaign=rss&page=2"
     assert clean(url) == "https://www.bbc.co.uk/news/articles/c1?page=2"
+
+
+def test_requests_to_one_host_keep_the_interval_across_threads(monkeypatch):
+    monkeypatch.setattr(web, "MIN_INTERVAL", 0.2)
+    reader = web.Web()
+    starts: list[float] = []
+    monkeypatch.setattr(reader.client, "get", lambda url: starts.append(time.monotonic()))
+    threads = [threading.Thread(target=reader._get, args=("https://x.test/a",)) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    gaps = [b - a for a, b in itertools.pairwise(starts)]
+    assert len(starts) == 4 and min(gaps) >= 0.2
