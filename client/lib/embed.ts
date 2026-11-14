@@ -51,3 +51,43 @@ export function createEmbedder(pipeline: PipelineFactory): Embedder {
     return out;
   };
 }
+
+const INT8_SCALE = 127;
+
+/**
+ * A unit vector as base64 of one int8 per value, round(v * 127) with halves rounded up.
+ * `backend/app/vectors.py` encodes the same bytes.
+ */
+export function quantize(vector: ArrayLike<number>): string {
+  let binary = '';
+  for (let i = 0; i < vector.length; i++) {
+    const q = Math.max(-INT8_SCALE, Math.min(INT8_SCALE, Math.floor((vector[i] ?? 0) * INT8_SCALE + 0.5)));
+    binary += String.fromCharCode(q & 0xff);
+  }
+  return btoa(binary);
+}
+
+/** The vector a `quantize` string encodes, at most 1/254 off per value. */
+export function dequantize(encoded: string): Float32Array {
+  const binary = atob(encoded);
+  const out = new Float32Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    out[i] = ((binary.charCodeAt(i) << 24) >> 24) / INT8_SCALE;
+  }
+  return out;
+}
+
+/** Cosine similarity; 0 when either vector is zero. */
+export function cosine(a: ArrayLike<number>, b: ArrayLike<number>): number {
+  let dot = 0;
+  let aa = 0;
+  let bb = 0;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    dot += x * y;
+    aa += x * x;
+    bb += y * y;
+  }
+  return aa === 0 || bb === 0 ? 0 : dot / Math.sqrt(aa * bb);
+}
