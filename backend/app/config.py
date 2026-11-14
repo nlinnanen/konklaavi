@@ -13,6 +13,7 @@ class Settings:
     anthropic_api_key: str | None
     anthropic_base_url: str | None
     analysis_model: str | None
+    paraphrase_model: str | None
     # Cosine at which a block matches a narrative's vectors.
     narrative_match_threshold: float
 
@@ -26,6 +27,7 @@ def load() -> Settings:
         anthropic_api_key=_env("ANTHROPIC_API_KEY"),
         anthropic_base_url=_env("ANTHROPIC_BASE_URL"),
         analysis_model=_env("ANALYSIS_MODEL"),
+        paraphrase_model=_env("PARAPHRASE_MODEL"),
         narrative_match_threshold=float(_env("NARRATIVE_MATCH_THRESHOLD") or "0.85"),
     )
 
