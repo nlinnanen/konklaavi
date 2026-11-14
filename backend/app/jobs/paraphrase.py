@@ -148,4 +148,9 @@ def handle(conn: Connection, payload: dict) -> None:
     """Paraphrase up to MAX_PER_RUN shipped narratives that have none, BATCH per LLM call."""
     ids = pending(conn, MAX_PER_RUN)
     for start in range(0, len(ids), BATCH):
-        add_paraphrases(conn, ids[start : start + BATCH], claude_paraphrase)
+        batch = ids[start : start + BATCH]
+        try:
+            add_paraphrases(conn, batch, claude_paraphrase)
+        except RuntimeError:
+            # The model now and then answers in text; the batch stays pending for the next run.
+            log.exception("paraphrasing narratives %s failed", batch)
