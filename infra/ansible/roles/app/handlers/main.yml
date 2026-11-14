@@ -5,3 +5,11 @@
     chdir: "{{ app_dir }}"
   when: app_current_image_tag | length > 0
   changed_when: true
+
+# Runs after the configuration is applied, so Caddy starts with the new Caddyfile.
+- name: Restart Caddy
+  ansible.builtin.command:
+    cmd: docker compose restart caddy
+    chdir: "{{ app_dir }}"
+  when: app_current_image_tag | length > 0
+  changed_when: true
