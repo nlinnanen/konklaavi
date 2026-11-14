@@ -293,13 +293,15 @@ def evaluate(client: httpx.Client, timeout: float) -> dict:
     unreachable = []
     for name, labelled in sets.items():
         for page in labelled:
+            # The in-process API takes a pooled connection too, so none is held across the lookup.
             with connection() as conn:
                 blocks = page_blocks(conn, page.url)
                 if blocks is None:
                     unreachable.append({"url": page.url, "set": name, "status": page_status(conn, page.url)})
                     continue
-                page = replace(page, matches=page_matches(client, blocks))
-                if page.positive and not page.flagged:
+            page = replace(page, matches=page_matches(client, blocks))
+            if page.positive and not page.flagged:
+                with connection() as conn:
                     page = replace(page, reason=miss_reason(conn, page.url, page.narrative_id))
             pages[name].append(page)
 
@@ -340,7 +342,7 @@ def _percent(value: float | None) -> str:
     return "n/a" if value is None else f"{100 * value:.1f}%"
 
 
-def _print_set(title: str, section: dict, negatives: dict) -> None:
+def _print_set(title: str, section: dict) -> None:
     m = section["metrics"]
     print(title)
     print(f"{'':10}{'flagged':>10}{'not flagged':>14}")
@@ -360,14 +362,12 @@ def print_table(results: dict) -> None:
         f" from {known['cases']} seed cases ({known['seed_overlap']} URLs also fetched as seeds left out);"
         f" {known['flagged_by_own_narrative']} flagged by their own case's narrative",
         known,
-        neg,
     )
     _print_set(
         f"Unseen narratives (held out whole, so low recall is expected): {unseen['pages']} pages of"
         f" {unseen['urls']} URLs from {unseen['cases']} test cases ({unseen['seed_overlap']} URLs also fetched"
         " as seeds left out)",
         unseen,
-        neg,
     )
     print(f"Negatives: {neg['pages']} pages of {neg['urls']} reliable-outlet URLs")
     for page in neg["false_positives"]:
