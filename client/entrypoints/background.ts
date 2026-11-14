@@ -139,6 +139,14 @@ async function handle(msg: BackgroundRequest, sender: Browser.runtime.MessageSen
     case 'clearMock':
       await mockApi.clear();
       return null;
+    case 'requestMagicLink': {
+      if (settings.backendMode === 'mock') throw new Error('Accounts need a backend');
+      await new RemoteApi(settings.backendUrl).requestMagicLink({ userId: await getUserId(), email: msg.payload });
+      return null;
+    }
+    case 'me':
+      if (settings.backendMode === 'mock') return null;
+      return new RemoteApi(settings.backendUrl).me(await getUserId());
     default:
       throw new Error(`Unknown request ${(msg as { type?: unknown }).type}`);
   }

@@ -54,3 +54,10 @@ button { flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid var(-
 button.danger { color: var(--misinformation); }
 ul.flagged .narrative { margin-top: 4px; }
 ul.flagged a { color: inherit; }
+#sign-in { display: flex; gap: 8px; margin: 6px 0; }
+#sign-in[hidden] { display: none; }
+#sign-in input { flex: 1; padding: 5px 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+#sign-in button { flex: 0 0 auto; }
+.outcome { font-size: 12px; }
+.outcome.confirmed { color: var(--trustworthy); }
+.outcome.rejected { color: var(--muted); }

@@ -48,7 +48,7 @@ openssl rand -hex 24
 nano .env
 ```
 
-In `.env`, set `DOMAIN` to the VPS hostname without a scheme, `POSTGRES_PASSWORD` to the output of `openssl rand -hex 24`, and `ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL` to the Hostinger AI Router key and URL. `ANALYSIS_MODEL` picks the model the router serves; empty means `claude-opus-5-5`. `COMPOSE_FILE` makes every `docker compose` command in this directory use the production override. `POSTGRES_PASSWORD` takes effect only when the database volume is created.
+In `.env`, set `DOMAIN` to the VPS hostname without a scheme, `POSTGRES_PASSWORD` to the output of `openssl rand -hex 24`, and `HOSTINGER_ROUTER_KEY` to the Hostinger AI Router key. Compose passes it to the backend as `ANTHROPIC_API_KEY`, with `ANTHROPIC_BASE_URL` set to `https://router.hostinger.com`, the router's Anthropic Messages API; setting either variable in `.env` overrides it. `ANALYSIS_MODEL` (default `claude-opus-5.5`) and `PARAPHRASE_MODEL` (default `claude-haiku-5.5`) take model ids from the router's catalogue at `https://router.hostinger.com/v1/models`. `COMPOSE_FILE` makes every `docker compose` command in this directory use the production override. `POSTGRES_PASSWORD` takes effect only when the database volume is created.
 
 ### Deploy key for GitHub Actions
 

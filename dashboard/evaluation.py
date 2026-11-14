@@ -1,16 +1,9 @@
 import json
-import os
-from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-RESULTS = Path(
-    os.environ.get("EVAL_RESULTS")
-    or Path(__file__).resolve().parent.parent / "backend" / "app" / "eval" / "results" / "latest.json"
-)
-# simulation/sim.py writes its runs next to the evaluation results.
-SIMULATION = RESULTS.parent / "simulation.json"
+from common import RESULTS, SIMULATION
 
 
 def percent(value: float | None) -> str:
@@ -196,7 +189,7 @@ if RESULTS.is_file():
     show_evaluation(json.loads(RESULTS.read_text()))
 else:
     st.info(f"No results at {RESULTS}. Run `python -m app.eval` in backend/.")
-if SIMULATION.is_file():
-    show_simulation(json.loads(SIMULATION.read_text())["runs"])
+if SIMULATION.is_file() and (runs := json.loads(SIMULATION.read_text()).get("runs")):
+    show_simulation(runs)
 else:
     st.info(f"No simulation results at {SIMULATION}. Run `uv run python sim.py` in simulation/.")
