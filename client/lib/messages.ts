@@ -85,6 +85,7 @@ export const SOURCE_LABELS: Record<Signature['source'], string> = {
   report: 'User reports',
   cluster: 'Detected cluster',
   network: 'Documented network (VIGINUM)',
+  factcheck: 'Fact-checker',
 };
 
 /** The signature's source URL when it is safe to link to (http or https), else null. */
