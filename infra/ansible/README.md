@@ -36,7 +36,8 @@ In `group_vars/all/vault.yml`, set the secrets and encrypt the file:
 
 - `vault_postgres_password`: `openssl rand -hex 24`. It takes effect only when the database volume is created.
 - `vault_ghcr_token`: a classic personal access token with only `read:packages`, created under GitHub Settings, Developer settings.
-- `vault_anthropic_api_key`: the Hostinger AI Router key. `anthropic_base_url` and `analysis_model` go in `main.yml`; an empty model means `claude-opus-5-5`.
+- `vault_hostinger_router_key`: the Hostinger AI Router key. `anthropic_base_url`, `analysis_model` and `paraphrase_model` go in `main.yml`; empty values keep compose.yaml's defaults (`https://router.hostinger.com`, `claude-opus-5.5`, `claude-haiku-5.5`).
+- `vault_smtp_url`: the SMTP server for magic-link sign-in email, as `smtp[s]://user:pass@host:port`, with `mail_from` in `main.yml`. Without it, sign-in email fails in production. `PUBLIC_API_URL`, the API address in those emails, is set to `https://<app_domain>/api`.
 
 ```sh
 ansible-vault encrypt group_vars/all/vault.yml
