@@ -1,6 +1,6 @@
 import { embeddable, type LookupBlock, type NarrativeBlock } from '@/lib/api';
 import { fingerprintSentences, hashNormalized, splitSentences, type Sentence } from '@/lib/fingerprint';
-import { callBackground } from '@/lib/messages';
+import { callBackground, ContextInvalidatedError } from '@/lib/messages';
 import { bands, minhash } from '@/lib/minhash';
 import { normalizeText } from '@/lib/normalize';
 import type { LookupResult } from '@/lib/types';
@@ -51,6 +51,7 @@ export class PageScanner {
   private dirty = new Set<Node>();
   private timer?: ReturnType<typeof setTimeout>;
   private running: Promise<void> = Promise.resolve();
+  private stopped = false;
 
   constructor(private highlighter: Highlighter) {}
 
@@ -70,6 +71,20 @@ export class PageScanner {
     this.observer.observe(document.body, { childList: true, subtree: true, characterData: true });
   }
 
+  /** Stops watching the page for good, as when the extension was reloaded under this script. */
+  stop() {
+    this.stopped = true;
+    this.observer?.disconnect();
+    clearTimeout(this.timer);
+    this.dirty.clear();
+  }
+
+  /** Logs a failed pass, or stops quietly when the extension runtime is gone. */
+  private failed(what: string, e: unknown) {
+    if (e instanceof ContextInvalidatedError) this.stop();
+    else console.warn(`[hashtrust] ${what} failed`, e);
+  }
+
   private flushDirty() {
     const roots = [...this.dirty];
     this.dirty.clear();
@@ -79,7 +94,9 @@ export class PageScanner {
   /** Scan (or rescan) the blocks containing the given roots. Serialized so passes don't interleave. */
   scan(roots: Iterable<Node>, force = false): Promise<void> {
     const list = [...roots];
-    this.running = this.running.then(() => this.doScan(list, force)).catch((e) => console.warn('[hashtrust] scan failed', e));
+    this.running = this.running
+      .then(() => (this.stopped ? undefined : this.doScan(list, force)))
+      .catch((e) => this.failed('scan', e));
     return this.running;
   }
 
@@ -126,7 +143,7 @@ export class PageScanner {
     }
 
     for (const block of touched) this.highlighter.setBlock(block.model.block, this.flaggedRanges(block));
-    void this.matchNarratives(touched);
+    this.matchNarratives(touched).catch((e) => this.failed('narrative matching', e));
   }
 
   /**
@@ -144,13 +161,7 @@ export class PageScanner {
     }
     if (!pending.size) return;
     for (const hash of pending.keys()) this.narrativeChecked.add(hash);
-    let found: LookupResult[];
-    try {
-      found = await callBackground('matchNarratives', [...pending.values()]);
-    } catch (e) {
-      console.warn('[hashtrust] narrative matching failed', e);
-      return;
-    }
+    const found = await callBackground('matchNarratives', [...pending.values()]);
     if (!found.length) return;
     found.forEach((r) => this.results.set(r.hash, r));
     const matched = new Set(found.map((r) => r.hash));
