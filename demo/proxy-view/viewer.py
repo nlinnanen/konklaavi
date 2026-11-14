@@ -1,0 +1,189 @@
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["fastapi", "uvicorn", "httpx", "trafilatura"]
+# ///
+"""HashTrust proxy view: shows a page with what the extension would flag, without the extension.
+
+The server fetches the page, strips its scripts, keeps its CSS and images through <base href>,
+and injects a scanner. The scanner sends the page's main text (extracted by trafilatura, as
+/check does for a URL) to the HashTrust API's /check and highlights the matches in place.
+
+    uv run demo/proxy-view/viewer.py                       # uses the deployed API
+    HASHTRUST_API=http://localhost:8000 uv run demo/proxy-view/viewer.py
+    open http://localhost:8787
+"""
+
+import html
+import json
+import os
+from pathlib import Path
+from urllib.parse import quote, urljoin, urlparse
+
+import httpx
+import lxml.html
+import trafilatura
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+
+API = os.environ.get("HASHTRUST_API", "https://srv2160986.hstgr.cloud/api").rstrip("/")
+PORT = int(os.environ.get("PORT", "8787"))
+HERE = Path(__file__).parent
+UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
+app = FastAPI(title="HashTrust proxy view")
+
+
+def page(title: str, body: str) -> HTMLResponse:
+    return HTMLResponse(
+        f"<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
+        f"<title>{html.escape(title)}</title><style>{(HERE / 'home.css').read_text()}</style>{body}"
+    )
+
+
+def form(url: str = "") -> str:
+    return (
+        "<form action=/view target=_top><input name=url type=url required placeholder='https://… article URL' "
+        f"value='{html.escape(url, quote=True)}' autofocus><button>Scan</button></form>"
+    )
+
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return page(
+        "HashTrust proxy view",
+        f"<main><h1>HashTrust <span>proxy view</span></h1><p>Open any article and see what the "
+        f"extension would flag.</p>{form()}<p class=meta>API: <code>{html.escape(API)}</code></p></main>",
+    )
+
+
+def error(url: str, message: str, status: int = 502) -> HTMLResponse:
+    response = page(
+        "Could not load page",
+        f"<main><h1>Could not load the page</h1><p class=err>{html.escape(message)}</p>{form(url)}</main>",
+    )
+    response.status_code = status
+    return response
+
+
+def rewrite(doc: lxml.html.HtmlElement, base: str, proxy: str) -> None:
+    """Make the page inert and self-contained: no scripts, links stay in the proxy, lazy images load."""
+    for el in doc.xpath("//script | //iframe | //object | //embed | //meta[@http-equiv]"):
+        el.drop_tree()
+    # Lazy-loaded images only show their real source through JS; noscript copies would duplicate them.
+    for el in doc.xpath("//noscript"):
+        el.drop_tag() if not el.xpath(".//img") else el.drop_tree()
+    for el in doc.iter():
+        if not isinstance(el.tag, str):
+            continue
+        for attr in list(el.attrib):
+            if attr.startswith("on"):
+                del el.attrib[attr]
+        if el.tag in ("img", "source"):
+            for lazy, real in (("data-src", "src"), ("data-lazy-src", "src"), ("data-srcset", "srcset")):
+                if el.get(lazy):
+                    el.set(real, el.get(lazy))
+            el.attrib.pop("loading", None)
+            # DW: <img data-url=".../123_${formatId}.jpg" style="height:0"> filled in by its JS.
+            if not el.get("src") and "${formatId}" in el.get("data-url", ""):
+                el.set("src", el.get("data-url").replace("${formatId}", "906"))
+                el.attrib.pop("style", None)
+        if el.tag == "a" and el.get("href"):
+            target = urljoin(base, el.get("href"))
+            if target.startswith("http"):
+                el.set("href", f"{proxy}view?url=" + quote(target, safe=""))
+                el.set("target", "_top")
+        if el.tag == "form":
+            el.set("action", "javascript:void 0")
+
+
+SHELL = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>HashTrust proxy view</title>
+<style>html,body{{margin:0;height:100%;overflow:hidden;background:#0f172a}}
+iframe{{position:fixed;top:0;left:0;width:calc(100vw - 340px);height:100%;border:0;background:#fff}}
+body.ht-collapsed iframe{{width:calc(100vw - 44px)}}</style>
+<iframe id=ht-frame src="{src}"></iframe>"""
+
+
+@app.get("/view", response_class=HTMLResponse)
+def view(url: str, test: bool = False):
+    """The shell: the page in a same-origin frame left of the panel, so its layout gets the real width."""
+    src = "frame?url=" + quote(url, safe="") + ("&test=1" if test else "")
+    return SHELL.format(src=html.escape(src, quote=True))
+
+
+@app.get("/frame")
+def frame(request: Request, url: str, test: bool = False):
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    try:
+        response = httpx.get(
+            url,
+            follow_redirects=True,
+            timeout=20,
+            headers={"user-agent": UA, "accept-language": "en,fi;q=0.8"},
+        )
+    except httpx.HTTPError as e:
+        return error(url, f"Fetch failed: {e}")
+    if response.status_code >= 400:
+        return error(url, f"The site answered HTTP {response.status_code} (often bot protection).")
+    if "html" not in response.headers.get("content-type", "html"):
+        return error(url, f"Not an HTML page ({response.headers.get('content-type')}).", 415)
+
+    final = str(response.url)
+    text = trafilatura.extract(response.text, url=final, favor_recall=True) or ""
+    blocks = [line.strip() for line in text.splitlines() if line.strip()]
+
+    doc = lxml.html.document_fromstring(response.text)
+    rewrite(doc, final, str(request.base_url))
+    head = doc.find("head")
+    if head is None:
+        head = lxml.html.Element("head")
+        doc.insert(0, head)
+    for old in head.findall("base"):
+        old.drop_tree()
+    base = lxml.html.Element("base", href=final)
+    head.insert(0, base)
+
+    config = {
+        "url": final,
+        "host": urlparse(final).hostname,
+        "blocks": blocks,
+        "status": response.status_code,
+        "test": test,
+        "proxy": str(request.base_url),
+    }
+    data = lxml.html.fragment_fromstring(
+        "<script id=hashtrust-data type=application/json></script>", create_parent=False
+    )
+    # </script> inside the JSON would end the element early.
+    data.text = json.dumps(config).replace("</", "<\\/")
+    script = lxml.html.Element("script")
+    script.text = (HERE / "overlay.js").read_text()
+    body = doc.find("body")
+    if body is None:
+        body = doc
+    body.append(data)
+    body.append(script)
+    return HTMLResponse("<!doctype html>\n" + lxml.html.tostring(doc, encoding="unicode"))
+
+
+@app.post("/check")
+async def check(request: Request):
+    """Same-origin forward to the API's /check, so the page's CSP or CORS never gets in the way."""
+    body = await request.body()
+    async with httpx.AsyncClient(timeout=180) as client:
+        try:
+            r = await client.post(f"{API}/check", content=body, headers={"content-type": "application/json"})
+        except httpx.HTTPError as e:
+            return JSONResponse({"error": f"API unreachable: {e}"}, status_code=502)
+    return JSONResponse(r.json() if r.headers.get("content-type", "").startswith("application/json")
+                        else {"error": r.text[:500]}, status_code=r.status_code)
+
+
+if __name__ == "__main__":
+    print(f"HashTrust proxy view on http://localhost:{PORT}  (API {API})")
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
