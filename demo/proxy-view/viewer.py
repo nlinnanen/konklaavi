@@ -13,12 +13,18 @@ a plain fetch and the main text that trafilatura extracts. The first run downloa
     uv run demo/proxy-view/viewer.py                       # uses the deployed API
     HASHTRUST_API=http://localhost:8000 uv run demo/proxy-view/viewer.py
     open http://localhost:8787
+
+Behind a reverse proxy under a path, set PUBLIC_BASE to the public address of that path
+(https://example.org/proxy/): links in proxied pages must be absolute, since each page's
+<base href> points at the original site.
 """
 
 import asyncio
 import html
+import ipaddress
 import json
 import os
+import socket
 from pathlib import Path
 from urllib.parse import quote, urljoin, urlparse
 
@@ -36,6 +42,27 @@ HERE = Path(__file__).parent
 UA = render.UA
 # Set to 0 to skip the browser and use the plain fetch.
 RENDER = os.environ.get("HASHTRUST_RENDER", "1") != "0"
+PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "").rstrip("/")
+# Sites the proxy opens, with their subdomains. ALLOWED_DOMAINS (comma-separated) replaces the
+# list, and "*" allows any public site, for local testing.
+DEFAULT_DOMAINS = [
+    "reddit.com", "redd.it",
+    # Finnish news
+    "yle.fi", "hs.fi", "is.fi", "iltalehti.fi", "mtvuutiset.fi", "kauppalehti.fi", "talouselama.fi",
+    "aamulehti.fi", "ts.fi", "kaleva.fi", "ksml.fi", "savonsanomat.fi", "satakunnankansa.fi",
+    "uusisuomi.fi", "verkkouutiset.fi", "maaseuduntulevaisuus.fi", "hbl.fi", "vasabladet.fi",
+    "suomenuutiset.fi", "apu.fi", "seura.fi",
+]
+_allowed = os.environ.get("ALLOWED_DOMAINS", "").strip()
+ALLOWED = None if _allowed == "*" else [d.strip().lower() for d in _allowed.split(",") if d.strip()] or DEFAULT_DOMAINS
+
+
+def allowed(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return ALLOWED is None or any(host == d or host.endswith("." + d) for d in ALLOWED)
+
+# Pages rendered at once; each is a Chromium tab.
+RENDERS = asyncio.Semaphore(int(os.environ.get("MAX_RENDERS", "2")))
 
 app = FastAPI(title="HashTrust proxy view")
 
@@ -47,9 +74,31 @@ def page(title: str, body: str) -> HTMLResponse:
     )
 
 
+def proxy_base(request: Request) -> str:
+    """The proxy's own address, ending in a slash, for the links it writes into pages."""
+    return PUBLIC_BASE + "/" if PUBLIC_BASE else str(request.base_url)
+
+
+def private_reason(url: str) -> str | None:
+    """Why the proxy refuses a URL: only public http(s) hosts, so it can't reach internal services."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return "Only http(s) URLs can be opened."
+    if not allowed(url):
+        return f"{parsed.hostname} is not one of the sites this demo opens: {', '.join(ALLOWED)}."
+    try:
+        addresses = {info[4][0] for info in socket.getaddrinfo(parsed.hostname, parsed.port or 443)}
+    except OSError:
+        return f"Could not resolve {parsed.hostname}."
+    for address in addresses:
+        if not ipaddress.ip_address(address.split("%")[0]).is_global:
+            return f"{parsed.hostname} is not a public address."
+    return None
+
+
 def form(url: str = "") -> str:
     return (
-        "<form action=/view target=_top><input name=url type=url required placeholder='https://… article URL' "
+        "<form action=view target=_top><input name=url type=url required placeholder='https://… article URL' "
         f"value='{html.escape(url, quote=True)}' autofocus><button>Scan</button></form>"
     )
 
@@ -58,8 +107,10 @@ def form(url: str = "") -> str:
 def home():
     return page(
         "HashTrust proxy view",
-        f"<main><h1>HashTrust <span>proxy view</span></h1><p>Open any article and see what the "
-        f"extension would flag.</p>{form()}<p class=meta>API: <code>{html.escape(API)}</code></p></main>",
+        f"<main><h1>HashTrust <span>proxy view</span></h1><p>Open an article and see what the "
+        f"extension would flag in it and its comments.</p>{form()}"
+        + (f"<p class=meta>Opens {html.escape(', '.join(ALLOWED))}.</p>" if ALLOWED else "")
+        + f"<p class=meta>API: <code>{html.escape(API)}</code></p></main>",
     )
 
 
@@ -96,9 +147,14 @@ def rewrite(doc: lxml.html.HtmlElement, base: str, proxy: str) -> None:
                 el.attrib.pop("style", None)
         if el.tag == "a" and el.get("href"):
             target = urljoin(base, el.get("href"))
-            if target.startswith("http"):
+            if target.startswith("http") and allowed(target):
                 el.set("href", f"{proxy}view?url=" + quote(target, safe=""))
                 el.set("target", "_top")
+            elif target.startswith("http"):
+                # Sites outside the allowlist open directly, outside the proxy.
+                el.set("href", target)
+                el.set("target", "_blank")
+                el.set("rel", "noopener")
         if el.tag == "form":
             el.set("action", "javascript:void 0")
 
@@ -147,6 +203,13 @@ def fetch(url: str) -> render.Rendered | HTMLResponse:
 async def frame(request: Request, url: str, test: bool = False):
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
+    if reason := await asyncio.to_thread(private_reason, url):
+        return error(url, reason, 400)
+    async with RENDERS:
+        return await frame_page(request, url, test)
+
+
+async def frame_page(request: Request, url: str, test: bool):
     result = None
     mode = "plain fetch"
     if RENDER:
@@ -166,7 +229,7 @@ async def frame(request: Request, url: str, test: bool = False):
     blocks = result.blocks
 
     doc = lxml.html.document_fromstring(result.html)
-    rewrite(doc, final, str(request.base_url))
+    rewrite(doc, final, proxy_base(request))
     head = doc.find("head")
     if head is None:
         head = lxml.html.Element("head")
@@ -183,7 +246,7 @@ async def frame(request: Request, url: str, test: bool = False):
         "status": result.status,
         "mode": mode,
         "test": test,
-        "proxy": str(request.base_url),
+        "proxy": proxy_base(request),
     }
     data = lxml.html.fragment_fromstring(
         "<script id=hashtrust-data type=application/json></script>", create_parent=False

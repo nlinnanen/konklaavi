@@ -11,10 +11,11 @@ The VPS runs `compose.yaml` with `deploy/compose.prod.yaml` on top, from `/srv/j
 | `api`, `worker` | `ghcr.io/nlinnanen/junction26-backend:sha-<commit>` |
 | `fingerprint` | `ghcr.io/nlinnanen/junction26-fingerprint:sha-<commit>` |
 | `dashboard` | `ghcr.io/nlinnanen/junction26-dashboard:sha-<commit>` |
+| `proxy-view` | `ghcr.io/nlinnanen/junction26-proxy-view:sha-<commit>` |
 | `db` | `timescale/timescaledb-ha:pg17` |
 | `caddy` | `caddy:2.11` |
 
-Caddy is the only public service. It gets a certificate for `DOMAIN` from Let's Encrypt and routes `/api/*` to the API, with the `/api` prefix removed, and everything else to the dashboard. The API and dashboard listen on 127.0.0.1 only; the database and the fingerprint service have no host ports.
+Caddy is the only public service. It gets a certificate for `DOMAIN` from Let's Encrypt and routes `/api/*` to the API, with the `/api` prefix removed, `/proxy/*` to the demo proxy view, and everything else to the dashboard. The proxy view renders pages of allowlisted sites (`ALLOWED_DOMAINS` in `demo/proxy-view/viewer.py`) in Chromium; it runs on a network it shares only with Caddy and calls the API at its public address. The API and dashboard listen on 127.0.0.1 only; the database and the fingerprint service have no host ports.
 
 The dashboard image carries `backend/app/eval/results/latest.json` at `/eval/latest.json`, passed in as the `eval` build context. In development, compose mounts the live folder over it.
 

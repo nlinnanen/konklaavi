@@ -37,15 +37,17 @@ The extension matches on your device: it downloads the narrative index, and page
 
 ### Proxy view (no extension needed)
 
-`demo/proxy-view/` opens an article in a page that shows the same highlights and a side panel of matches, without installing anything in the browser. The server fetches the article, removes its scripts and sends its text to the API's `/check`.
+**https://srv2160986.hstgr.cloud/proxy/** opens an article in a page that shows the same highlights and a side panel of matches, without installing anything in the browser. The server renders the article in headless Chromium, so comments and other content its JavaScript loads are included, removes its scripts and sends its visible text to the API's `/check`. Rendering takes 10 to 25 seconds.
+
+It opens Reddit and the major Finnish news sites (Yle, HS, Ilta-Sanomat, Iltalehti, MTV Uutiset and others; the start page lists them). To run it locally, with any site allowed:
 
 ```sh
-uv run demo/proxy-view/viewer.py    # then open http://localhost:8787 and paste an article URL
+ALLOWED_DOMAINS='*' uv run demo/proxy-view/viewer.py    # then open http://localhost:8787
 ```
 
-- It uses the demo API. Set `HASHTRUST_API=http://localhost:8000` for a local backend.
+- It uses the demo API. Set `HASHTRUST_API=http://localhost:8000` for a local backend. The first run downloads Chromium for Playwright.
 - Add `&test=1` to a `/view?url=...` link to inject three labelled fake matches. This checks that a site renders and highlights, whatever narratives it carries.
-- Sites behind bot protection (such as Euronews, Reuters and AP) refuse the fetch, and pages that render their text with JavaScript show no extracted text. The panel says which happened.
+- Sites behind bot protection refuse the fetch; the panel says so.
 
 ## Documentation
 

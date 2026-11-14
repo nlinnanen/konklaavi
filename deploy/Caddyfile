@@ -5,6 +5,11 @@
 		reverse_proxy api:8000
 	}
 
+	redir /proxy /proxy/
+	handle_path /proxy/* {
+		reverse_proxy proxy-view:8787
+	}
+
 	handle {
 		reverse_proxy dashboard:8501
 	}
