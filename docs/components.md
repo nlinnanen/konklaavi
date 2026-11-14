@@ -49,7 +49,7 @@ flowchart LR
 
   Reader -->|reports| Ext
   Ext -->|highlights| Reader
-  Ext -->|"report: text, url, verdict"| API
+  Ext -->|"vote: excerpt, url, verdict, comment"| API
   Ext -->|"detection hit: variant, url"| API
   API -->|signature index deltas| Ext
   API -->|reports, hits, jobs| DB
@@ -65,7 +65,7 @@ flowchart LR
   DB -->|graph, spread metrics| API
   DB -->|graph, spread metrics| Dash
   Dash --> Owner
-  Sim -->|synthetic reports and hits| API
+  Sim -->|synthetic votes| API
 
   classDef ext fill:#999,stroke:#666,stroke-dasharray:4,color:#fff
   class Web,EU,Claude ext
@@ -78,9 +78,12 @@ The job queue is a table in Postgres. Workers claim jobs with `SELECT ... FOR UP
 ```mermaid
 flowchart LR
   DOM[/Page DOM/] --> Chunker
-  Chunker --> Chunk[/Chunk + author handle/]
+  Chunker --> Chunk[/Block-level chunk/]
   Chunk --> FP["Fingerprinter"]
-  FP --> Fp[/"sha + minhash + embedding"/]
+  FP --> Fp[/"sentence hashes + LSH bands"/]
+  Chunk --> Emb["Embedder<br/>offscreen document"]
+  Emb --> Vec[/Embedding/]
+  Vec --> Matcher
   Sync["Index sync"] --> Idx[/Signature index/]
   Fp --> Matcher["Local matcher"]
   Idx --> Matcher
@@ -98,7 +101,7 @@ flowchart LR
   Hit[/Detection hit/] --> Fetch
   SeedJ[/Seed fetch job/] --> Fetch
   Fetch --> Fp[/"Fingerprints + observations"/]
-  Fp --> VM["Variant matcher<br/>LSH, containment"]
+  Fp --> VM["Variant matcher<br/>LSH, MinHash Jaccard"]
   VM --> Var[/"Variants + DERIVED_FROM"/]
   Var --> NC["Narrative clusterer<br/>HDBSCAN"]
   NC --> Nar[/"Narratives + EVOLVED_INTO"/]
@@ -120,7 +123,7 @@ The fetch job fetches a URL anonymously, which also confirms it is public, then 
 - Seed importer: reads EUvsDisinfo cases into narratives with verdicts and explanations, and enqueues fetch jobs for the outlet URLs each case links to.
 - Case list importer: collects the titles of recent EUvsDisinfo cases from the euvsdisinfo.eu case list and imports each as an active narrative whose claim is its title, with no articles to fetch.
 - Dashboard: a Streamlit app in `dashboard/app.py` that reads Postgres directly and shows the narrative graph, lineage tree and spread over time.
-- Simulation: synthetic honest, lazy, partisan and coordinated users sending reports and hits through the API, plus the evaluation of precision and false-positive rate.
+- Simulation: synthetic honest, lazy, partisan and coordinated users sending votes through the API and reading flags and reputations back.
 - Database: schema migrations as plain SQL files.
 
 ## Contracts

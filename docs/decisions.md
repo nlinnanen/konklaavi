@@ -5,7 +5,7 @@
 Each chunk gets three fingerprints, one per level of the [data model](data-model.md).
 
 - SHA-256 of the normalised text, computed with the browser's built-in `crypto.subtle`. Normalisation is Unicode NFKC, lowercase, punctuation stripped and whitespace collapsed.
-- MinHash over word 5-grams with 128 hash functions, using 32-bit MurmurHash3. LSH splits the signature into 32 bands of 4 rows, which puts the match threshold at a Jaccard similarity of roughly 0.4 to 0.5. Candidates are then confirmed by estimated containment, so a short excerpt still matches the longer text it was taken from.
+- MinHash over word 5-grams with 128 hash functions, using 32-bit MurmurHash3. LSH splits the signature into 32 bands of 4 rows, which puts the match threshold at a Jaccard similarity of roughly 0.4 to 0.5. Candidates are then confirmed by MinHash Jaccard of at least 0.5 (`MIN_JACCARD` in `backend/app/jobs/variants.py`).
 - A 384-dimensional sentence embedding from a multilingual model, run in the browser with transformers.js. The model has to be multilingual so Finnish, Russian and English versions of a narrative land in the same cluster.
 
 Shingles decide the variant level, because shared phrasing is evidence of copying and timestamps give the direction. Embeddings decide the narrative level, because they group rewrites of the same claim.
@@ -18,11 +18,11 @@ The client never uploads fingerprints of rendered content, because embeddings an
 
 ## Signature index
 
-The index is a Bloom filter of LSH band hashes, plus narrative centroids and signature metadata. It is versioned and signed, and clients fetch deltas from the last version they hold.
+The index is JSON: signature metadata, sentence hashes, per-fingerprint LSH band slots and per-narrative embedding vectors (int8, base64). A block matches a narrative when its cosine to one of the narrative's vectors reaches `narrativeThreshold`. Clients fetch deltas from the last version they hold; the format is in [api.md](api.md).
 
 ## Chunking
 
-Chunks are the DOM's block-level elements, with selectors written specifically for the main social platforms so that one post or comment becomes one chunk together with its author handle. A `MutationObserver` fingerprints content as feeds load more.
+Chunks are the DOM's block-level elements, found generically for any site. A `MutationObserver` fingerprints content as feeds load more.
 
 ## Storage
 
@@ -39,7 +39,7 @@ Migrations are plain SQL files applied in filename order by a Python runner at A
 
 ## Backend
 
-The backend is Python with FastAPI, using uv, psycopg 3 and raw SQL, so the API and the worker share code. The fetch job uses httpx and trafilatura to extract page text. Narratives are clustered with HDBSCAN on embeddings, and clusters in consecutive time windows are matched by centroid similarity.
+The backend is Python with FastAPI, using uv, psycopg 3 and raw SQL, so the API and the worker share code. The fetch job uses httpx and trafilatura to extract page text. Narratives are clustered with HDBSCAN on embeddings, and clusters are matched to existing narratives by cosine to the narrative's centroid.
 
 ## Report analysis
 
@@ -51,4 +51,4 @@ The whole stack runs with Docker Compose on the team's Hostinger VPS (KVM 2, 2 v
 
 ## Extension
 
-The extension is a Manifest V3 extension written in TypeScript with WXT. Fingerprinting and the heuristic classifier run in a Web Worker so the page stays responsive.
+The extension is a Manifest V3 extension written in TypeScript with WXT. Sentence hashing and LSH bands run in the content script. The embedding model runs in an offscreen document, so the page stays responsive.

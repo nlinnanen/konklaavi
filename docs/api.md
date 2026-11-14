@@ -70,7 +70,7 @@ Node on `FP_PORT`. It runs the fingerprint code in `client/lib/`, so its output 
 }
 ```
 
-`minhash`, `bands` and `embedding` are computed over `normalizeText(block)` for blocks that have a `contentHash`. MinHash uses MurmurHash3 x86_32 with seeds 0..127 over word 5-grams (one shingle for a text under 5 words), takes the minimum over the unsigned hashes and stores it as a signed 32-bit integer. Band `i` is MurmurHash3 with seed 0 over 20 little-endian bytes, `i` as uint32 followed by the band's 4 values as int32, written as 8 lowercase hex characters. The extension must reproduce bands exactly for `/lookup`.
+`minhash` and `bands` are computed over `normalizeText(block)` for blocks that have a `contentHash`. `embedding` is computed over the raw block text for the same blocks. MinHash uses MurmurHash3 x86_32 with seeds 0..127 over word 5-grams (one shingle for a text under 5 words), takes the minimum over the unsigned hashes and stores it as a signed 32-bit integer. Band `i` is MurmurHash3 with seed 0 over 20 little-endian bytes, `i` as uint32 followed by the band's 4 values as int32, written as 8 lowercase hex characters. The extension must reproduce bands exactly for `/lookup`.
 
 The embedding model is `Xenova/paraphrase-multilingual-MiniLM-L12-v2` with q8 weights, run with transformers.js in both Node and the browser, mean-pooled and normalized.
 

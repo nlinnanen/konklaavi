@@ -268,3 +268,9 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - data: `simulation.json` has no crowd results yet; run `cd simulation && uv run python crowd.py --api http://localhost:8004 --database postgresql://postgres:postgres@localhost:5436/postgres` and commit the file.
 - data: the crowd simulation's votes, report narratives and bot flags on real reliable-outlet URLs stay in the stack's database, and the bot votes enqueue fetch jobs for those URLs.
 - data: the Crowd page shows email local parts, which can still identify a person.
+- Author handles and "who posted first" attribution.
+- The site-owner view of narrative spread.
+- A heuristic classifier for manipulative style without a narrative match.
+- Allowlists that suppress a narrative on debunking sites.
+- A signed Bloom-filter signature index.
+- A posts-per-account continuous aggregate.

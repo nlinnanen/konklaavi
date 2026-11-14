@@ -2,7 +2,7 @@
 
 The goals are in [north-star.md](north-star.md), the data model in [data-model.md](data-model.md) and the technology choices in [decisions.md](decisions.md).
 
-The system has two halves. The extension fingerprints and matches content locally against a downloaded signature index. The backend builds that index from user reports, EUvsDisinfo cases and the public pages it fetches, and keeps the narrative graph. The C4 diagrams and the component list are in [components.md](components.md).
+The system has two halves. The extension fingerprints and matches content locally against a downloaded signature index. The backend builds that index from user votes and reports, EUvsDisinfo cases, fact-checks, the Pravda network and the public pages it fetches, and keeps the narrative graph. The C4 diagrams and the component list are in [components.md](components.md).
 
 ## Scanning a page
 
@@ -17,17 +17,12 @@ sequenceDiagram
   Ext->>Ext: fetch index delta on a timer
   Page->>Ext: DOM rendered or mutated
   Ext->>Ext: chunk new content, normalise text
-  Ext->>Ext: sha + minhash + embedding per chunk
-  Ext->>Ext: look up LSH bands in Bloom filter
-  Ext->>Ext: nearest narrative centroid
-  alt match
+  Ext->>Ext: sentence hashes + LSH bands per chunk
+  Ext->>Ext: look up sentence hashes and bands in the index
+  Ext->>Ext: embed unmatched chunks, compare with narrative vectors
+  opt match
     Ext->>Page: highlight with verdict and explanation
-    Ext->>Tel: variant_id, public url, timestamp
-  else no match
-    Ext->>Ext: heuristic classifier
-    opt manipulative style
-      Ext->>Page: soft highlight, no verdict
-    end
+    Ext->>Tel: narrative id, public url, timestamp
   end
 ```
 
@@ -43,8 +38,8 @@ sequenceDiagram
   participant A as Analysis worker
   participant DB as Postgres
 
-  User->>Ext: select text, choose verdict
-  Ext->>API: text, url, verdict, technique
+  User->>Ext: select text, choose verdict, add a comment
+  Ext->>API: text, url, verdict, comment
   API->>DB: store report, enqueue fetch job
   A->>DB: claim report and fetch job
   A->>A: fetch url anonymously, confirm it is public
@@ -57,15 +52,18 @@ sequenceDiagram
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Candidate: first report
-  Candidate --> UnderReview: LLM verdict or more reports
-  UnderReview --> Active: enough independent evidence
-  UnderReview --> Rejected: evidence disagrees
-  Active --> Disputed: users dispute highlights
-  Disputed --> Active: dispute rejected
-  Disputed --> Retired: dispute upheld
+  [*] --> Candidate: cluster job
+  [*] --> UnderReview: analysed report
+  [*] --> Active: EUvsDisinfo, fact-check or network import
+  UnderReview --> Active: votes confirm, or settlement matches a case
+  UnderReview --> Retired: settlement finds a reliable outlet
+  UnderReview --> Disputed: trustworthy votes
+  Active --> Disputed: trustworthy votes
+  Disputed --> Active: negative votes confirm
+  Disputed --> UnderReview: votes no longer dispute
+  Disputed --> Retired: trustworthy majority
+  Active --> Retired: trustworthy majority
   Retired --> [*]
-  Rejected --> [*]
 ```
 
-Clients receive Active signatures as verdicts and UnderReview signatures as soft warnings. Allowlist entries attach to a signature and suppress it on specific domains, such as fact-checkers quoting the claim.
+Clients receive Active signatures as verdicts and UnderReview and Disputed signatures as soft warnings. A Candidate narrative is not shipped. Votes never move EUvsDisinfo or fact-checker narratives, and a narrative with `settled_at` set keeps its state.
