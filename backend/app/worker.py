@@ -1,7 +1,9 @@
 import logging
 import signal
+import tempfile
 import time
 import traceback
+from pathlib import Path
 
 from psycopg import Connection
 
@@ -10,6 +12,8 @@ from app.jobs import HANDLERS, PERIODIC, claim, complete, enqueue, fail
 from app.migrate import migrate
 
 IDLE_SLEEP = 1.0
+# Touched on every loop iteration; the compose healthcheck reads its age.
+HEARTBEAT = Path(tempfile.gettempdir()) / "worker-heartbeat"
 _PERIODIC_LOCK_KEY = 0x70657269
 
 log = logging.getLogger("worker")
@@ -69,6 +73,7 @@ def main() -> None:
     log.info("worker started with handlers %s", sorted(HANDLERS))
     try:
         while not stopping:
+            HEARTBEAT.touch()
             with connection() as conn:
                 enqueue_periodic(conn)
             if not run_one():

@@ -40,6 +40,12 @@ services:
       - "${FP_PORT:-8100}:8100"
     volumes:
       - models:/models
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8100/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 2m
     init: true
     restart: unless-stopped
 
@@ -47,10 +53,23 @@ services:
     <<: *backend
     ports:
       - "${API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 2m
 
   worker:
     <<: *backend
     command: ["python", "-m", "app.worker"]
+    # A job longer than the allowed heartbeat age marks the worker unhealthy until it finishes.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, sys, tempfile, time; sys.exit(time.time() - os.path.getmtime(os.path.join(tempfile.gettempdir(), 'worker-heartbeat')) > 300)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 2m
 
   dashboard:
     build: ./dashboard
@@ -63,6 +82,12 @@ services:
       - ./backend/app/eval/results:/eval:ro
     ports:
       - "${DASH_PORT:-8501}:8501"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 1m
     depends_on:
       db:
         condition: service_healthy
