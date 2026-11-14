@@ -2,52 +2,7 @@
 
 The goals are in [north-star.md](north-star.md), the data model in [data-model.md](data-model.md) and the technology choices in [decisions.md](decisions.md).
 
-The system has two halves. The extension fingerprints and matches content locally against a downloaded signature index. The backend builds that index from crawled public pages and user reports, and keeps the narrative graph.
-
-## Components
-
-```mermaid
-flowchart LR
-  subgraph Extension
-    Chunk["Chunker<br/>posts, comments, paragraphs"]
-    FP["Fingerprinter<br/>sha + minhash + embedding"]
-    Match["Local matcher"]
-    Heur["Heuristic classifier"]
-    Idx[("Signature index<br/>local copy")]
-    UI["Highlight + report UI"]
-    Chunk --> FP --> Match
-    Idx --> Match
-    Chunk --> Heur
-    Match --> UI
-    Heur --> UI
-  end
-
-  subgraph Backend
-    IndexAPI["Index API<br/>signed deltas"]
-    ReportAPI["Report API"]
-    TelAPI["Telemetry API"]
-    Crawler["Crawler"]
-    Analysis["Analysis worker<br/>LLM triage"]
-    Graph["Graph worker<br/>clustering, lineage"]
-    DB[("Postgres + pgvector")]
-    Dash["Dashboard + graph UI"]
-  end
-
-  Sim["Simulation"]
-
-  IndexAPI --> Idx
-  UI -->|report: text + url| ReportAPI
-  Match -->|hit: variant + public url| TelAPI
-  Sim --> ReportAPI
-  Sim --> TelAPI
-  ReportAPI --> DB
-  TelAPI --> DB
-  Crawler --> DB
-  Analysis <--> DB
-  Graph <--> DB
-  DB --> IndexAPI
-  DB --> Dash
-```
+The system has two halves. The extension fingerprints and matches content locally against a downloaded signature index. The backend builds that index from user reports, EUvsDisinfo cases and the public pages it fetches, and keeps the narrative graph. The C4 diagrams and the component list are in [components.md](components.md).
 
 ## Scanning a page
 
@@ -90,11 +45,11 @@ sequenceDiagram
 
   User->>Ext: select text, choose verdict
   Ext->>API: text, url, verdict, technique
-  API->>API: fetch url anonymously, confirm it is public
-  API->>DB: store report
-  A->>DB: load new reports
+  API->>DB: store report, enqueue fetch job
+  A->>DB: claim report and fetch job
+  A->>A: fetch url anonymously, confirm it is public
   A->>A: LLM: core claim, techniques, explanation
-  A->>DB: search crawled corpus for variants
+  A->>DB: search fetched pages for variants
   A->>DB: create or extend candidate narrative
 ```
 

@@ -11,7 +11,7 @@ The system works like antimalware, applied to narratives instead of programs.
 - The extension downloads the signature index and matches against it locally. Page content never leaves the browser.
 - On a match, the content is highlighted with the explanation and a link to the narrative's history: where it first appeared, how it was edited, and which accounts and domains spread it.
 - Users report content they find manipulative. A report is an explicit act, and only then is the selected text sent to the backend.
-- The backend analyses reports with an LLM, finds the narrative's other variants in the crawled public web, and promotes it into the index once enough evidence agrees.
+- The backend analyses reports with an LLM, finds the narrative's other variants in the public pages it has fetched, and promotes it into the index once enough evidence agrees.
 
 ## What makes it different
 

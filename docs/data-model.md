@@ -6,7 +6,7 @@ Content is identified at three levels:
 - Variant: an edited copy, matched by MinHash over word shingles with LSH.
 - Narrative: the same claim in different words, matched by clustering embeddings.
 
-Fingerprints enter the database from two sources: the crawler, which fetches public pages, and user reports. Detection hits from clients add observations of known variants at public URLs, which give the reach and spread of a narrative.
+Fingerprints enter the database when the backend fetches a public page. Reports, detection hits from clients and EUvsDisinfo cases each trigger a fetch of the page they point to, so the graph grows wherever known narratives appear. Detection hits also record that a known variant was seen at a public URL, which gives the reach and spread of a narrative.
 
 ## Graph
 
@@ -118,7 +118,7 @@ erDiagram
   }
 ```
 
-`OBSERVATION.source` is `crawl`, `report` or `detection`. Detection observations reference existing fingerprints only, and their account is the poster on the page, never the extension user.
+`OBSERVATION.source` is `fetch` or `detection`. Detection observations reference existing fingerprints only, and their account is the poster on the page, never the extension user.
 
 ## Example lineage
 

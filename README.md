@@ -9,14 +9,15 @@ Built for Junction 2026, on the "Trust the source" challenge direction.
 ## Documentation
 
 - [North star](docs/north-star.md): what we are building and why.
-- [Architecture](docs/architecture.md): components, page scanning, reporting and the signature lifecycle.
+- [Architecture](docs/architecture.md): page scanning, reporting and the signature lifecycle.
+- [Components](docs/components.md): C4 diagrams, component list, contracts and workstreams.
 - [Data model](docs/data-model.md): fingerprint levels, the narrative graph and the storage schema.
 - [Technical decisions](docs/decisions.md): fingerprinting, client-side matching, storage and the stack.
 
 ## Repository layout
 
 - `client/`: browser extension that chunks, fingerprints and matches page content, highlights matches and sends reports.
-- `backend/`: API, crawler, analysis and graph workers, and the Postgres database.
+- `backend/`: API, worker, seed importer and the Postgres database.
 - `simulation/`: synthetic users, reports and content for measuring precision, false-positive rate and resistance to brigading.
 
 ## Key concepts
