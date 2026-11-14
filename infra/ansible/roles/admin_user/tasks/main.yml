@@ -1,0 +1,48 @@
+- name: Fetch the admins' public keys from GitHub
+  ansible.builtin.uri:
+    url: https://github.com/{{ item }}.keys
+    return_content: true
+  loop: "{{ admin_github_users }}"
+  register: admin_user_github_keys
+
+# A typo or an account without keys must not quietly drop someone, or everyone, from the server.
+- name: Require keys for every listed GitHub user
+  ansible.builtin.assert:
+    that: item.content | trim | length > 0
+    fail_msg: GitHub user {{ item.item }} has no public SSH keys at https://github.com/{{ item.item }}.keys
+    quiet: true
+  loop: "{{ admin_user_github_keys.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Collect the admin keys
+  ansible.builtin.set_fact:
+    admin_user_keys: "{{ (admin_user_github_keys.results | map(attribute='content') | map('trim') | join('\n')).splitlines() + admin_ssh_keys }}"
+
+- name: Require an admin SSH key
+  ansible.builtin.assert:
+    that: admin_user_keys | length > 0
+    fail_msg: Set admin_github_users or admin_ssh_keys in group_vars/all/main.yml. Root login is turned off, so without a key you are locked out.
+
+- name: Create the admin user
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    groups: sudo
+    append: true
+    shell: /bin/bash
+    password: "!"
+    update_password: on_create
+
+- name: Install the admin's SSH keys
+  ansible.posix.authorized_key:
+    user: "{{ admin_user }}"
+    key: "{{ admin_user_keys | join('\n') }}"
+    exclusive: true
+
+# Key-only login with passwordless sudo: the admin has no password to guess or leak.
+- name: Let the admin sudo without a password
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/90-{{ admin_user }}
+    content: "{{ admin_user }} ALL=(ALL:ALL) NOPASSWD: ALL\n"
+    mode: "0440"
+    validate: visudo -cf %s

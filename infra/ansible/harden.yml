@@ -1,0 +1,13 @@
+# Baseline hardening for the VPS. First run, on a fresh VPS: ansible-playbook harden.yml -e ansible_user=root
+- name: Harden the VPS
+  hosts: all
+  become: true
+  roles:
+    - base
+    - admin_user
+    - sysctl
+    - docker
+    - fail2ban
+    - firewall
+    # Last: turns off root and password logins once the admin user is in place.
+    - ssh

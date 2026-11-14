@@ -1,0 +1,52 @@
+# --- Hardening (harden.yml) -------------------------------------------------
+
+# The sudo user that replaces root for SSH logins. Ansible connects as this user after the first run.
+admin_user: admin
+# GitHub users whose public keys (https://github.com/<user>.keys) may log in as admin_user, fetched on
+# every run. Removing a user and rerunning removes their access. A user with no keys stops the run.
+admin_github_users:
+  - nlinnanen
+  - rvirtaha
+  - mUusitalo
+  - ccruzkauppila
+admin_ssh_keys: []
+
+
+# Sources allowed to reach SSH. GitHub Actions deploys over SSH from changing IPs, so the default is any.
+ssh_allowed_sources:
+  - any
+
+timezone: Europe/Helsinki
+
+# Unattended security upgrades; reboot automatically when an upgrade needs it.
+auto_reboot: false
+auto_reboot_time: "04:00"
+
+docker_daemon_options:
+  log-driver: json-file
+  log-opts:
+    max-size: 10m
+    max-file: "5"
+  # Containers keep running while the Docker daemon restarts or upgrades.
+  live-restore: true
+
+# --- App (app.yml) ----------------------------------------------------------
+
+app_dir: /srv/junction26
+# Public hostname Caddy gets a certificate for, e.g. srv123456.hstgr.cloud.
+app_domain: "{{ ansible_host }}"
+compose_project_name: junction26
+image_prefix: ghcr.io/nlinnanen/junction26
+
+# Public half of the key GitHub Actions deploys with. Its only power: sudo junction26-release <sha>.
+deploy_user: deploy
+deploy_ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKEscP+dlTTNi1FNKgseTnj8F/auJA1+pGYoWSWsgJka junction26-deploy"
+
+# Read-only GHCR access for pulling the app images: a classic token with only read:packages.
+ghcr_user: "nlinnanen"
+ghcr_token: "{{ vault_ghcr_token }}"
+
+postgres_password: "{{ vault_postgres_password }}"
+anthropic_api_key: "{{ vault_anthropic_api_key | default('') }}"
+anthropic_base_url: "https://router.hostinger.com/v1"
+analysis_model: ""

@@ -1,0 +1,45 @@
+# Hostinger's "Ubuntu 24.04 with Docker" template ships Docker; a plain Ubuntu image gets Ubuntu's packages.
+- name: Check for Docker Compose
+  ansible.builtin.command: docker compose version --short
+  register: docker_compose_version
+  changed_when: false
+  failed_when: false
+
+- name: Install Docker
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - docker-compose-v2
+    state: present
+  when: docker_compose_version.rc != 0
+
+- name: Read the Docker Compose version
+  ansible.builtin.command: docker compose version --short
+  register: docker_compose_version
+  changed_when: false
+
+# deploy/compose.prod.yaml uses !reset and !override.
+- name: Require Docker Compose 2.24.4 or newer
+  ansible.builtin.assert:
+    that: docker_compose_version.stdout | regex_replace('^v', '') is version('2.24.4', '>=')
+    fail_msg: Docker Compose {{ docker_compose_version.stdout }} is too old; deploy/compose.prod.yaml needs 2.24.4 or newer.
+
+- name: Read the existing daemon.json
+  ansible.builtin.slurp:
+    path: /etc/docker/daemon.json
+  register: docker_daemon_json
+  failed_when: false
+
+# Merged, so settings the VPS template made survive.
+- name: Configure the Docker daemon
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    content: "{{ ((docker_daemon_json.content | default('e30=') | b64decode | from_json) | combine(docker_daemon_options)) | to_nice_json }}\n"
+    mode: "0644"
+  notify: Restart docker
+
+- name: Run Docker
+  ansible.builtin.systemd_service:
+    name: docker
+    enabled: true
+    state: started
