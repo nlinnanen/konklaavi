@@ -3,7 +3,18 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from app.trust import BURST_WINDOW, Tally, Vote, Voter, next_state, reputation, weights
+from app.trust import (
+    BURST_WINDOW,
+    CastVote,
+    Settlement,
+    Tally,
+    Vote,
+    Voter,
+    next_state,
+    record,
+    reputation,
+    weights,
+)
 
 T0 = datetime(2026, 11, 1, 12, 0)
 NEW = reputation(0, 0)
@@ -28,6 +39,13 @@ class TestReputation:
 
     def test_disagreement_lowers_reputation_below_a_new_account(self):
         assert reputation(0, 2) < reputation(0, 0)
+
+    def test_reporting_before_confirmation_counts_double(self):
+        confirmed = Settlement("narrative:1", bad=True, settled_at=T0)
+        early = CastVote("misleading", T0 - timedelta(hours=1), (confirmed,))
+        late = CastVote("misleading", T0 + timedelta(hours=1), (confirmed,))
+        assert record([early]) == (2, 0)
+        assert record([late]) == (1, 0)
 
 
 class TestWeights:
