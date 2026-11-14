@@ -102,7 +102,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: evaluation fetches carry reason `eval`.
 - integrator: in compose, the dashboard reaches the API at `http://api:8000` and reads eval results from `backend/app/eval/results`, mounted read-only.
 - integrator: The main evaluation splits each EUvsDisinfo case's article URLs into seed and held-out URLs, because the system detects copies and variants of known narratives; held-out whole cases are reported separately as unseen narratives.
-- integrator: Votes are weighted by user reputation and discounted in coordinated bursts, and the simulation compares raw and weighted votes.
+- integrator: Votes are weighted by user reputation and discounted in coordinated bursts.
 - integrator: Testing is the minimum necessary: tests only for logic that would fail silently or that the demo depends on, and agents run only the test file they touch while iterating, with one full run before a commit.
 - integrator: Workstreams start in parallel against contracts and mocks; nothing waits on another workstream's branch. Stacks start with `docker compose up --wait` instead of polling loops.
 - integrator: No build or merge step runs a full-scale import or evaluation. Full-scale runs happen only as separate background jobs that nothing waits on, and their results are read when they finish.
@@ -194,6 +194,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - data: the crowd simulation is stored under a top-level `crowd` key of `backend/app/eval/results/simulation.json`, beside the brigade runs under `runs`.
 - data: the Crowd page ranks only the 25 most active reporters, because reputation comes from one `/me` call each; a reporter shows as the email's local part or `anon-` plus 8 characters of the install id.
 - data: the spread page reads `narrative_domain_daily`, `narrative_new_domains_daily` and `narrative_hits_hourly` and shows no per-page counts.
+- integrator: Simulation belongs to another team member (built with Bevy); the build workflows write no simulation code and run no simulations.
 
 ## Deferred
 
@@ -265,7 +266,6 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - pipeline: `settle_reports` runs an unindexed nearest-neighbour scan over every settled narrative vector per open report vector; its cost against a full EUvsDisinfo index is unmeasured.
 - ext: the popup reads `/me` only when it opens; after the emailed link is clicked the popup must be reopened.
 - ext: the `me` and `requestMagicLink` handlers in background.ts have no unit test.
-- data: `simulation.json` has no crowd results yet; run `cd simulation && uv run python crowd.py --api http://localhost:8004 --database postgresql://postgres:postgres@localhost:5436/postgres` and commit the file.
 - data: the crowd simulation's votes, report narratives and bot flags on real reliable-outlet URLs stay in the stack's database, and the bot votes enqueue fetch jobs for those URLs.
 - data: the Crowd page shows email local parts, which can still identify a person.
 - Author handles and "who posted first" attribution.
