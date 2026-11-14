@@ -1,9 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { summarize } from './aggregate';
-import { MAX_LOOKUP_BATCH, MOCK_NARRATIVES, MockApi, RemoteApi, type KeyValueStore } from './api';
+import {
+  applyIndexUpdate,
+  HitReporter,
+  INDEX_REFRESH_MS,
+  LocalIndexApi,
+  MAX_LOOKUP_BATCH,
+  MOCK_NARRATIVES,
+  MockApi,
+  RemoteApi,
+  SignatureIndex,
+  type Hit,
+  type IndexResponse,
+  type KeyValueStore,
+} from './api';
 import { hashNormalized } from './fingerprint';
 import { normalizeText } from './normalize';
-import type { VoteRequest } from './types';
+import type { LookupResult, Signature, VoteRequest } from './types';
 
 function memoryStore(): KeyValueStore {
   const m = new Map<string, unknown>();
@@ -109,5 +122,199 @@ describe('RemoteApi.lookup', () => {
     expect(bodies.flatMap((b) => b.hashes)).toEqual(hashes);
     expect(bodies.flatMap((b) => b.blocks)).toEqual(blocks);
     expect(bodies.every((b) => b.hashes.length <= MAX_LOOKUP_BATCH && b.blocks.length <= MAX_LOOKUP_BATCH)).toBe(true);
+  });
+});
+
+function signature(narrativeId: string, state: Signature['state'] = 'active'): Signature {
+  return {
+    narrativeId,
+    title: `Narrative ${narrativeId}`,
+    verdict: 'misinformation',
+    techniques: [],
+    explanation: null,
+    source: 'euvsdisinfo',
+    sourceUrl: null,
+    state,
+    matchLevel: 'exact',
+  };
+}
+
+function index(over: Partial<IndexResponse> = {}): IndexResponse {
+  return { version: 1, full: true, signatures: [], sentences: [], fingerprints: [], removed: [], ...over };
+}
+
+/** An index fingerprint of `narrativeId` with only the bands in `set`. */
+function fingerprint(narrativeId: string, set: Record<number, string>) {
+  return { narrativeId, bands: Array.from({ length: 32 }, (_, i) => set[i] ?? null) };
+}
+
+/** 32 bands that share nothing with the index, with `set` overriding some indexes. */
+function blockBands(set: Record<number, string> = {}): string[] {
+  return Array.from({ length: 32 }, (_, i) => set[i] ?? `none${i}`);
+}
+
+describe('SignatureIndex', () => {
+  const snapshot = index({
+    signatures: [signature('n1'), signature('n2', 'under_review')],
+    sentences: [
+      { hash: 's1', narrativeId: 'n1' },
+      { hash: 's2', narrativeId: 'n2' },
+      { hash: 'shared', narrativeId: 'n2' },
+      { hash: 'shared', narrativeId: 'n1' },
+    ],
+    fingerprints: [fingerprint('n1', { 0: 'a', 5: 'b' }), fingerprint('n1', { 9: 'd' }), fingerprint('n2', { 7: 'c' })],
+  });
+  const lookup = (hashes: string[], blocks: { hash: string; bands: string[] }[] = []) =>
+    Object.fromEntries(new SignatureIndex(snapshot).lookup(hashes, blocks).map((r) => [r.hash, r]));
+
+  it('matches sentence hashes exactly, flagging those in active narratives', () => {
+    const r = lookup(['s1', 's2', 'unknown']);
+    expect(Object.keys(r).sort()).toEqual(['s1', 's2']);
+    expect(r.s1).toMatchObject({ flagged: true, total: 0, topVerdict: 'misinformation' });
+    expect(r.s1?.signature).toMatchObject({ narrativeId: 'n1', matchLevel: 'exact' });
+    expect(r.s2).toMatchObject({ flagged: false, signature: { narrativeId: 'n2' } });
+  });
+
+  it('reports a hash in several narratives with the active one', () => {
+    expect(lookup(['shared']).shared?.signature?.narrativeId).toBe('n1');
+  });
+
+  it('matches a block as a variant when it shares 2 bands at the same index with one fingerprint', () => {
+    const r = lookup(
+      [],
+      [
+        { hash: 'variant', bands: blockBands({ 0: 'a', 5: 'b' }) },
+        { hash: 'one-each', bands: blockBands({ 0: 'a', 7: 'c' }) },
+        { hash: 'wrong-index', bands: blockBands({ 1: 'a', 5: 'b' }) },
+        { hash: 'two-fingerprints', bands: blockBands({ 0: 'a', 9: 'd' }) },
+      ],
+    );
+    expect(Object.keys(r)).toEqual(['variant']);
+    expect(r.variant).toMatchObject({ flagged: true, signature: { narrativeId: 'n1', matchLevel: 'variant' } });
+  });
+
+  it('gives a hash that is both a sentence and a block the exact match', () => {
+    const r = lookup(['s1'], [{ hash: 's1', bands: blockBands({ 0: 'a', 5: 'b' }) }]);
+    expect(r.s1?.signature?.matchLevel).toBe('exact');
+  });
+});
+
+describe('applyIndexUpdate', () => {
+  const base = applyIndexUpdate(
+    undefined,
+    index({
+      signatures: [signature('n1'), signature('n2', 'under_review')],
+      sentences: [
+        { hash: 's1', narrativeId: 'n1' },
+        { hash: 's2', narrativeId: 'n2' },
+      ],
+      fingerprints: [fingerprint('n1', { 0: 'a' }), fingerprint('n2', { 0: 'b' })],
+    }),
+  );
+
+  it('drops removed narratives and replaces the entries of changed ones from a delta', () => {
+    const next = applyIndexUpdate(
+      base,
+      index({
+        version: 2,
+        full: false,
+        signatures: [signature('n2'), signature('n3')],
+        sentences: [
+          { hash: 's3', narrativeId: 'n2' },
+          { hash: 's4', narrativeId: 'n3' },
+        ],
+        fingerprints: [fingerprint('n3', { 1: 'c' })],
+        removed: ['n1'],
+      }),
+    );
+    expect(next.version).toBe(2);
+    expect(next.signatures.map((s) => [s.narrativeId, s.state])).toEqual([
+      ['n2', 'active'],
+      ['n3', 'active'],
+    ]);
+    expect(next.sentences.map((s) => s.hash).sort()).toEqual(['s3', 's4']);
+    expect(next.fingerprints.map((f) => f.narrativeId)).toEqual(['n3']);
+  });
+
+  it('replaces everything with a full index', () => {
+    const next = applyIndexUpdate(base, index({ version: 9, signatures: [signature('n3')] }));
+    expect(next).toEqual({ version: 9, signatures: [signature('n3')], sentences: [], fingerprints: [] });
+  });
+});
+
+describe('LocalIndexApi', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function backend(responses: IndexResponse[]) {
+    const requests: string[] = [];
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      requests.push(`${init?.method ?? 'GET'} ${url}`);
+      return new Response(JSON.stringify(responses.shift()));
+    });
+    return requests;
+  }
+
+  it('answers lookups from the downloaded index and applies deltas once it is stale', async () => {
+    const requests = backend([
+      index({ version: 1, signatures: [signature('n1')], sentences: [{ hash: 's1', narrativeId: 'n1' }] }),
+      index({ version: 2, full: false, signatures: [signature('n2')], sentences: [{ hash: 's2', narrativeId: 'n2' }] }),
+    ]);
+    let now = 0;
+    const api = new LocalIndexApi('http://backend', memoryStore(), () => now);
+
+    expect((await api.lookup(['s1', 's2'])).map((r) => r.hash)).toEqual(['s1']);
+    now = INDEX_REFRESH_MS;
+    await api.lookup([]);
+    await api.refresh();
+    expect((await api.lookup(['s1', 's2'])).map((r) => r.hash)).toEqual(['s1', 's2']);
+    expect(requests).toEqual(['GET http://backend/index', 'GET http://backend/index?since=1']);
+  });
+
+  it('keeps the index across restarts of the background worker', async () => {
+    const requests = backend([index({ signatures: [signature('n1')], sentences: [{ hash: 's1', narrativeId: 'n1' }] })]);
+    const store = memoryStore();
+    await new LocalIndexApi('http://backend', store, () => 0).lookup([]);
+    const restarted = new LocalIndexApi('http://backend', store, () => 1);
+    expect((await restarted.lookup(['s1'])).map((r) => r.hash)).toEqual(['s1']);
+    expect(requests).toHaveLength(1);
+  });
+});
+
+describe('HitReporter', () => {
+  const flagged = (hash: string, narrativeId = 'n1'): LookupResult => ({
+    hash,
+    counts: { misinformation: 0, manipulative: 0, misleading: 0, trustworthy: 0 },
+    total: 0,
+    flagged: true,
+    topVerdict: 'misinformation',
+    signature: signature(narrativeId),
+  });
+  const seenAt = new Date('2026-11-14T12:00:00Z');
+
+  function reporter() {
+    const batches: Hit[][] = [];
+    return { batches, reporter: new HitReporter(async (hits) => void batches.push(hits)) };
+  }
+
+  it('sends each flagged narrative match once per page in one batch per lookup', async () => {
+    const { batches, reporter: r } = reporter();
+    const underReview = { ...flagged('s3', 'n2'), flagged: false };
+    await r.report('https://news.example/a#top', [flagged('s1'), flagged('s2'), underReview], seenAt);
+    await r.report('https://news.example/a', [flagged('s1')], seenAt);
+    await r.report('https://news.example/b', [flagged('s1')], seenAt);
+    expect(batches).toEqual([
+      [
+        { hash: 's1', narrativeId: 'n1', url: 'https://news.example/a', seenAt: seenAt.toISOString() },
+        { hash: 's2', narrativeId: 'n1', url: 'https://news.example/a', seenAt: seenAt.toISOString() },
+      ],
+      [{ hash: 's1', narrativeId: 'n1', url: 'https://news.example/b', seenAt: seenAt.toISOString() }],
+    ]);
+  });
+
+  it('reports nothing for pages that are not http(s)', async () => {
+    const { batches, reporter: r } = reporter();
+    await r.report('file:///home/user/page.html', [flagged('s1')]);
+    await r.report('chrome-extension://abc/popup.html', [flagged('s1')]);
+    expect(batches).toEqual([]);
   });
 });

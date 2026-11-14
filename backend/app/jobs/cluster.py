@@ -1,4 +1,8 @@
-"""Periodic narrative discovery: HDBSCAN over the embeddings of fingerprints that have no variant."""
+"""Periodic narrative discovery: HDBSCAN over the embeddings of fingerprints that have no variant.
+
+Page chrome is left out: boilerplate (see app.jobs.variants.boilerplate), and blocks too short or too numeric
+to carry a claim.
+"""
 
 import logging
 import re
@@ -10,15 +14,20 @@ from psycopg.types.json import Jsonb
 from sklearn.cluster import HDBSCAN
 
 from app.jobs import register
+from app.jobs.variants import boilerplate
 
 # Bounds the run's cost; the newest unassigned embeddings are clustered first.
 MAX_EMBEDDINGS = 2000
 MIN_CLUSTER_SIZE = 3
-# Cosine similarity of a cluster's centroid to a narrative's centroid at which the cluster joins the narrative.
+# A cluster's similarity to a narrative is the mean cosine of its members to the narrative's centroid, so a
+# loose cluster whose centroid happens to lie near a narrative's stays apart from it.
+# The similarity at which a cluster joins the narrative.
 EXTEND_SIMILARITY = 0.9
 # From here up to EXTEND_SIMILARITY, the cluster becomes a new narrative the nearest one evolved into.
 EVOLVE_SIMILARITY = 0.75
 TITLE_CHARS = 200
+# A block needs this many words to carry a claim; shorter ones are bylines, dates and links.
+MIN_WORDS = 8
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +37,7 @@ class Cluster:
     fingerprint_ids: list[int]
     centroid: list[float]  # unit length
     central_id: int  # the member closest to the centroid
+    cohesion: float  # length of the members' mean: their mean cosine to the centroid
 
 
 def _unit(x: np.ndarray) -> np.ndarray:
@@ -45,15 +55,25 @@ def find_clusters(ids: list[int], embeddings: np.ndarray) -> list[Cluster]:
     clusters = []
     for label in sorted(set(labels.tolist()) - {-1}):
         members = np.flatnonzero(labels == label)
-        centroid = _unit(points[members].mean(axis=0))
+        mean = points[members].mean(axis=0)
+        centroid = _unit(mean)
         central = members[int(np.argmax(points[members] @ centroid))]
-        clusters.append(Cluster([ids[i] for i in members], centroid.tolist(), ids[central]))
+        clusters.append(
+            Cluster([ids[i] for i in members], centroid.tolist(), ids[central], float(np.linalg.norm(mean)))
+        )
     return clusters
 
 
 def first_sentence(text: str) -> str:
     sentence = re.split(r"(?<=[.!?])\s+", text.strip(), maxsplit=1)[0]
     return sentence[:TITLE_CHARS]
+
+
+def is_chrome(text: str) -> bool:
+    """Whether a block is page chrome: under MIN_WORDS words, or at least half its words hold a digit."""
+    words = text.split()
+    numeric = sum(any(c.isdigit() for c in word) for word in words)
+    return len(words) < MIN_WORDS or 2 * numeric >= len(words)
 
 
 def refresh_centroids(conn: Connection, narrative_ids: list[int] | None = None) -> None:
@@ -106,26 +126,28 @@ def create_narrative(conn: Connection, cluster: Cluster, title: str) -> int:
 
 
 # Unassigned embedded fingerprints, leaving out boilerplate: text seen on 2+ pages of one domain.
-CLUSTERABLE = """
-    variant_id IS NULL AND embedding IS NOT NULL AND NOT EXISTS (
-      SELECT 1 FROM observation o JOIN page p ON p.id = o.page_id
-      WHERE o.fingerprint_id = fingerprint.id
-      GROUP BY p.domain_id HAVING count(DISTINCT o.page_id) >= 2
-    )
-"""
+CLUSTERABLE = "variant_id IS NULL AND embedding IS NOT NULL AND prose"
 
 
 @register("cluster")
 def handle(conn: Connection, payload: dict) -> None:
     refresh_centroids(conn)
-    unassigned = conn.execute(f"SELECT count(*) FROM fingerprint WHERE {CLUSTERABLE}").fetchone()[0]
+    candidates = [
+        (id, text)
+        for id, text in conn.execute(
+            f"SELECT id, content FROM fingerprint WHERE {CLUSTERABLE} ORDER BY first_seen DESC, id DESC"
+        )
+        if not is_chrome(text)
+    ]
+    chrome = boilerplate(conn, [id for id, _ in candidates])
+    candidates = [(id, text) for id, text in candidates if id not in chrome]
+    unassigned = len(candidates)
+    content = dict(candidates[:MAX_EMBEDDINGS])
     rows = conn.execute(
-        f"SELECT id, content, embedding::real[] FROM fingerprint WHERE {CLUSTERABLE}"
-        " ORDER BY first_seen DESC, id DESC LIMIT %s",
-        (MAX_EMBEDDINGS,),
+        "SELECT id, embedding::real[] FROM fingerprint WHERE id = ANY(%s) ORDER BY first_seen DESC, id DESC",
+        (list(content),),
     ).fetchall()
-    content = {row[0]: row[1] for row in rows}
-    clusters = find_clusters([row[0] for row in rows], np.array([row[2] for row in rows])) if rows else []
+    clusters = find_clusters([row[0] for row in rows], np.array([row[1] for row in rows])) if rows else []
 
     created: list[int] = []
     extended: list[int] = []
@@ -133,6 +155,9 @@ def handle(conn: Connection, payload: dict) -> None:
     for cluster in clusters:
         # Narratives created in this run are left out, so a run's clusters never join or evolve from each other.
         nearest = nearest_narrative(conn, cluster.centroid, created)
+        if nearest is not None:
+            # The mean of the members' cosines equals the centroid cosine scaled by the cohesion.
+            nearest = (nearest[0], nearest[1] * cluster.cohesion)
         if nearest is not None and nearest[1] >= EXTEND_SIMILARITY:
             add_variant(conn, nearest[0], cluster.fingerprint_ids)
             extended.append(nearest[0])

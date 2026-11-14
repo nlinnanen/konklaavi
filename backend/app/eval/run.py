@@ -1,6 +1,10 @@
-"""Evaluate page-level detection on the held-out EUvsDisinfo cases and on reliable-outlet negatives.
+"""Evaluate page-level detection against EUvsDisinfo article URLs and reliable-outlet negatives.
 
 python -m app.eval [--api URL] [--timeout SECONDS]
+
+Known narratives: the URLs each seed case held out of the import, and mirrors of their text on other
+domains. Unseen narratives: the URLs of the test cases, which were held out whole, so nothing was seeded
+for them and low recall is expected.
 
 Fetches go through the worker's fetch job, so the worker must be running. Lookups go to the API at
 --api, or to the API app in-process.
@@ -11,6 +15,7 @@ import json
 import logging
 import time
 from collections.abc import Iterator
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -22,8 +27,9 @@ from app.api.main import app
 from app.db import connection
 from app.eval.metrics import Match, Page, report
 from app.jobs import enqueue
+from app.jobs.cluster import is_chrome
 from app.migrate import migrate
-from app.seed.euvsdisinfo import is_test_case, load_cases
+from app.seed.euvsdisinfo import is_test_case, load_cases, split_urls
 
 HERE = Path(__file__).resolve().parent
 NEGATIVES_FILE = HERE / "negatives.txt"
@@ -31,6 +37,9 @@ RESULTS_FILE = HERE / "results" / "latest.json"
 MAX_LOOKUP_HASHES = 500
 MATCH_TEXT_CHARS = 300
 POLL_SECONDS = 5
+# Share of a held-out page's blocks another page must repeat to count as its mirror.
+MIRROR_SHARE = 0.5
+UNSEEN_REASON = "no narrative was seeded from this case"
 
 log = logging.getLogger(__name__)
 
@@ -40,18 +49,117 @@ def load_negatives(path: Path = NEGATIVES_FILE) -> list[str]:
     return [line for line in lines if line and not line.startswith("#")]
 
 
-def load_positives(conn: Connection) -> tuple[dict[str, str], int]:
-    """Article URL -> case id for the test cases, leaving out URLs a seed case shares; and how many were."""
-    seed_urls = {url for case in load_cases() if not is_test_case(case["id"]) for url in case["article_urls"]}
-    positives: dict[str, str] = {}
-    overlap = set()
-    for case_id, urls in conn.execute("SELECT case_id, article_urls FROM eval_case ORDER BY case_id"):
-        for url in urls:
-            if url in seed_urls:
-                overlap.add(url)
+@dataclass(frozen=True)
+class Labels:
+    """The evaluation's positive URLs, and the URLs fetched as seeds, which are not evaluated."""
+
+    known: dict[str, tuple[str, str]]  # held-out URL -> (case id, id of the narrative seeded from the case)
+    unseen: dict[str, str]  # URL of a test case -> case id
+    known_cases: int
+    unseen_cases: int
+    known_overlap: int  # held-out URLs that were also fetched as a seed
+    unseen_overlap: int
+    seeded: set[str]
+
+
+def label_urls(conn: Connection, cases: list[dict]) -> Labels:
+    """Held-out URLs of the imported seed cases are known positives; test case URLs are unseen positives.
+
+    A URL fetched as a seed, by any case, is in the knowledge base and is evaluated in neither set.
+    """
+    narratives = dict(conn.execute("SELECT source_url, id FROM narrative WHERE source = 'euvsdisinfo'"))
+    imported = [c for c in cases if not is_test_case(c["id"]) and c["url"] in narratives]
+    seeded = {url for case in imported for url in split_urls(case)[0]}
+    seeded |= {
+        row[0]
+        for row in conn.execute(
+            "SELECT DISTINCT payload->>'url' FROM job WHERE kind = 'fetch' AND payload->>'reason' = 'seed'"
+        )
+    }
+    known: dict[str, tuple[str, str]] = {}
+    known_overlap: set[str] = set()
+    known_cases = 0
+    for case in imported:
+        held_out = split_urls(case)[1]
+        known_cases += bool(held_out)
+        for url in held_out:
+            if url in seeded:
+                known_overlap.add(url)
             else:
-                positives.setdefault(url, case_id)
-    return positives, len(overlap)
+                known.setdefault(url, (case["id"], str(narratives[case["url"]])))
+    unseen: dict[str, str] = {}
+    unseen_overlap: set[str] = set()
+    unseen_cases = 0
+    for case_id, urls in conn.execute("SELECT case_id, article_urls FROM eval_case ORDER BY case_id"):
+        unseen_cases += 1
+        for url in urls:
+            if url in seeded:
+                unseen_overlap.add(url)
+            elif url not in known:
+                unseen.setdefault(url, case_id)
+    return Labels(known, unseen, known_cases, unseen_cases, len(known_overlap), len(unseen_overlap), seeded)
+
+
+def find_mirrors(conn: Connection, held_out: list[str], labelled: set[str]) -> dict[str, str]:
+    """Fetched pages that repeat a held-out page's text on another domain: mirror URL -> held-out URL.
+
+    A mirror is an unlabelled page holding at least MIRROR_SHARE of the held-out page's blocks that are
+    not page chrome.
+    """
+    blocks: dict[str, set[int]] = {}
+    shared: dict[tuple[str, str], set[int]] = {}
+    for url, fingerprint_id, content, other in conn.execute(
+        """
+        SELECT h.url, f.id, f.content, other.url
+        FROM page h
+        JOIN observation o ON o.page_id = h.id
+        JOIN fingerprint f ON f.id = o.fingerprint_id
+        LEFT JOIN LATERAL (
+          SELECT DISTINCT p.url FROM observation o2 JOIN page p ON p.id = o2.page_id
+          WHERE o2.fingerprint_id = f.id AND p.domain_id <> h.domain_id AND p.status = 'ok'
+        ) other ON true
+        WHERE h.url = ANY(%s) AND h.status = 'ok'
+        """,
+        (held_out,),
+    ):
+        if is_chrome(content):
+            continue
+        blocks.setdefault(url, set()).add(fingerprint_id)
+        if other is not None and other not in labelled:
+            shared.setdefault((url, other), set()).add(fingerprint_id)
+    mirrors: dict[str, str] = {}
+    for (url, other), ids in sorted(shared.items()):
+        if len(ids) >= MIRROR_SHARE * len(blocks[url]):
+            mirrors.setdefault(other, url)
+    return mirrors
+
+
+def miss_reason(conn: Connection, url: str, narrative_id: str | None) -> str:
+    """Why a fetched positive page matched nothing."""
+    if narrative_id is None:
+        return UNSEEN_REASON
+    blocks = conn.execute(
+        "SELECT count(*) FROM fingerprint f JOIN variant v ON v.id = f.variant_id WHERE v.narrative_id = %s",
+        (int(narrative_id),),
+    ).fetchone()[0]
+    if blocks == 0:
+        return "the case's narrative has no blocks: its seed pages failed to load or held nothing relevant"
+    closest = conn.execute(
+        """
+        SELECT max(1 - (pf.embedding <=> nf.embedding))
+        FROM page p
+        JOIN observation o ON o.page_id = p.id
+        JOIN fingerprint pf ON pf.id = o.fingerprint_id
+        CROSS JOIN (
+          SELECT f.embedding FROM fingerprint f JOIN variant v ON v.id = f.variant_id
+          WHERE v.narrative_id = %s AND f.embedding IS NOT NULL
+        ) nf
+        WHERE p.url = %s AND pf.embedding IS NOT NULL
+        """,
+        (int(narrative_id), url),
+    ).fetchone()[0]
+    similarity = "no embeddings to compare" if closest is None else f"closest block cosine {closest:.2f}"
+    return f"no sentence or 2 bands in common with the case's narrative ({blocks} blocks); {similarity}"
 
 
 def fetch_all(urls: list[str], timeout: float) -> None:
@@ -150,35 +258,82 @@ def page_matches(client: httpx.Client, blocks: list[dict]) -> list[Match]:
     return list(dict.fromkeys(matches))
 
 
+def page_status(conn: Connection, url: str) -> str:
+    row = conn.execute("SELECT status FROM page WHERE url = %s", (url,)).fetchone()
+    if row is None:
+        return "not fetched"
+    return "no text extracted" if row[0] == "ok" else row[0]
+
+
 def evaluate(client: httpx.Client, timeout: float) -> dict:
     migrate()
     with connection() as conn:
-        positives, overlap = load_positives(conn)
-        cases = conn.execute("SELECT count(*) FROM eval_case").fetchone()[0]
-    negatives = [url for url in load_negatives() if url not in positives]
-    labelled = [(url, True, positives[url]) for url in positives] + [(url, False, None) for url in negatives]
-    fetch_all([url for url, _, _ in labelled], timeout)
+        labels = label_urls(conn, load_cases())
+    negatives = [url for url in load_negatives() if url not in labels.known and url not in labels.unseen]
+    fetch_all([*labels.known, *labels.unseen, *negatives], timeout)
+    with connection() as conn:
+        mirrors = find_mirrors(
+            conn, list(labels.known), {*labels.known, *labels.unseen, *negatives, *labels.seeded}
+        )
 
-    pages: list[Page] = []
-    unreachable: list[str] = []
-    for url, positive, case_id in labelled:
-        with connection() as conn:
-            blocks = page_blocks(conn, url)
-        if blocks is None:
-            unreachable.append(url)
-            continue
-        pages.append(Page(url, positive, page_matches(client, blocks), case_id))
+    known = [
+        Page(url, True, case_id=case, narrative_id=narrative)
+        for url, (case, narrative) in labels.known.items()
+    ]
+    known += [
+        Page(url, True, case_id=labels.known[held][0], narrative_id=labels.known[held][1], mirror_of=held)
+        for url, held in mirrors.items()
+    ]
+    sets = {
+        "known": known,
+        "unseen": [Page(url, True, case_id=case) for url, case in labels.unseen.items()],
+        "negative": [Page(url, False) for url in negatives],
+    }
+    pages: dict[str, list[Page]] = {name: [] for name in sets}
+    unreachable = []
+    for name, labelled in sets.items():
+        for page in labelled:
+            # The in-process API takes a pooled connection too, so none is held across the lookup.
+            with connection() as conn:
+                blocks = page_blocks(conn, page.url)
+                if blocks is None:
+                    unreachable.append({"url": page.url, "set": name, "status": page_status(conn, page.url)})
+                    continue
+            page = replace(page, matches=page_matches(client, blocks))
+            if page.positive and not page.flagged:
+                with connection() as conn:
+                    page = replace(page, reason=miss_reason(conn, page.url, page.narrative_id))
+            pages[name].append(page)
 
+    known_report = report(pages["known"] + pages["negative"])
+    unseen_report = report(pages["unseen"] + pages["negative"])
     return {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "positives": {
-            "cases": cases,
-            "urls": len(positives),
-            "seed_overlap": overlap,
-            "pages": sum(p.positive for p in pages),
+        "known": {
+            "cases": labels.known_cases,
+            "urls": len(labels.known),
+            "seed_overlap": labels.known_overlap,
+            "mirrors": len(mirrors),
+            "pages": len(pages["known"]),
+            "flagged_by_own_narrative": sum(p.flagged_by_own_narrative for p in pages["known"]),
+            "metrics": known_report["metrics"],
+            "false_negatives": known_report["false_negatives"],
+            "true_positives": known_report["true_positives"],
         },
-        "negatives": {"urls": len(negatives), "pages": sum(not p.positive for p in pages)},
-        **report(pages),
+        "unseen": {
+            "cases": labels.unseen_cases,
+            "urls": len(labels.unseen),
+            "seed_overlap": labels.unseen_overlap,
+            "pages": len(pages["unseen"]),
+            "metrics": unseen_report["metrics"],
+            "false_negatives": unseen_report["false_negatives"],
+            "true_positives": unseen_report["true_positives"],
+        },
+        "negatives": {
+            "urls": len(negatives),
+            "pages": len(pages["negative"]),
+            "false_positives": known_report["false_positives"],
+        },
         "unreachable": unreachable,
     }
 
@@ -187,27 +342,40 @@ def _percent(value: float | None) -> str:
     return "n/a" if value is None else f"{100 * value:.1f}%"
 
 
-def print_table(results: dict) -> None:
-    m = results["metrics"]
-    pos, neg = results["positives"], results["negatives"]
-    print(
-        f"positives: {pos['pages']} pages of {pos['urls']} URLs from {pos['cases']} cases"
-        f" ({pos['seed_overlap']} URLs shared with seed cases left out)"
-    )
-    print(f"negatives: {neg['pages']} pages of {neg['urls']} URLs")
-    print()
+def _print_set(title: str, section: dict) -> None:
+    m = section["metrics"]
+    print(title)
     print(f"{'':10}{'flagged':>10}{'not flagged':>14}")
     print(f"{'positive':10}{m['true_positives']:>10}{m['false_negatives']:>14}")
     print(f"{'negative':10}{m['false_positives']:>10}{m['true_negatives']:>14}")
-    print()
     print(
         f"precision {_percent(m['precision'])}   recall {_percent(m['recall'])}"
         f"   false-positive rate {_percent(m['false_positive_rate'])}"
     )
-    for page in results["false_positives"]:
+    print()
+
+
+def print_table(results: dict) -> None:
+    known, unseen, neg = results["known"], results["unseen"], results["negatives"]
+    _print_set(
+        f"Known narratives: {known['pages']} pages of {known['urls']} held-out URLs and {known['mirrors']} mirrors"
+        f" from {known['cases']} seed cases ({known['seed_overlap']} URLs also fetched as seeds left out);"
+        f" {known['flagged_by_own_narrative']} flagged by their own case's narrative",
+        known,
+    )
+    _print_set(
+        f"Unseen narratives (held out whole, so low recall is expected): {unseen['pages']} pages of"
+        f" {unseen['urls']} URLs from {unseen['cases']} test cases ({unseen['seed_overlap']} URLs also fetched"
+        " as seeds left out)",
+        unseen,
+    )
+    print(f"Negatives: {neg['pages']} pages of {neg['urls']} reliable-outlet URLs")
+    for page in neg["false_positives"]:
         print(f"\nfalse positive: {page['url']}")
         for match in page["matches"]:
             print(f"  [{match['narrative'] or 'votes'}] {match['text']}")
+    for page in known["false_negatives"]:
+        print(f"\nfalse negative: {page['url']}\n  {page['reason']}")
 
 
 def main() -> None:

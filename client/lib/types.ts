@@ -69,6 +69,38 @@ export interface Signature {
   matchLevel: 'exact' | 'variant';
 }
 
+/** A signature as GET /index ships it; the match level is the client's to set. */
+export type IndexSignature = Omit<Signature, 'matchLevel'>;
+
+/** One fingerprint of GET /index: `bands[i]` is LSH band i, null where the block has none. */
+export interface IndexFingerprint {
+  narrativeId: string;
+  bands: (string | null)[];
+}
+
+/**
+ * Body of GET /index. A full index replaces the client's. In a delta, each narrative in `signatures`
+ * comes with all its sentences and fingerprints and replaces the client's entries for it, and
+ * `removed` lists the narrativeIds no longer shipped.
+ */
+export interface IndexResponse {
+  /** Opaque and increasing; sent back as `since`. */
+  version: number;
+  full: boolean;
+  signatures: IndexSignature[];
+  sentences: { hash: string; narrativeId: string }[];
+  fingerprints: IndexFingerprint[];
+  removed: string[];
+}
+
+/** One entry of the POST /hits body. */
+export interface Hit {
+  hash: string;
+  narrativeId: string;
+  url: string;
+  seenAt: string;
+}
+
 /** Response of GET /domains/:domain. */
 export interface DomainStats {
   domain: string;
@@ -80,10 +112,13 @@ export interface DomainStats {
 }
 
 export interface Settings {
-  backendMode: 'mock' | 'remote';
+  /** `local` matches against a downloaded GET /index, so page hashes stay in the browser. */
+  backendMode: 'mock' | 'remote' | 'local';
   backendUrl: string;
   sendExcerpt: boolean;
   highlight: boolean;
+  /** Send detection hits to the backend in local index mode. */
+  sendHits: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -91,4 +126,5 @@ export const DEFAULT_SETTINGS: Settings = {
   backendUrl: 'http://localhost:8000',
   sendExcerpt: true,
   highlight: true,
+  sendHits: true,
 };

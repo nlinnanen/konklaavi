@@ -2,6 +2,8 @@ import importlib.util
 from datetime import UTC, datetime
 from pathlib import Path
 
+import psycopg
+
 _spec = importlib.util.spec_from_file_location(
     "dashboard_queries", Path(__file__).resolve().parents[3] / "dashboard" / "queries.py"
 )
@@ -105,3 +107,52 @@ def test_narrative_lineage_points_from_parent_to_derived_block(conn):
     rows = conn.execute(queries.NARRATIVE_LINEAGE, {"id": narrative, "limit": 10}).fetchall()
 
     assert rows == [(first, "a.example: Block 0", second, "a.example: Block 1")]
+
+
+def add_second_domain(conn, fingerprint):
+    """A page on b.example observed on day 3 with the given fingerprint."""
+    domain = insert(conn, "INSERT INTO domain (name) VALUES ('b.example')")
+    page = insert(conn, "INSERT INTO page (url, domain_id) VALUES ('https://b.example/0', %s)", domain)
+    conn.execute(
+        "INSERT INTO observation (seen_at, fingerprint_id, page_id, source) VALUES (%s, %s, %s, 'fetch')",
+        (datetime(2025, 7, 3, 12, tzinfo=UTC), fingerprint, page),
+    )
+
+
+SPREAD_PER_DAY = [(1, 2, 2, 1, 1), (2, 1, 1, 1, 1), (3, 1, 1, 1, 2)]
+SPREAD_DOMAINS = [("a.example", 1, 2, 2, 3), ("b.example", 3, 3, 1, 1)]
+
+
+def spread(conn, narrative, aggregate):
+    per_day = conn.execute(queries.spread_per_day(aggregate), {"id": narrative}).fetchall()
+    domains = conn.execute(queries.spread_domains(aggregate), {"id": narrative}).fetchall()
+    return (
+        [(day.day, *counts) for day, *counts in per_day],
+        [(name, first.day, last.day, *counts) for name, first, last, *counts in domains],
+    )
+
+
+def test_spread_counts_pages_and_domains_reached_per_day(conn):
+    narrative, fingerprints = add_spread(conn)
+    add_second_domain(conn, fingerprints[0])
+
+    assert spread(conn, narrative, aggregate=False) == (SPREAD_PER_DAY, SPREAD_DOMAINS)
+
+
+def test_spread_from_the_continuous_aggregate_matches_the_observation_table(conn, database_url):
+    narrative, fingerprints = add_spread(conn)
+    add_second_domain(conn, fingerprints[0])
+    conn.commit()
+    with psycopg.connect(database_url, autocommit=True) as admin:
+        admin.execute(
+            "CREATE MATERIALIZED VIEW observation_daily WITH (timescaledb.continuous) AS"
+            " SELECT time_bucket('1 day', seen_at) AS day, fingerprint_id, page_id, count(*) AS observations"
+            " FROM observation GROUP BY 1, 2, 3 WITH NO DATA"
+        )
+        try:
+            admin.execute("CALL refresh_continuous_aggregate('observation_daily', NULL, NULL)")
+            assert conn.execute(queries.HAS_OBSERVATION_DAILY).fetchone()[0]
+            assert spread(conn, narrative, aggregate=True) == (SPREAD_PER_DAY, SPREAD_DOMAINS)
+        finally:
+            conn.rollback()
+            admin.execute("DROP MATERIALIZED VIEW observation_daily")
