@@ -58,7 +58,7 @@ sequenceDiagram
 
 ## Rating and scoring
 
-Signed-in readers rate notes from the highlight card. Every five minutes `score_notes` fits the Community Notes matrix factorisation over the ratings of verified accounts and sets each note's status. The narrative's display state follows its shown notes, and every change marks the narrative changed for the next `/index` delta.
+Readers rate notes from the highlight card. Every five minutes `score_notes` fits the Community Notes matrix factorisation over the ratings, each account once and each install without one on its own, and sets each note's status. The narrative's display state follows its shown notes, and every change marks the narrative changed for the next `/index` delta.
 
 ```mermaid
 stateDiagram-v2

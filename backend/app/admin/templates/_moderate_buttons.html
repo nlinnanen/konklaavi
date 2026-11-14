@@ -1,0 +1,4 @@
+<span class="actions" hx-target="#note-{{ note.id }}" hx-swap="outerHTML" hx-disabled-elt="this">
+  {% if note.moderation != 'visible' %}<button class="btn primary small" hx-post="moderation/notes/{{ note.id }}" hx-vals='{"action": "approve"}'>Approve</button>{% endif %}
+  {% if note.moderation != 'hidden' %}<button class="btn small" hx-post="moderation/notes/{{ note.id }}" hx-vals='{"action": "hide"}'>Hide</button>{% endif %}
+</span>

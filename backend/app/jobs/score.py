@@ -20,7 +20,7 @@ global mean absorbs their agreement and regularisation keeps intercepts low, so 
 A note whose counted raters are mostly new, more than half of them with fewer than BRIDGING_MIN_HISTORY
 counted ratings on other notes, is decided by agreement instead; the others by bridging.
 
-A rating counts when its install is linked to an account; an account counts once per note, with the
+A rater is an account or an install without one; each counts once per note, an account with the
 latest rating of its installs. A note with fewer than NOTE_MIN_RATINGS counted ratings needs more ratings
 under either rule. Otherwise:
 
@@ -131,10 +131,9 @@ def score(conn: Connection) -> None:
     """
     rows = conn.execute(
         """
-        SELECT DISTINCT ON (r.note_id, i.account_id) r.note_id, i.account_id, r.helpfulness
+        SELECT DISTINCT ON (r.note_id, rater) r.note_id, COALESCE(i.account_id, r.install) AS rater, r.helpfulness
         FROM note_rating r JOIN install i ON i.id = r.install
-        WHERE i.account_id IS NOT NULL
-        ORDER BY r.note_id, i.account_id, r.created_at DESC
+        ORDER BY r.note_id, rater, r.created_at DESC
         """
     ).fetchall()
     note_ids = sorted({note for note, _, _ in rows})

@@ -83,7 +83,7 @@ def test_narrative_row_counts_its_spread(conn):
     assert [row[6:9] for row in rows] == [(1, 3, 2)]
 
 
-def test_only_ratings_from_verified_accounts_count(conn):
+def test_an_account_counts_once_and_an_install_without_one_on_its_own(conn):
     narrative = insert(conn, "INSERT INTO narrative (title, source) VALUES ('Rated', 'note')")
     note = add_note(conn, narrative, "misleading", "needs_more_ratings")
     account = insert(conn, "INSERT INTO user_account (email) VALUES ('a@example.com')")
@@ -105,7 +105,7 @@ def test_only_ratings_from_verified_accounts_count(conn):
         2,
         1,
         1,
-        0,
+        1,
     ]
 
 

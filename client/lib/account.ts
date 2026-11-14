@@ -19,7 +19,7 @@ function noteBadge(note: AccountNote): string {
   return `<span class="badge" data-state="${state}">${label}</span>`;
 }
 
-/** The signed-in account: reputation, ratings and the user's notes with their status. */
+/** The user's reputation, ratings and notes with their status; without an account, a call to sign in. */
 export function renderAccount(me: MeResponse): string {
   const notes = me.notes
     .map(
@@ -29,13 +29,16 @@ export function renderAccount(me: MeResponse): string {
       </li>`,
     )
     .join('');
-  const reputation = Math.round((me.reputation ?? 0) * 100);
+  const reputation = Math.round(me.reputation * 100);
+  const ratings = me.reputationCapped
+    ? ''
+    : `<div><dt>Ratings</dt><dd>${me.ratings.count}<small>${me.ratings.agreed} matched the outcome</small></dd></div>`;
   return `
-    <p class="who">${escapeHtml(me.email ?? '')}</p>
+    ${me.reputationCapped ? `<p class="who">Sign in to build reputation.</p>` : `<p class="who">${escapeHtml(me.email ?? '')}</p>`}
     <dl class="stats">
-      <div><dt>Reputation</dt><dd>${reputation}<span class="meter"><span style="width:${reputation}%"></span></span></dd></div>
+      <div><dt>Reputation</dt><dd>${reputation}<span class="meter"><span style="width:${reputation}%"></span></span>${me.reputationCapped ? '<small>Fixed until you sign in</small>' : ''}</dd></div>
       <div><dt>Notes</dt><dd>${me.notes.length}</dd></div>
-      <div><dt>Ratings</dt><dd>${me.ratings.count}<small>${me.ratings.agreed} matched the outcome</small></dd></div>
+      ${ratings}
     </dl>
     ${notes ? `<h3>Your notes</h3><ul class="list">${notes}</ul>` : `<p class="muted">Notes you write appear here with their status.</p>`}`;
 }

@@ -1,6 +1,6 @@
 # HashTrust: browser extension
 
-The extension recognises passages that belong to a tracked narrative, by sentence fingerprints and on-device embeddings, and highlights them with the state their crowdsourced context notes give them. Signed-in readers select a passage to add a note (misleading or not misleading, with context and sources) and rate other readers' notes; the backend's Community Notes scoring decides which note is shown.
+The extension recognises passages that belong to a tracked narrative, by sentence fingerprints and on-device embeddings, and highlights them with the state their crowdsourced context notes give them. Readers select a passage to add a note (misleading or not misleading, with context and sources) and rate other readers' notes; the backend's Community Notes scoring decides which note is shown.
 
 The design, the API contract and the milestones are in [PLAN.md](PLAN.md).
 
@@ -59,7 +59,7 @@ Run both from `client/` after `npm install`; the container uses the mounted `nod
 - **Background** (`entrypoints/background.ts`): every network call goes through here. It picks the mock backend, the remote backend or the local index from the settings, adds the anonymous `userId`, remembers the install's own ratings, keeps the downloaded index in IndexedDB and in memory across mode switches, loads it as soon as local mode is chosen, and sends detection hits.
 - **Offscreen document** (`entrypoints/offscreen/`): runs the embedding model with transformers.js for local index mode. Chrome's service worker can't load the ONNX runtime, so the background opens this document on the first embedding; Firefox runs the same code in its background page. The build copies the ONNX runtime's wasm files into `ort/`. `lib/backends.ts` picks the path: WebGPU, then multithreaded WASM (the Chrome manifest makes extension pages cross-origin isolated for it), then single-threaded WASM.
 - **Benchmark** (`entrypoints/benchmark/`): "Benchmark embeddings" in the popup's Settings opens it in a tab. It embeds 64 fixed sentences on each path this browser offers (webgpu, wasm-threaded, wasm-single), each in its own frame, and shows the load time, the median time for the 64 and which path the extension uses. The first run of a path downloads its weights.
-- **Popup** (`entrypoints/popup/`): the narratives on the current page, the account (sign-in, reputation, your notes and their status, your ratings), the highlight legend and settings.
+- **Popup** (`entrypoints/popup/`): the narratives on the current page, the account (reputation, your notes and their status, your ratings, and sign-in, which lets reputation grow), the highlight legend and settings.
 - **Shared** (`lib/`):
   - `normalize.ts` and `fingerprint.ts` do normalization, sentence splitting and SHA-256 hashing; `minhash.ts` computes MinHash signatures and LSH bands.
   - `api.ts` has `RemoteApi`, `LocalIndexApi` with its `NarrativeIndex`, `MockApi` and the `HitReporter`.
@@ -82,7 +82,7 @@ A build defaults to Mock, or to Local index from the backend in `WXT_API_URL` wh
 - Sentences match exactly once normalized: case, punctuation and whitespace don't matter, but any change in wording does. Sentences under 5 words are ignored.
 - A block (a paragraph, roughly) also matches as an edited copy when its LSH bands overlap a known narrative's.
 - A highlight shows its narrative's state: misleading (a strong vermilion fill and underline, with the helpful note), context (a calm blue fill, with the note), raters disagree (grey), needs ratings (a faint wash) and tracked (a subtle dotted underline, "Part of a narrative seen on N sites since a date"). Narrative-level and related matches, which need Local index mode, are drawn lighter than exact copies and edited copies. Each sentence takes its strongest match (match level first, then the more urgent state), so highlights never overlap. The popup has the legend.
-- Hovering a highlight shows its card; clicking pins it, loads the narrative's current notes and offers Helpful, Somewhat and Not helpful on each note, "Report" and "Add a note". Ratings are stored for any install but count only from signed-in ones.
-- "Add context" on a selection snaps it to the full sentences it touches and needs a signed-in account; the card offers to sign in or create an account with email and password otherwise. The passage text is sent with the note, which is the only time page text leaves the browser.
+- Hovering a highlight shows its card; clicking pins it, loads the narrative's current notes and offers Helpful, Somewhat and Not helpful on each note, "Report" and "Add a note". Ratings from every install count, a signed-in account once per note.
+- "Add context" on a selection snaps it to the full sentences it touches. The passage text is sent with the note, which is the only time page text leaves the browser.
 - Lookups send only hashes and LSH bands, never page text; in local index mode they send nothing, and detection hits send the matched hash and the page URL.
 - Dev builds open the UI shadow root (`mode: 'open'`) so tests and devtools can inspect it. Production builds keep it closed.

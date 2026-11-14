@@ -16,7 +16,7 @@ A narrative is born when a signed-in user selects a passage and adds a note. The
 
 ## Moderation
 
-Each submitted note goes through an LLM review for abuse, spam and off-topic content, which can hold it for review. Held and user-reported notes wait in a review queue that volunteer moderators work through in the dashboard. Writing notes requires a verified account.
+Each submitted note goes through an LLM review for abuse, spam and off-topic content, which can hold it for review. Held and user-reported notes wait in a review queue that volunteer moderators work through in the dashboard. Anyone can write and rate notes; signing in lets a reader's reputation grow.
 
 ## Benchmark
 
@@ -26,7 +26,7 @@ The EUvsDisinfo dataset stays as an offline benchmark of narrative recognition: 
 
 - core: notes, ratings and the scoring job; reputation; the moderation review and queue; `/index`, `/lookup` and `/check` ship narratives with their note state; removal of votes, settlement, source verdicts, LLM explanations and paraphrases.
 - pipeline: narratives created from note passages; tracking through fetches and hits; removal of the settlement job.
-- ext: "Add context" on a selection, the tooltip with the narrative's spread, its notes and rating buttons, highlight states, sign-in for writing and rating, the slow mode switch, and a redesigned, nicer interface.
+- ext: "Add context" on a selection, the tooltip with the narrative's spread, its notes and rating buttons, highlight states, optional sign-in to build reputation, the slow mode switch, and a redesigned, nicer interface.
 - data: the dashboard's notes overview, narrative spread and moderation queue; the seed importers become the offline benchmark; removal of source-based pages.
 - integrator: merge, deploy locally, clear the seed content from the local database, and rewrite the docs for the new product.
 

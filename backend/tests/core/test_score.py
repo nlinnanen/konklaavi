@@ -32,7 +32,8 @@ def test_a_note_both_camps_find_helpful_is_helpful_and_a_one_sided_one_is_not(co
     narrative_id = narrative([])
     author = signed_in()
     left = [signed_in() for _ in range(5)]
-    right = [signed_in() for _ in range(5)]
+    # Installs without an account count like accounts.
+    right = [uuid.uuid4() for _ in range(5)]
     # Earlier notes the camps split on, which reveal the viewpoint dimension.
     for liked, disliked in ((left, right), (left, right), (right, left), (right, left)):
         note = add_note(conn, narrative_id, author)
@@ -49,14 +50,6 @@ def test_a_note_both_camps_find_helpful_is_helpful_and_a_one_sided_one_is_not(co
     assert result[bridging] == "helpful"
     assert result[one_sided] == "controversial"
     assert conn.execute("SELECT decided_at IS NOT NULL FROM note WHERE id = %s", (bridging,)).fetchone()[0]
-
-
-def test_ratings_of_installs_without_an_account_do_not_count(conn, narrative, signed_in):
-    narrative_id = narrative([])
-    note = add_note(conn, narrative_id, signed_in())
-    rate(conn, note, [uuid.uuid4() for _ in range(10)], "helpful")
-    score(conn)
-    assert statuses(conn)[note] == "needs_more_ratings"
 
 
 def test_seeded_camps_make_divisive_notes_controversial_and_cross_camp_notes_helpful(conn):

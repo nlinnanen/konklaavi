@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="{{ base }}">
+<title>{% block title %}{% endblock %} · HashTrust admin</title>
+<link rel="stylesheet" href="static/admin.css">
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js"
+        integrity="sha384-2OatzQy1H+Zd/IIrjr1TcuDGqLXeHhbooAyJY1KdQMKnr4LZ22k31GBLdYKHmVjg"
+        crossorigin="anonymous"></script>
+</head>
+<body>
+{% if admin %}
+<header class="top">
+  <a class="brand" href="./">HashTrust <span>admin</span></a>
+  <nav>
+    <a href="./" {% if page == 'narratives' %}aria-current="page"{% endif %}>Narratives</a>
+    <a href="map" {% if page == 'map' %}aria-current="page"{% endif %}>Cluster map</a>
+    <a href="moderation" {% if page == 'moderation' %}aria-current="page"{% endif %}>Moderation{% if pending %} <span class="count-pill" id="pending-count">{{ pending }}</span>{% endif %}</a>
+    <a href="notes" {% if page == 'notes' %}aria-current="page"{% endif %}>Notes</a>
+    <a href="users" {% if page == 'users' %}aria-current="page"{% endif %}>Users</a>
+  </nav>
+  <form class="who" method="post" action="logout">
+    <span title="Reputation {{ '%.2f'|format(admin.reputation) }}">{{ admin.email }}{% if admin.moderator %} <span class="tag">moderator</span>{% endif %}</span>
+    <button class="btn quiet" type="submit">Sign out</button>
+  </form>
+</header>
+{% endif %}
+<main class="{% block main_class %}page{% endblock %}">
+{% block content %}{% endblock %}
+</main>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<script>
+  // Show why an HTMX request failed (403 for non-moderators, 404) instead of failing silently.
+  document.body.addEventListener("htmx:responseError", (event) => {
+    const toast = document.getElementById("toast");
+    toast.textContent = event.detail.xhr.responseText || "The request failed.";
+    toast.hidden = false;
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => { toast.hidden = true; }, 5000);
+  });
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,14 +1,15 @@
 """Reputation of note writers and raters, and who moderates.
 
-Reputation belongs to a verified account, counting the notes and ratings of all its installs; an install
-without an account has none. It is (good + 1) / (good + bad + 4), so a new account starts at 0.25 and
-track record moves it towards 1 or 0:
+Reputation belongs to a verified account, counting the notes and ratings of all its installs. It is
+(good + 1) / (good + bad + 4), so a new account starts at 0.25 and track record moves it towards 1 or 0:
 
 - A note of the account that scoring rated helpful adds 2 to good, one rated not helpful adds 2 to bad.
 - A rating cast before its note's status was decided agrees when it matches the decision (helpful or
   somewhat helpful on a helpful note, not helpful on a not-helpful note) and adds 1 to good; otherwise it
   adds 1 to bad. Ratings cast after the decision count for neither, so following the crowd earns nothing,
   and counting disagreements keeps rating everything from paying.
+
+An install without an account has the reputation of a new account, 0.25, whatever its record.
 
 Moderators are the accounts whose email is in MODERATOR_EMAILS and those whose reputation is above
 MODERATOR_REPUTATION.
@@ -35,9 +36,11 @@ class Standing:
     disagreed: int = 0
 
     @property
-    def reputation(self) -> float | None:
-        if self.account_id is None:
-            return None
+    def capped(self) -> bool:
+        return self.account_id is None
+
+    @property
+    def reputation(self) -> float:
         good = NOTE_WEIGHT * self.helpful_notes + self.agreed
         bad = NOTE_WEIGHT * self.unhelpful_notes + self.disagreed
         return (good + 1) / (good + bad + 4)
@@ -57,7 +60,11 @@ def standing(conn: Connection, user_id: UUID) -> Standing:
     ).fetchone()
     if account is None:
         return Standing(None, None)
-    account_id, email = account
+    return account_standing(conn, *account)
+
+
+def account_standing(conn: Connection, account_id: UUID, email: str) -> Standing:
+    """The standing of an account, counting the notes and ratings of all its installs."""
     helpful, unhelpful = conn.execute(
         "SELECT count(*) FILTER (WHERE status = 'helpful'), count(*) FILTER (WHERE status = 'not_helpful')"
         " FROM note WHERE account_id = %s",

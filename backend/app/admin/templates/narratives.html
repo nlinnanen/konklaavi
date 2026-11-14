@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Narratives{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Narratives</h1>
+  <p class="muted">Passages readers noted, and the blocks across the web that carry them.</p>
+</div>
+<form class="filters" action="./" method="get"
+      hx-get="./" hx-target="#narrative-rows" hx-swap="outerHTML" hx-push-url="true"
+      hx-trigger="input changed delay:250ms from:input[name=q], change">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search title, passage or #id" aria-label="Search">
+  <label>Source
+    <select name="source">
+      <option value="note" {% if source == 'note' %}selected{% endif %}>Noted</option>
+      <option value="cluster" {% if source == 'cluster' %}selected{% endif %}>Cluster candidates</option>
+      <option value="all" {% if source == 'all' %}selected{% endif %}>All</option>
+    </select>
+  </label>
+  <label>State
+    <select name="state">
+      <option value="">Any</option>
+      {% for s in states %}<option value="{{ s }}" {% if s == state %}selected{% endif %}>{{ s.replace('_', ' ')|capitalize }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Sort
+    <select name="sort">
+      {% for key, label in [('last_seen', 'Last seen'), ('sites', 'Sites'), ('notes', 'Notes'), ('members', 'Blocks'), ('created', 'Newest')] %}
+      <option value="{{ key }}" {% if key == sort %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <noscript><button class="btn" type="submit">Apply</button></noscript>
+</form>
+{% include "_narrative_rows.html" %}
+{% endblock %}
