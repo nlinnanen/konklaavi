@@ -4,9 +4,12 @@ x-backend: &backend
   environment: &backend-env
     DATABASE_URL: postgresql://postgres:postgres@db:5432/postgres
     FP_URL: http://fingerprint:8100
-    ANTHROPIC_API_KEY:
-    ANTHROPIC_BASE_URL:
-    ANALYSIS_MODEL:
+    # The Hostinger AI Router serves the Anthropic Messages API.
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-${HOSTINGER_ROUTER_KEY:-}}
+    ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://router.hostinger.com}
+    ANALYSIS_MODEL: ${ANALYSIS_MODEL:-claude-opus-5.5}
+    PARAPHRASE_MODEL: ${PARAPHRASE_MODEL:-claude-haiku-5.5}
+    NARRATIVE_MATCH_THRESHOLD:
   depends_on:
     db:
       condition: service_healthy
