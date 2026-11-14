@@ -16,7 +16,7 @@ A narrative is born when a signed-in user selects a passage and adds a note. The
 
 ## Moderation
 
-Each submitted note goes through an LLM review for abuse, spam and missing sources, which can hold it for review. Held and user-reported notes wait in a review queue that volunteer moderators work through in the dashboard. Writing notes requires a verified account.
+Each submitted note goes through an LLM review for abuse, spam and off-topic content, which can hold it for review. Held and user-reported notes wait in a review queue that volunteer moderators work through in the dashboard. Writing notes requires a verified account.
 
 ## Benchmark
 
