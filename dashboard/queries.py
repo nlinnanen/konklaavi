@@ -110,3 +110,34 @@ WHERE a.narrative_id = %(id)s
 GROUP BY dm.name
 ORDER BY first_day, domain
 """
+
+# The most active reporters, one row per account, or per install without one, with one of their install
+# ids for GET /me, which computes reputation.
+REPORTERS = """
+SELECT min(v.user_id::text) AS user_id, count(*) AS reports, max(v.received_at) AS last_report
+FROM vote v
+LEFT JOIN install i ON i.id = v.user_id
+WHERE v.verdict <> 'trustworthy'
+GROUP BY coalesce(i.account_id, v.user_id)
+ORDER BY reports DESC, last_report DESC
+LIMIT %(limit)s
+"""
+
+# Settled report narratives, latest first: the narrative that confirmed each, or none when it was rejected.
+SETTLEMENTS = """
+SELECT r.id AS report_id,
+       r.title AS report,
+       c.id IS NOT NULL AS confirmed,
+       c.title AS settled_by,
+       c.source,
+       c.source_url,
+       first.reported_at,
+       r.settled_at,
+       r.settled_at - first.reported_at AS time_to_settle
+FROM narrative r
+LEFT JOIN narrative c ON c.id = r.settled_by
+LEFT JOIN LATERAL (SELECT min(received_at) AS reported_at FROM vote WHERE narrative_id = r.id) first ON true
+WHERE r.source = 'report' AND r.settled_at IS NOT NULL
+ORDER BY r.settled_at DESC
+LIMIT %(limit)s
+"""

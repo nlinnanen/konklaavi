@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import pandas as pd
 import psycopg
@@ -10,6 +11,13 @@ DATABASE_URL = os.environ.get("DATABASE_URL") or (
 API_URL = (os.environ.get("API_URL") or f"http://localhost:{os.environ.get('API_PORT') or '8000'}").rstrip(
     "/"
 )
+
+RESULTS = Path(
+    os.environ.get("EVAL_RESULTS")
+    or Path(__file__).resolve().parent.parent / "backend" / "app" / "eval" / "results" / "latest.json"
+)
+# The simulations in simulation/ write their runs next to the evaluation results.
+SIMULATION = RESULTS.parent / "simulation.json"
 
 
 @st.cache_data(ttl=10)
