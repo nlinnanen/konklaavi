@@ -1,5 +1,7 @@
 import { displayVerdict, sourceHref, SOURCE_LABELS } from '@/lib/messages';
+import type { Tier } from '@/lib/tier';
 import { VERDICTS, VERDICT_LABELS, type LookupResult, type Signature, type Verdict } from '@/lib/types';
+import type { FlaggedRange } from './highlighter';
 import { UI_HOST_TAG } from './textModel';
 
 const CSS_TEXT = `
@@ -60,6 +62,14 @@ textarea {
 .tooltip .source { color: #9ca3af; }
 .tooltip a { color: #93c5fd; }
 .tooltip .hint { color: #9ca3af; font-size: 11px; margin-top: 4px; }
+.tooltip .verdict-line { color: #d1d5db; font-size: 11px; margin-bottom: 4px; }
+.tooltip .feedback { display: flex; gap: 6px; margin-top: 8px; }
+.tooltip .feedback button {
+  flex: 1; border: 1px solid #4b5563; background: #1f2937; color: #f9fafb; border-radius: 6px;
+  padding: 4px 6px; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.tooltip .feedback button:hover:not(:disabled) { border-color: #9ca3af; }
+.tooltip .feedback button:disabled { opacity: .5; cursor: default; }
 
 .toast {
   bottom: 20px; right: 20px; background: #111827; color: #fff; border-radius: 8px; padding: 10px 14px;
@@ -67,6 +77,37 @@ textarea {
 }
 .toast.error { background: #b91c1c; }
 `;
+
+/** The verdict of a tooltip's feedback buttons. */
+export type FeedbackVerdict = 'misinformation' | 'trustworthy';
+
+/** Source wording in the confirmed tier's label. */
+const CONFIRMED_SOURCES: Record<Signature['source'], string> = {
+  euvsdisinfo: 'EUvsDisinfo case',
+  factcheck: 'fact-checked claim',
+  network: 'documented network (VIGINUM)',
+  report: 'user report confirmed by a fact source',
+  cluster: 'detected cluster',
+};
+
+/** The tooltip heading of a match. */
+function tierHeading(tier: Tier, result: LookupResult): string {
+  const signature = result.signature;
+  switch (tier) {
+    case 'confirmed':
+      return `Confirmed: ${CONFIRMED_SOURCES[signature?.source ?? 'report']}`;
+    case 'likely':
+      return 'Likely match';
+    case 'related':
+      return `Related narrative (similarity ${(signature?.similarity ?? 0).toFixed(2)})`;
+    case 'reported': {
+      const n = signature?.reports?.count ?? result.total;
+      return `Reported by ${n} user${n === 1 ? '' : 's'}, not yet confirmed`;
+    }
+    case 'disputed':
+      return 'Disputed by users';
+  }
+}
 
 export interface PickerResult {
   verdict: Verdict;
@@ -183,15 +224,17 @@ export class OverlayUi {
     this.panel.replaceChildren();
   }
 
-  /** A pinned tooltip takes pointer events, so its source link can be clicked. */
-  showTooltip(x: number, y: number, text: string, result: LookupResult, pinned: boolean) {
+  /**
+   * A pinned tooltip takes pointer events, so its source link and feedback
+   * buttons can be clicked. `onVote` resolves once the vote is recorded.
+   */
+  showTooltip(x: number, y: number, item: FlaggedRange, pinned: boolean, onVote: (v: FeedbackVerdict) => Promise<void>) {
+    const { result, tier, text } = item;
     this.tooltip.replaceChildren();
-    const verdict = displayVerdict(result);
-    this.tooltip.append(el('strong', undefined, `⚠ Flagged as ${VERDICT_LABELS[verdict].toLowerCase()}`));
-    const level = result.signature?.matchLevel;
-    if (level === 'variant') this.tooltip.append(el('div', 'match', 'Edited copy of a known narrative'));
-    if (level === 'narrative') this.tooltip.append(el('div', 'match', 'Same claim, different wording'));
-    if (result.signature) this.tooltip.append(this.narrative(result.signature, pinned));
+    this.tooltip.append(el('strong', undefined, tierHeading(tier, result)));
+    this.tooltip.append(el('div', 'verdict-line', `Flagged as ${VERDICT_LABELS[displayVerdict(result)].toLowerCase()}`));
+    if (result.signature?.matchLevel === 'variant') this.tooltip.append(el('div', 'match', 'Edited copy of a known narrative'));
+    if (result.signature) this.tooltip.append(this.narrative(result.signature));
     if (result.total > 0) {
       const share = Math.round((result.counts[result.topVerdict] / result.total) * 100);
       this.tooltip.append(el('div', undefined, `${share}% of ${result.total} vote${result.total === 1 ? '' : 's'}`));
@@ -202,6 +245,8 @@ export class OverlayUi {
         this.tooltip.append(row);
       }
     }
+    this.tooltip.append(this.feedback(onVote));
+    if (!pinned) this.tooltip.append(el('div', 'hint', 'Click to pin, then vote or open the source'));
     this.tooltip.title = pinned ? '' : text;
     this.tooltip.classList.toggle('pinned', pinned);
     this.tooltip.classList.remove('hidden');
@@ -209,10 +254,33 @@ export class OverlayUi {
     this.place(this.tooltip, x + 12, y + 16, width, height, y - height - 12);
   }
 
-  private narrative(signature: Signature, pinned: boolean): HTMLElement {
+  private feedback(onVote: (v: FeedbackVerdict) => Promise<void>): HTMLElement {
+    const row = el('div', 'feedback');
+    const buttons = (
+      [
+        ['misinformation', 'Misinformation'],
+        ['trustworthy', 'Not misinformation'],
+      ] as const
+    ).map(([verdict, label]) => {
+      const b = el('button', undefined, label);
+      b.onclick = async () => {
+        buttons.forEach((x) => (x.disabled = true));
+        try {
+          await onVote(verdict);
+          b.textContent = 'Thanks!';
+        } catch {
+          buttons.forEach((x) => (x.disabled = false));
+        }
+      };
+      return b;
+    });
+    row.append(...buttons);
+    return row;
+  }
+
+  private narrative(signature: Signature): HTMLElement {
     const box = el('div', 'narrative');
     const title = el('div', 'title', signature.title);
-    if (signature.state === 'under_review') title.append(el('span', 'tag', 'under review'));
     box.append(title);
     if (signature.techniques.length) {
       const list = el('div', 'techniques');
@@ -233,7 +301,6 @@ export class OverlayUi {
       source.append(link);
     } else source.append(SOURCE_LABELS[signature.source]);
     box.append(source);
-    if (href && !pinned) box.append(el('div', 'hint', 'Click to pin, then open the source'));
     return box;
   }
 

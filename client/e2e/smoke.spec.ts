@@ -30,6 +30,7 @@ const SIGNATURE: Signature = {
   sourceUrl: SOURCE_URL,
   state: 'active',
   matchLevel: 'exact',
+  settled: true,
 };
 
 function result(hash: string, matchLevel: Signature['matchLevel']): LookupResult {
@@ -65,6 +66,7 @@ async function startStub(sentenceHash: string, block: LookupBlock): Promise<Serv
     sentences: [{ hash: sentenceHash, narrativeId: SIGNATURE.narrativeId }],
     fingerprints: [{ narrativeId: SIGNATURE.narrativeId, bands: block.bands }],
     narrativeThreshold: 0.85,
+    relatedThreshold: 0.7,
     narrativeVectors: [],
     removed: [],
   };
@@ -131,28 +133,26 @@ async function openFixture(backendMode: ExtensionSettings['backendMode']) {
 }
 
 const highlighted = (name: string) =>
-  page.evaluate((n) => [...(CSS.highlights.get(n) ?? [])].map((r) => r.toString()), name);
+  page.evaluate((n) => [...(CSS.highlights.get(n) ?? [])].map((r) => r.toString()).sort(), name);
 
 test.describe('remote backend', () => {
   test.beforeAll(() => openFixture('remote'));
   test.afterAll(() => context?.close());
 
-  test('highlights a sentence the remote backend flags', async () => {
-    await expect.poll(() => highlighted('tv-misinformation')).toEqual([FLAGGED]);
+  test('highlights a sentence and an edited copy the remote backend matches as confirmed', async () => {
+    await expect.poll(() => highlighted('tv-confirmed')).toEqual([EDITED, FLAGGED].sort());
   });
 
-  test('highlights a whole block the backend matches as an edited copy', async () => {
-    await expect.poll(() => highlighted('tv-misinformation-variant')).toEqual([EDITED]);
-  });
-
-  test('a clicked highlight pins its tooltip with the source link', async () => {
-    await expect.poll(() => highlighted('tv-misinformation-variant')).toEqual([EDITED]);
+  test('a clicked highlight pins its tooltip with the source link and feedback buttons', async () => {
+    await expect.poll(() => highlighted('tv-confirmed')).toContain(EDITED);
     const box = await page.getByText('Brussels officials').boundingBox();
     await page.mouse.click(box!.x + 20, box!.y + box!.height / 2);
 
     const tooltip = page.locator('hashtrust-ui .tooltip');
     await expect(tooltip).toBeVisible();
+    await expect(tooltip).toContainText('Confirmed: EUvsDisinfo case');
     await expect(tooltip).toContainText('Edited copy of a known narrative');
+    await expect(tooltip.getByRole('button', { name: 'Not misinformation' })).toBeVisible();
     await expect(tooltip.getByRole('link', { name: 'EUvsDisinfo' })).toHaveAttribute('href', SOURCE_URL);
 
     // Moving the pointer off the highlight leaves a pinned tooltip in place.
@@ -171,8 +171,7 @@ test.describe('local index', () => {
   test.afterAll(() => context?.close());
 
   test('highlights from the downloaded index without sending page hashes', async () => {
-    await expect.poll(() => highlighted('tv-misinformation')).toEqual([FLAGGED]);
-    await expect.poll(() => highlighted('tv-misinformation-variant')).toEqual([EDITED]);
+    await expect.poll(() => highlighted('tv-confirmed')).toEqual([EDITED, FLAGGED].sort());
     expect(received.lookups).toBe(0);
   });
 

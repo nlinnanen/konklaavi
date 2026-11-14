@@ -7,6 +7,7 @@ import {
   type ExtensionSettings,
 } from '@/lib/extensionSettings';
 import { escapeHtml, renderAccount } from '@/lib/account';
+import { TIER_LABELS, TIER_STYLES, TIERS, type Tier } from '@/lib/tier';
 import { VERDICTS, VERDICT_LABELS, type DomainStats } from '@/lib/types';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
@@ -36,7 +37,24 @@ function renderFlagged(f: FlaggedItem): string {
     const source = href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${label}</a>` : label;
     narrative = `<div class="narrative"><b>${escapeHtml(f.signature.title)}</b> <span class="muted">· ${source}</span></div>`;
   }
-  return `<li><span class="chip ${f.verdict}">${VERDICT_LABELS[f.verdict]}</span>${text}${votes}${narrative}</li>`;
+  return `<li>${tierChip(f.tier)}${text}${votes}${narrative}</li>`;
+}
+
+/** A tier's name styled as its highlight. */
+function tierChip(tier: Tier): string {
+  return `<span class="chip tier" style="${TIER_STYLES[tier]}">${TIER_LABELS[tier]}</span>`;
+}
+
+const TIER_MEANINGS: Record<Tier, string> = {
+  confirmed: 'a narrative confirmed by fact-checkers',
+  likely: 'the same claim as a known narrative',
+  related: 'a similar theme to a known narrative',
+  reported: 'flagged by users, not yet confirmed',
+  disputed: 'a narrative users dispute',
+};
+
+function renderLegend() {
+  $('#legend').innerHTML = TIERS.map((t) => `<li>${tierChip(t)}<span class="muted">${TIER_MEANINGS[t]}</span></li>`).join('');
 }
 
 function renderPage(status: PageStatus | null) {
@@ -48,7 +66,7 @@ function renderPage(status: PageStatus | null) {
   const items = status.flagged.map(renderFlagged).join('');
   el.innerHTML = `
     <div class="stat">
-      <div><b>${status.flagged.length}</b><span class="muted">flagged</span></div>
+      <div><b>${status.flagged.length}</b><span class="muted">highlighted</span></div>
       <div><b>${status.scannedSentences}</b><span class="muted">sentences checked</span></div>
     </div>
     ${items ? `<ul class="flagged">${items}</ul>` : `<p class="muted">Nothing on this page has been flagged.</p>`}
@@ -132,6 +150,7 @@ async function refresh() {
 }
 
 async function main() {
+  renderLegend();
   await loadSettingsForm();
   const form = $('#settings') as HTMLFormElement;
   form.addEventListener('change', async () => {
