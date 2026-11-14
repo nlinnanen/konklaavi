@@ -139,6 +139,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: a periodic `lifecycle` job re-evaluates every shipped narrative every 10 minutes.
 - integrator: the cluster job leaves out fingerprints that are not prose or that `variants.boilerplate` marks.
 - core: the database runs without timescaledb-tune (`NO_TS_TUNE`), since the tune script panics where the container has no cgroup `memory.max` and aborts initdb before the toolkit extension is installed.
+- integrator: Deployment supersedes the hand-set-up VPS: GitHub Actions builds the app images and pushes them to GHCR as `sha-<commit>`; Ansible in `infra/ansible` hardens and configures the VPS; the release job deploys over SSH as an unprivileged `deploy` user whose key can only run `sudo /usr/local/sbin/junction26-release <sha>`. Every push to `main` releases. See [deployment.md](deployment.md).
 
 ## Deferred
 
