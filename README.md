@@ -4,6 +4,49 @@ HashTrust is a content layer for the browser. Its extension recognises passages 
 
 Built for Junction 2026, on the "Trust the source" challenge direction.
 
+## Try it
+
+The demo deployment is at **https://srv2160986.hstgr.cloud/**: the dashboard is at the root and the API under `/api`.
+
+### Browser extension
+
+The extension isn't in a web store, so you load it unpacked. That needs no review and takes a minute.
+
+1. Download the zip from the [`latest-demo` release](https://github.com/nlinnanen/junction26/releases/tag/latest-demo). Every deploy rebuilds it against the demo API.
+2. Unzip it into a folder you keep.
+3. Open `chrome://extensions` (or Edge or Brave), turn on **Developer mode** and click **Load unpacked**. Choose the unzipped folder.
+4. Pin HashTrust from the puzzle-piece menu and open an article.
+
+Using it:
+
+- **Highlights** mark passages that belong to a tracked narrative. Hover one to see the narrative, the note shown for it and where it has spread. The colour is the narrative's state, and a lighter highlight means the passage only matched by meaning, not by wording:
+
+  | State | Meaning |
+  |---|---|
+  | Misleading | a note rated helpful says the narrative is misleading |
+  | Context added | a note rated helpful adds context without calling it misleading |
+  | Raters disagree | raters from different viewpoints don't agree on its notes |
+  | Needs ratings | its notes are waiting for enough ratings |
+  | Tracked | the narrative is tracked but has no notes yet |
+
+- **Sign in** from the popup to write and rate notes. The demo server skips email verification.
+- **Select a passage** to add a note, saying whether it is misleading and citing sources. Rate other readers' notes as helpful, somewhat helpful or not helpful. The bridging algorithm shows a note only once raters who usually disagree both find it helpful.
+- **The popup** lists the matches on the current page, the legend and the settings.
+
+The extension matches on your device: it downloads the narrative index, and page text leaves the browser only when you submit a note. The first match by meaning downloads the embedding model (about 120 MB) into the browser cache.
+
+### Proxy view (no extension needed)
+
+`demo/proxy-view/` opens an article in a page that shows the same highlights and a side panel of matches, without installing anything in the browser. The server fetches the article, removes its scripts and sends its text to the API's `/check`.
+
+```sh
+uv run demo/proxy-view/viewer.py    # then open http://localhost:8787 and paste an article URL
+```
+
+- It uses the demo API. Set `HASHTRUST_API=http://localhost:8000` for a local backend.
+- Add `&test=1` to a `/view?url=...` link to inject three labelled fake matches. This checks that a site renders and highlights, whatever narratives it carries.
+- Sites behind bot protection (such as Euronews, Reuters and AP) refuse the fetch, and pages that render their text with JavaScript show no extracted text. The panel says which happened.
+
 ## Documentation
 
 - [North star](docs/north-star.md): what HashTrust is for and where its limits lie.
@@ -22,6 +65,7 @@ Built for Junction 2026, on the "Trust the source" challenge direction.
 - `backend/`: the FastAPI API, the job worker, SQL migrations and the offline benchmark in `backend/app/eval/benchmark/`.
 - `dashboard/`: a Streamlit app for narratives, notes, the moderation queue and reputation.
 - `simulation/`: synthetic crowd runs against the API. They post to `/votes`, which the notes API does not serve.
+- `demo/proxy-view/`: a proxy that shows an article with the extension's highlights, for demos without the extension.
 - `deploy/` and `infra/ansible/`: the production compose file and the VPS configuration.
 
 ## Running locally
