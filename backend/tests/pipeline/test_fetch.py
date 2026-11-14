@@ -206,16 +206,40 @@ def test_narrative_centroid_is_the_mean_of_its_attached_embeddings(conn, site):
     assert np.allclose(centroid, np.mean(embeddings, axis=0), atol=1e-6)
 
 
-def test_a_block_repeated_on_two_pages_of_a_domain_is_detached_as_boilerplate(conn, site):
+def test_a_near_duplicate_on_two_pages_of_a_domain_is_detached_as_boilerplate(conn, site):
     routes, base = site
-    shared = "Read our full investigation into how foreign agents rigged the national election results."
+    teaser = "Updated {}: read our full investigation into how foreign agents rigged the national election."
     second = "Anonymous sources say foreign agents rigged the election and changed the results overnight."
-    routes["/first"] = (200, "text/html", page(ON_TOPIC, shared))
-    routes["/second"] = (200, "text/html", page(second, shared))
+    routes["/first"] = (200, "text/html", page(ON_TOPIC, teaser.format("12 March 2025")))
+    routes["/second"] = (200, "text/html", page(second, teaser.format("3 April 2025")))
     narrative_id = add_narrative(conn, *ELECTION)
 
     handle(conn, {"url": f"{base}/first", "reason": "seed", "narrative_id": narrative_id})
-    assert attached(conn, narrative_id) == {ON_TOPIC, shared}
+    assert attached(conn, narrative_id) == {ON_TOPIC, teaser.format("12 March 2025")}
     handle(conn, {"url": f"{base}/second", "reason": "seed", "narrative_id": narrative_id})
 
     assert attached(conn, narrative_id) == {ON_TOPIC, second}
+
+
+def test_a_short_line_is_never_attached(conn, site):
+    routes, base = site
+    short = "Foreign agents rigged the election."
+    routes["/article"] = (200, "text/html", page(short, ON_TOPIC))
+    narrative_id = add_narrative(conn, *ELECTION)
+
+    handle(conn, {"url": f"{base}/article", "reason": "seed", "narrative_id": narrative_id})
+
+    assert attached(conn, narrative_id) == {ON_TOPIC}
+
+
+def test_a_narrative_left_without_blocks_gets_the_next_best_block_of_its_pages(conn, site):
+    routes, base = site
+    routes["/first"] = (200, "text/html", page(ON_TOPIC, OFF_TOPIC[0]))
+    routes["/other"] = (200, "text/html", page(ON_TOPIC, OFF_TOPIC[1]))
+    narrative_id = add_narrative(conn, *ELECTION)
+
+    handle(conn, {"url": f"{base}/first", "reason": "seed", "narrative_id": narrative_id})
+    assert attached(conn, narrative_id) == {ON_TOPIC}
+    handle(conn, {"url": f"{base}/other", "reason": "vote"})
+
+    assert attached(conn, narrative_id) == {OFF_TOPIC[0]}

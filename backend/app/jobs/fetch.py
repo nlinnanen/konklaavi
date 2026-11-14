@@ -11,6 +11,7 @@ from psycopg import Connection
 
 from app import fpclient
 from app.jobs import enqueue, register
+from app.jobs.variants import boilerplate, near_duplicates, update_centroids
 
 # A common desktop browser string: some sites refuse unknown clients, and nothing here identifies a user.
 USER_AGENT = (
@@ -107,7 +108,6 @@ class Stored:
 
     id: int
     new: bool
-    embedding: list[float]
 
 
 def store_fingerprints(
@@ -149,24 +149,8 @@ def store_fingerprints(
             "INSERT INTO observation (seen_at, fingerprint_id, page_id, source) VALUES (now(), %s, %s, 'fetch')",
             (fingerprint_id, page_id),
         )
-        stored.append(Stored(fingerprint_id, new, block["embedding"]))
+        stored.append(Stored(fingerprint_id, new))
     return stored
-
-
-def boilerplate(conn: Connection, page_id: int, fingerprint_ids: list[int]) -> set[int]:
-    """The fingerprints seen on at least two pages of this page's domain."""
-    rows = conn.execute(
-        """
-        SELECT o.fingerprint_id FROM observation o
-        JOIN page p ON p.id = o.page_id
-        WHERE o.fingerprint_id = ANY(%s)
-          AND p.domain_id = (SELECT domain_id FROM page WHERE id = %s)
-        GROUP BY o.fingerprint_id
-        HAVING count(DISTINCT o.page_id) >= 2
-        """,
-        (fingerprint_ids, page_id),
-    )
-    return {row[0] for row in rows}
 
 
 def detach(conn: Connection, fingerprint_ids: set[int]) -> set[int]:
@@ -183,21 +167,21 @@ def detach(conn: Connection, fingerprint_ids: set[int]) -> set[int]:
     return {row[0] for row in rows if row[0] is not None}
 
 
-def relevant(blocks: list[Stored], narrative_embedding: list[float]) -> list[int]:
-    """The blocks whose cosine to the narrative is at least RELEVANCE_THRESHOLD, and always the closest one."""
+def relevant(blocks: list[tuple[int, list[float]]], narrative_embedding: list[float]) -> list[int]:
+    """The ids of the (id, embedding) blocks whose cosine to the narrative is at least
+    RELEVANCE_THRESHOLD, and always the closest one."""
     if not blocks:
         return []
-    scores = np.array([b.embedding for b in blocks]) @ np.array(narrative_embedding)
-    return [b.id for b, score in zip(blocks, scores, strict=True) if score >= RELEVANCE_THRESHOLD] or [
-        blocks[int(scores.argmax())].id
+    scores = np.array([embedding for _, embedding in blocks]) @ np.array(narrative_embedding)
+    return [id_ for (id_, _), score in zip(blocks, scores, strict=True) if score >= RELEVANCE_THRESHOLD] or [
+        blocks[int(scores.argmax())][0]
     ]
 
 
-def narrative_text(conn: Connection, narrative_id: int) -> str:
-    title, claim = conn.execute(
-        "SELECT title, claim FROM narrative WHERE id = %s", (narrative_id,)
-    ).fetchone()
-    return "\n".join(part for part in (title, claim) if part)
+def narrative_text(conn: Connection, narrative_id: int) -> str | None:
+    """The narrative's title and claim, or None when there is no such narrative."""
+    row = conn.execute("SELECT title, claim FROM narrative WHERE id = %s", (narrative_id,)).fetchone()
+    return None if row is None else "\n".join(part for part in row if part)
 
 
 def attach_to_narrative(conn: Connection, narrative_id: int, fingerprint_ids: list[int]) -> None:
@@ -216,48 +200,89 @@ def attach_to_narrative(conn: Connection, narrative_id: int, fingerprint_ids: li
     conn.execute("UPDATE fingerprint SET variant_id = %s WHERE id = ANY(%s)", (variant_id, unassigned))
 
 
-def update_centroids(conn: Connection, narrative_ids: set[int]) -> None:
-    """Set each narrative's centroid to the mean embedding of its fingerprints."""
-    conn.execute(
-        """
-        UPDATE narrative n SET centroid = (
-          SELECT avg(f.embedding) FROM fingerprint f JOIN variant v ON v.id = f.variant_id
-          WHERE v.narrative_id = n.id
+def attach_relevant(
+    conn: Connection, narrative_id: int, fingerprint_ids: list[int], narrative_embedding: list[float]
+) -> None:
+    """Attach the relevant blocks among the fingerprints that are not boilerplate to the narrative."""
+    skip = boilerplate(conn, fingerprint_ids)
+    blocks = conn.execute(
+        "SELECT id, embedding::real[] FROM fingerprint WHERE id = ANY(%s) AND embedding IS NOT NULL",
+        ([id_ for id_ in fingerprint_ids if id_ not in skip],),
+    ).fetchall()
+    attach_to_narrative(conn, narrative_id, relevant(blocks, narrative_embedding))
+
+
+def repick(conn: Connection, narrative_ids: set[int]) -> None:
+    """Attach relevant blocks of their fetched pages to those of the narratives that have none left."""
+    empty = [
+        row[0]
+        for row in conn.execute(
+            """
+            SELECT n.id FROM narrative n
+            WHERE n.id = ANY(%s) AND NOT EXISTS (
+              SELECT 1 FROM variant v JOIN fingerprint f ON f.variant_id = v.id WHERE v.narrative_id = n.id
+            )
+            ORDER BY n.id
+            """,
+            (list(narrative_ids),),
         )
-        WHERE n.id = ANY(%s)
-        """,
-        (list(narrative_ids),),
-    )
+    ]
+    if not empty:
+        return
+    texts = [narrative_text(conn, narrative_id) for narrative_id in empty]
+    embedded = fpclient.fingerprint(texts, embed=True)["blocks"]
+    for narrative_id, block in zip(empty, embedded, strict=True):
+        if block["embedding"] is None:
+            continue
+        fingerprint_ids = [
+            row[0]
+            for row in conn.execute(
+                "SELECT DISTINCT o.fingerprint_id FROM observation o"
+                " JOIN narrative_page np ON np.page_id = o.page_id WHERE np.narrative_id = %s",
+                (narrative_id,),
+            )
+        ]
+        attach_relevant(conn, narrative_id, fingerprint_ids, block["embedding"])
 
 
 @register("fetch")
 def handle(conn: Connection, payload: dict) -> None:
     url = payload["url"]
     narrative_id = payload.get("narrative_id")
+    text = narrative_text(conn, narrative_id) if narrative_id is not None else None
+    if narrative_id is not None and text is None:
+        log.warning("fetch %s: narrative %s does not exist", url, narrative_id)
+        narrative_id = None
+
     status, html = download(url)
     article = extract(html) if html is not None else None
     if status == "ok" and article is None:
         status = "failed"
     page_id = upsert_page(conn, url, status, article)
+    if narrative_id is not None:
+        conn.execute(
+            "INSERT INTO narrative_page (narrative_id, page_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (narrative_id, page_id),
+        )
     if article is None:
         return
     # The narrative's title and claim ride along as one extra block, embedded in the same call.
-    extra = [narrative_text(conn, narrative_id)] if narrative_id is not None else []
+    extra = [text] if narrative_id is not None else []
     result = fpclient.fingerprint(article.blocks + extra, embed=True)["blocks"]
     stored = store_fingerprints(conn, page_id, article.blocks, result[: len(article.blocks)])
     if not stored:
         return
+    ids = [s.id for s in stored]
 
-    repeated = boilerplate(conn, page_id, [s.id for s in stored])
-    changed = detach(conn, repeated)
+    # Near-duplicates on other pages may have become boilerplate through this page.
+    changed = detach(conn, boilerplate(conn, near_duplicates(conn, ids)))
     narrative_embedding = result[-1]["embedding"] if extra else None
     if narrative_embedding is not None:
-        attach_to_narrative(
-            conn, narrative_id, relevant([s for s in stored if s.id not in repeated], narrative_embedding)
-        )
+        attach_relevant(conn, narrative_id, ids, narrative_embedding)
         changed.add(narrative_id)
     elif narrative_id is not None:
         log.warning("narrative %s has no sentence to embed; nothing attached", narrative_id)
+    repick(conn, changed)
     update_centroids(conn, changed)
 
     new = [s.id for s in stored if s.new]
