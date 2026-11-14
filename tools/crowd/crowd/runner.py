@@ -20,7 +20,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from crowd.api import Api, ApiError
-from crowd.behaviours import RATE_TOOL, WRITE_TOOL, rate_prompt, write_prompt
+from crowd.behaviours import (
+    BAD,
+    OPINION_TOOL,
+    RATE_TOOL,
+    WRITE_TOOL,
+    opinion_prompt,
+    rate_prompt,
+    write_prompt,
+)
 from crowd.config import Config, Persona
 from crowd.llm import Llm
 from crowd.state import State
@@ -201,7 +209,7 @@ class Runner:
         bot.writes.append(time.monotonic())
         site = random.choice(bot.persona.sites)
         seen = set(bot.record["articles"])
-        article = self.web.article(self.config.sites[site], seen)
+        article = self.web.article(self.config.sites[site].feeds, seen)
         with self.state.lock:
             known = set(bot.record["articles"])
             bot.record["articles"] = (bot.record["articles"] + [u for u in seen if u not in known])[
@@ -210,23 +218,35 @@ class Runner:
         if article is None:
             self.action(bot, "write", "no-article", f"site={site}")
             return
-        call = self.llm.call(
-            write_prompt(bot.persona.behaviour),
-            {
-                "site": site,
-                "url": article.url,
-                "title": article.title,
-                "article": article.text[:ARTICLE_CHARS],
-            },
-            WRITE_TOOL,
-        )
-        self._charge(call.credits)
-        note = call.input or {}
-        if note.get("decision") != "write":
-            self.action(bot, "write", "skip" if call.input else "no-tool-call", f"url={article.url}")
-            return
+        user = {
+            "site": site,
+            "url": article.url,
+            "title": article.title,
+            "article": article.text[:ARTICLE_CHARS],
+        }
+        if bot.persona.behaviour in BAD:
+            # The bad part is the runner's: an accurate outlet's article is labelled misleading, another's
+            # not misleading, and the model only writes the one-sided opinion attached.
+            accurate = self.config.sites[site].accurate
+            call = self.llm.call(opinion_prompt(bot.persona.behaviour, accurate), user, OPINION_TOOL)
+            self._charge(call.credits)
+            if not call.input:
+                self.action(bot, "write", "no-tool-call", f"url={article.url}")
+                return
+            note = dict(call.input, classification="misleading" if accurate else "not_misleading")
+        else:
+            call = self.llm.call(write_prompt(bot.persona.behaviour), user, WRITE_TOOL)
+            self._charge(call.credits)
+            note = call.input or {}
+            if note.get("decision") != "write":
+                self.action(bot, "write", "skip" if call.input else "no-tool-call", f"url={article.url}")
+                return
         passage = find_quote(note.get("passage", ""), article.text)
-        if passage is None or note.get("classification") not in ("misleading", "not_misleading"):
+        if (
+            passage is None
+            or note.get("classification") not in ("misleading", "not_misleading")
+            or not note.get("body")
+        ):
             self.action(bot, "write", "bad-quote", f"url={article.url}")
             return
         sources = [s for s in note.get("sources") or [] if re.match(r"^https?://\S+$", s)][:10]
@@ -269,6 +289,10 @@ class Runner:
             return
         if bot.persona.behaviour == "brigade":
             ratings = self._brigade_ratings(bot, notes, min(room, RATE_BATCH))
+        elif bot.persona.behaviour == "troll":
+            ratings = self._troll_ratings(bot, notes, min(room, RATE_BATCH))
+            if not ratings:
+                self.action(bot, "rate", "nothing-to-rate")
         else:
             batch = random.sample(notes, min(room, RATE_BATCH, len(notes)))
             call = self.llm.call(
@@ -308,17 +332,33 @@ class Runner:
                 )
             self.action(bot, "rate", helpfulness, f"note={note_id}")
 
-    def _brigade_ratings(self, bot: Bot, notes: list[dict], n: int) -> list[tuple[str, str]]:
-        """Members' notes helpful first, then everyone else's not helpful: the group's coordination."""
+    def _notes_of(self, behaviours: set[str], but: str) -> set[str]:
+        """The ids of the notes written by personas with these behaviours, other than `but`."""
         with self.state.lock:
-            members = {
+            return {
                 note["id"]
                 for name, record in self.state.data["personas"].items()
-                if record.get("behaviour") == "brigade" and name != bot.persona.name
+                if record.get("behaviour") in behaviours and name != but
                 for note in record["notes"]
             }
+
+    def _brigade_ratings(self, bot: Bot, notes: list[dict], n: int) -> list[tuple[str, str]]:
+        """Members' notes helpful first, then everyone else's not helpful: the group's coordination."""
+        members = self._notes_of({"brigade"}, bot.persona.name)
         ours = [note for note in notes if note["id"] in members]
         theirs = [note for note in notes if note["id"] not in members]
         random.shuffle(theirs)
         picked = (ours + theirs)[:n]
         return [(note["id"], "helpful" if note["id"] in members else "not_helpful") for note in picked]
+
+    def _troll_ratings(self, bot: Bot, notes: list[dict], n: int) -> list[tuple[str, str]]:
+        """Bad actors' notes helpful, honest notes on accurate outlets not helpful; the rest it leaves."""
+        bad = self._notes_of(BAD, bot.persona.name)
+        accurate = [site for site in self.config.sites.values() if site.accurate]
+        ratings = [(note["id"], "helpful") for note in notes if note["id"] in bad]
+        ratings += [
+            (note["id"], "not_helpful")
+            for note in notes
+            if note["id"] not in bad and any(site.serves(note["url"]) for site in accurate)
+        ]
+        return random.sample(ratings, min(n, len(ratings)))

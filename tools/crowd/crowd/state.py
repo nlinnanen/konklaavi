@@ -14,10 +14,28 @@ from urllib.parse import urlsplit
 
 from crowd.config import Persona
 
+# Other names of a production host -> its canonical name, which names the state and log files.
+ALIASES = {"srv2160986.hstgr.cloud": "konklaavi.tech"}
 
-def path_for(config_path: Path, api: str) -> Path:
-    host = urlsplit(api).netloc.replace(":", "_") or "api"
-    return config_path.parent / f".crowd-state-{host}.json"
+
+def host(api: str) -> str:
+    name = urlsplit(api).netloc
+    return ALIASES.get(name, name).replace(":", "_") or "api"
+
+
+def paths_for(config_path: Path, api: str) -> tuple[Path, Path]:
+    """The state file and action log of a run against the API, taking over those an alias named."""
+    name = host(api)
+    state = config_path.parent / f".crowd-state-{name}.json"
+    log = config_path.parent / f"crowd-{name}.log"
+    for alias in (a for a, canonical in ALIASES.items() if canonical == name):
+        old_state = config_path.parent / f".crowd-state-{alias}.json"
+        old_log = config_path.parent / f"crowd-{alias}.log"
+        if old_state.exists() and not state.exists():
+            old_state.rename(state)
+            if old_log.exists() and not log.exists():
+                old_log.rename(log)
+    return state, log
 
 
 class State:

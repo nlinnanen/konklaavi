@@ -12,9 +12,12 @@ sites:
     feeds:
       - https://sputnikglobe.com/export/rss2/archive/index.xml
   yle:
+    accurate: true
     feeds:
       - https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_NEWS
   bbc:
+    accurate: true
+    domains: [bbc.co.uk, bbc.com]
     feeds:
       - https://feeds.bbci.co.uk/news/world/rss.xml
       - https://feeds.bbci.co.uk/news/rss.xml

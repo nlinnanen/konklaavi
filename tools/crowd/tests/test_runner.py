@@ -1,8 +1,8 @@
 import threading
 import time
 
-from crowd.config import Config, Persona
-from crowd.runner import Runner
+from crowd.config import Config, Persona, Site
+from crowd.runner import Bot, Runner
 from crowd.state import State
 
 
@@ -12,7 +12,7 @@ class Busy(Runner):
     def __init__(self, tmp_path, personas, workers, credits_per_action=0.0):
         config = Config(
             domain="x.test",
-            sites={"s": []},
+            sites={"s": Site([], False, [])},
             personas=[Persona(name, "casual_reader", False, ["s"], 36000, 36000) for name in personas],
         )
         state = State(tmp_path / "state.json", "http://x.test")
@@ -51,3 +51,28 @@ def test_no_action_starts_once_the_budget_is_reached(tmp_path):
     # The two in flight when the third credit lands may finish.
     assert 3 <= runner.credits <= 4
     assert State(tmp_path / "state.json", "").data["credits"] == runner.credits
+
+
+def test_a_troll_backs_bad_actors_and_votes_down_honest_notes_on_accurate_outlets(tmp_path):
+    config = Config(
+        domain="x.test",
+        sites={"bbc": Site([], True, ["bbc.co.uk"]), "rt": Site([], False, ["rt.com"])},
+        personas=[],
+    )
+    state = State(tmp_path / "state.json", "http://x.test")
+    state.data["personas"] = {
+        "grim": {"behaviour": "troll", "notes": [{"id": "own"}]},
+        "vlad": {"behaviour": "brigade", "notes": [{"id": "brigade-on-bbc"}]},
+        "maija": {"behaviour": "careful_fact_checker", "notes": [{"id": "honest-on-rt"}]},
+    }
+    runner = Runner(config, None, state, None, None, tmp_path / "log")
+    bot = Bot(Persona("grim", "troll", True, ["bbc"], 1, 1), state.data["personas"]["grim"], 0, 0)
+    notes = [
+        {"id": "brigade-on-bbc", "url": "https://www.bbc.co.uk/news/1"},
+        {"id": "honest-on-rt", "url": "https://www.rt.com/news/2"},
+        {"id": "reader-on-bbc", "url": "https://www.bbc.co.uk/news/3"},
+    ]
+    assert dict(runner._troll_ratings(bot, notes, 10)) == {
+        "brigade-on-bbc": "helpful",
+        "reader-on-bbc": "not_helpful",
+    }
