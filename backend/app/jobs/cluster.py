@@ -1,4 +1,8 @@
-"""Periodic narrative discovery: HDBSCAN over the embeddings of fingerprints that have no variant."""
+"""Periodic narrative discovery: HDBSCAN over the embeddings of fingerprints that have no variant.
+
+Page chrome is left out: boilerplate seen on 2+ pages of a domain, and blocks too short or too numeric to
+carry a claim.
+"""
 
 import logging
 import re
@@ -19,6 +23,8 @@ EXTEND_SIMILARITY = 0.9
 # From here up to EXTEND_SIMILARITY, the cluster becomes a new narrative the nearest one evolved into.
 EVOLVE_SIMILARITY = 0.75
 TITLE_CHARS = 200
+# A block needs this many words to carry a claim; shorter ones are bylines, dates and links.
+MIN_WORDS = 8
 
 log = logging.getLogger(__name__)
 
@@ -54,6 +60,13 @@ def find_clusters(ids: list[int], embeddings: np.ndarray) -> list[Cluster]:
 def first_sentence(text: str) -> str:
     sentence = re.split(r"(?<=[.!?])\s+", text.strip(), maxsplit=1)[0]
     return sentence[:TITLE_CHARS]
+
+
+def is_chrome(text: str) -> bool:
+    """Whether a block is page chrome: under MIN_WORDS words, or at least half its words hold a digit."""
+    words = text.split()
+    numeric = sum(any(c.isdigit() for c in word) for word in words)
+    return len(words) < MIN_WORDS or 2 * numeric >= len(words)
 
 
 def refresh_centroids(conn: Connection, narrative_ids: list[int] | None = None) -> None:
@@ -118,14 +131,20 @@ CLUSTERABLE = """
 @register("cluster")
 def handle(conn: Connection, payload: dict) -> None:
     refresh_centroids(conn)
-    unassigned = conn.execute(f"SELECT count(*) FROM fingerprint WHERE {CLUSTERABLE}").fetchone()[0]
+    candidates = [
+        (id, text)
+        for id, text in conn.execute(
+            f"SELECT id, content FROM fingerprint WHERE {CLUSTERABLE} ORDER BY first_seen DESC, id DESC"
+        )
+        if not is_chrome(text)
+    ]
+    unassigned = len(candidates)
+    content = dict(candidates[:MAX_EMBEDDINGS])
     rows = conn.execute(
-        f"SELECT id, content, embedding::real[] FROM fingerprint WHERE {CLUSTERABLE}"
-        " ORDER BY first_seen DESC, id DESC LIMIT %s",
-        (MAX_EMBEDDINGS,),
+        "SELECT id, embedding::real[] FROM fingerprint WHERE id = ANY(%s) ORDER BY first_seen DESC, id DESC",
+        (list(content),),
     ).fetchall()
-    content = {row[0]: row[1] for row in rows}
-    clusters = find_clusters([row[0] for row in rows], np.array([row[2] for row in rows])) if rows else []
+    clusters = find_clusters([row[0] for row in rows], np.array([row[1] for row in rows])) if rows else []
 
     created: list[int] = []
     extended: list[int] = []

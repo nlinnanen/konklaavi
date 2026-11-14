@@ -23,7 +23,9 @@ def group(center, first_axis, size=4, spread=0.05):
     return [center] + [center + spread * direction(first_axis + k) for k in range(size - 1)]
 
 
-def add_fingerprint(conn, embedding, content="Text. More.", variant_id=None):
+def add_fingerprint(
+    conn, embedding, content="Text of a block long enough to carry a claim.", variant_id=None
+):
     return conn.execute(
         "INSERT INTO fingerprint (content_hash, content, embedding, variant_id)"
         " VALUES (gen_random_uuid()::text, %s, %s::real[]::vector, %s) RETURNING id",
@@ -32,8 +34,11 @@ def add_fingerprint(conn, embedding, content="Text. More.", variant_id=None):
 
 
 def add_group(conn, points, title):
-    ids = [add_fingerprint(conn, p, f"Member {i} of {title}. Rest.") for i, p in enumerate(points[1:])]
-    return [add_fingerprint(conn, points[0], f"{title}. Second sentence.")] + ids
+    ids = [
+        add_fingerprint(conn, p, f"Member {i} of {title}. The rest of the block is long enough.")
+        for i, p in enumerate(points[1:])
+    ]
+    return [add_fingerprint(conn, points[0], f"{title}. Second sentence of the block, long enough.")] + ids
 
 
 def add_narrative(conn, embeddings):
@@ -127,6 +132,21 @@ def test_boilerplate_is_not_clustered(conn):
         "Beta claim.",
         "Gamma claim.",
     ]
+
+
+def test_short_and_numeric_blocks_are_not_clustered(conn):
+    short = [add_fingerprint(conn, p, "Read more on our site.") for p in group(direction(0), 100)]
+    dates = [
+        add_fingerprint(conn, p, "Updated 14.11.2026 12:30, 15.11.2026 09:00, 16.11.2026 10:15 and 2026")
+        for p in group(direction(1), 110)
+    ]
+    add_group(conn, group(direction(2), 120), "Gamma claim")
+    add_group(conn, group(direction(3), 130), "Delta claim")
+
+    handle(conn, {})
+
+    assert narrative_of(conn, short + dates) == {None}
+    assert conn.execute("SELECT count(*) FROM narrative").fetchone()[0] == 2
 
 
 def test_run_clusters_at_most_the_cap_and_records_it(conn, monkeypatch):
