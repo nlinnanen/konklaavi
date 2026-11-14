@@ -84,6 +84,8 @@ async function startStub(sentenceHash: string, block: LookupBlock): Promise<Serv
     email: 'reader@example.org',
     verified: true,
     reputation: 0.5,
+    reputationCapped: false,
+    reputationHint: null,
     moderator: false,
     notes: [],
     ratings: { count: 0, agreed: 0 },

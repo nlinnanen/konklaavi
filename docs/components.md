@@ -76,12 +76,12 @@ flowchart LR
   BG <-->|"/lookup, /index, /hits"| API[(API)]
   BG -->|LookupResults| Scan
   Scan --> HL["Highlighter<br/>CSS Custom Highlight API"]
-  HL --> UI["Page UI<br/>card, note form, sign-in"]
+  HL --> UI["Page UI<br/>card, note form"]
   UI -->|"notes, ratings, reports"| BG
   Pop["Popup<br/>page narratives, account, settings"] <--> BG
 ```
 
-The content script never modifies the page DOM: highlights are CSS Custom Highlight ranges and the card, the note form and the sign-in prompt live in a Shadow DOM. Every network call goes through the background, which picks the mock backend, the remote API or the local index from the settings.
+The content script never modifies the page DOM: highlights are CSS Custom Highlight ranges and the card and the note form live in a Shadow DOM. Every network call goes through the background, which picks the mock backend, the remote API or the local index from the settings.
 
 ## Worker
 

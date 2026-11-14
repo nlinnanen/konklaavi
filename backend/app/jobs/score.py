@@ -14,7 +14,7 @@ a shared viewpoint explains, so a note's intercept is the helpfulness raters of 
 a note rated helpful by one side only gets a large factor and a low intercept. The fit is alternating
 least squares, each parameter set in closed form given the others.
 
-A rating counts when its install is linked to an account; an account counts once per note, with the
+A rater is an account or an install without one; each counts once per note, an account with the
 latest rating of its installs. A note with fewer than NOTE_MIN_RATINGS counted ratings needs more ratings.
 Otherwise it is helpful at i_note >= 0.40 with |f_note| < 0.50, not helpful at
 i_note <= -0.05 - 0.8 * |f_note|, controversial at |f_note| >= 0.50, and needs more ratings in between.
@@ -97,10 +97,9 @@ def score(conn: Connection) -> None:
     """
     rows = conn.execute(
         """
-        SELECT DISTINCT ON (r.note_id, i.account_id) r.note_id, i.account_id, r.helpfulness
+        SELECT DISTINCT ON (r.note_id, rater) r.note_id, COALESCE(i.account_id, r.install) AS rater, r.helpfulness
         FROM note_rating r JOIN install i ON i.id = r.install
-        WHERE i.account_id IS NOT NULL
-        ORDER BY r.note_id, i.account_id, r.created_at DESC
+        ORDER BY r.note_id, rater, r.created_at DESC
         """
     ).fetchall()
     note_ids = sorted({note for note, _, _ in rows})

@@ -658,7 +658,9 @@ export class MockApi implements TrustApi {
       userId,
       email,
       verified: email !== null,
-      reputation: email === null ? null : 0.5,
+      reputation: email === null ? 0.25 : 0.5,
+      reputationCapped: email === null,
+      reputationHint: email === null ? 'Sign in to keep your reputation and let it grow.' : null,
       moderator: false,
       notes: state.notes
         .filter((n) => n.author === userId)

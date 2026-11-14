@@ -22,11 +22,11 @@ Page text leaves the browser only as a passage a reader submits with a note. In 
 
 ## Note scoring
 
-Notes are scored with the open-source Community Notes matrix factorisation, with one factor dimension, fitted by alternating least squares. A note is shown as helpful only when its intercept is high and its factor small, which means raters on both sides of the main divide found it helpful. Only ratings from verified accounts count, once per account and note. The thresholds and their reasons are in the docstring of `backend/app/jobs/score.py`.
+Notes are scored with the open-source Community Notes matrix factorisation, with one factor dimension, fitted by alternating least squares. A note is shown as helpful only when its intercept is high and its factor small, which means raters on both sides of the main divide found it helpful. Every rating counts, once per account and note, and once per install for an install without an account. The thresholds and their reasons are in the docstring of `backend/app/jobs/score.py`.
 
 ## Accounts and reputation
 
-The install id identifies a reader, and signing in with an email and a password ties installs to an account; the email is not verified. Writing and reporting notes need a verified account, and only verified ratings count. Reputation is `(good + 1) / (good + bad + 4)` per account, earned by notes that become helpful and by early ratings that agree with the outcome; its reasons are in the docstring of `backend/app/trust.py`. High reputation grants moderator rights.
+The install id identifies a reader, and signing in with an email and a password ties installs to an account; the email is not verified. Any install writes and rates notes; reporting and moderating need an account. Reputation is `(good + 1) / (good + bad + 4)` per account, earned by notes that become helpful and by early ratings that agree with the outcome; its reasons are in the docstring of `backend/app/trust.py`. An install without an account stays at 0.25, so signing in is what lets reputation grow. High reputation grants moderator rights.
 
 ## Moderation
 

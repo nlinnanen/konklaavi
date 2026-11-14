@@ -66,7 +66,7 @@ function renderPage(status: PageStatus | null) {
   if (!status.highlightSupported) el.insertAdjacentHTML('beforeend', `<p class="muted">This browser can't highlight passages.</p>`);
 }
 
-/** The account, or the sign-in form for an install that is not verified; true when verified. */
+/** The user's standing, with the sign-in form for an install without an account; true when signed in. */
 async function refreshAccount(): Promise<boolean> {
   const account = $('#account');
   try {
@@ -82,7 +82,7 @@ async function refreshAccount(): Promise<boolean> {
 }
 
 function showAccount(me: MeResponse) {
-  $('#account').innerHTML = me.verified ? renderAccount(me) : '';
+  $('#account').innerHTML = renderAccount(me);
   $('#sign-in').hidden = me.verified;
   $('#sign-out').hidden = !me.verified;
 }

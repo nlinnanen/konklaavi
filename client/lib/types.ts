@@ -179,12 +179,15 @@ export interface AccountNote {
   title: string;
 }
 
-/** Response of GET /me?userId=...; `reputation` is in [0, 1], null for an install not linked to an account. */
+/** Response of GET /me?userId=...; `reputation` is in [0, 1]. */
 export interface MeResponse {
   userId: string;
   email: string | null;
   verified: boolean;
-  reputation: number | null;
+  reputation: number;
+  /** An install without an account keeps the reputation of a new account; signing in lets it grow. */
+  reputationCapped: boolean;
+  reputationHint: string | null;
   /** May work the moderation queue: MODERATOR_EMAILS or reputation above MODERATOR_REPUTATION. */
   moderator: boolean;
   notes: AccountNote[];
