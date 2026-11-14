@@ -10,6 +10,7 @@ x-backend: &backend
     ANALYSIS_MODEL: ${ANALYSIS_MODEL:-claude-opus-5.5}
     PARAPHRASE_MODEL: ${PARAPHRASE_MODEL:-claude-haiku-5.5}
     NARRATIVE_MATCH_THRESHOLD:
+    RELATED_MATCH_THRESHOLD:
   depends_on:
     db:
       condition: service_healthy
