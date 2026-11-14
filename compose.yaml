@@ -38,6 +38,8 @@ services:
     image: ${COMPOSE_PROJECT_NAME:-junction26}-fingerprint
     ports:
       - "${FP_PORT:-8100}:8100"
+    volumes:
+      - models:/models
     init: true
     restart: unless-stopped
 
@@ -65,3 +67,4 @@ services:
 
 volumes:
   pgdata:
+  models:
