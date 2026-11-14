@@ -14,6 +14,8 @@ MIN_SHARED_BANDS = 2
 MIN_JACCARD = 0.5
 # A narrative's vectors hold at most this many of its attached blocks besides its claim.
 MAX_BLOCK_VECTORS = 5
+# Narrative sources that label whole pages of a source, such as a documented network, rather than one claim.
+SOURCE_LEVEL = ("network",)
 
 
 @dataclass(frozen=True)
@@ -168,7 +170,14 @@ def refresh_narrative_vectors(conn: Connection, narrative_ids: Iterable[int]) ->
 
     A narrative whose central blocks are unchanged keeps its rows, so GET /index sends it no delta.
     """
-    ids = sorted(set(narrative_ids))
+    # A source-level narrative holds no single claim, so it gets no vectors for narrative-level matching.
+    ids = [
+        row[0]
+        for row in conn.execute(
+            "SELECT id FROM narrative WHERE id = ANY(%s) AND source <> ALL(%s) ORDER BY id",
+            (sorted(set(narrative_ids)), list(SOURCE_LEVEL)),
+        )
+    ]
     if not ids:
         return
     central = central_blocks(conn, ids)
