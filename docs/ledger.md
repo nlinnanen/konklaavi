@@ -101,6 +101,8 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: `LookupBlock` is defined in `client/lib/types.ts`; `client/lib/api.ts` re-exports it.
 - integrator: evaluation fetches carry reason `eval`.
 - integrator: in compose, the dashboard reaches the API at `http://api:8000` and reads eval results from `backend/app/eval/results`, mounted read-only.
+- integrator: The main evaluation splits each EUvsDisinfo case's article URLs into seed and held-out URLs, because the system detects copies and variants of known narratives; held-out whole cases are reported separately as unseen narratives.
+- integrator: Votes are weighted by user reputation and discounted in coordinated bursts, and the simulation compares raw and weighted votes.
 
 ## Deferred
 
