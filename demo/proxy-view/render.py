@@ -11,10 +11,11 @@ import re
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
-from urllib.parse import urlparse
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from urllib.parse import urljoin, urlparse
 
-from playwright.async_api import Browser, Error, Page, async_playwright
+from playwright.async_api import Browser, Error, Page, Request, Route, async_playwright
 
 UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -56,12 +57,79 @@ BLOCKED_HOSTS = re.compile(
 BLOCKED_TYPES = {"media", "websocket", "eventsource", "beacon", "ping"}
 
 
-async def block_noise(route, request) -> None:
+# Why a URL may not be opened (None when it may): the viewer's allowlist and public-address check.
+Check = Callable[[str], str | None]
+# HTTP redirects followed for one navigation.
+MAX_REDIRECTS = 10
+
+
+class Refused(Exception):
+    """The page, or a page it redirected or navigated to, is not one the proxy may open."""
+
+    def __init__(self, url: str, reason: str):
+        super().__init__(reason)
+        self.url = url
+        self.reason = reason
+
+
+def is_noise(request: Request) -> bool:
     host = urlparse(request.url).hostname or ""
-    if request.resource_type in BLOCKED_TYPES or BLOCKED_HOSTS.search(host):
-        await route.abort()
-    else:
-        await route.continue_()
+    return request.resource_type in BLOCKED_TYPES or bool(BLOCKED_HOSTS.search(host))
+
+
+@dataclass
+class Navigation:
+    """What the guard saw of the main frame's navigations."""
+
+    # The page's DOM is ready. Until then a navigation away replaces the page (a script that sets
+    # location while it loads stops the load), so one refused before is a refusal of the page.
+    ready: bool = False
+    redirect: str | None = None  # where the last navigation redirected to, not yet followed
+    refused: Refused | None = None  # the page, or where it redirected or navigated while loading
+    stopped: Refused | None = None  # a navigation the ready page started was refused; the page stayed
+    # Set when a redirect or refusal ends the current navigation, so render() needn't wait it out.
+    ended: asyncio.Event = field(default_factory=asyncio.Event)
+
+
+def guard(check: Check, nav: Navigation):
+    """A route handler that checks every navigation of the page's main frame before Chromium makes it.
+
+    Playwright doesn't route the request a redirect makes, so Chromium must never follow one: the
+    handler fetches each navigation itself without following redirects, and on a redirect aborts it
+    (net::ERR_ABORTED, which leaves the page where it is, without an error page) and notes the target. render() then navigates there
+    itself, so that request comes back here and is checked like the first. An allowlisted site with
+    an open redirect (`/login?next=http://10.0.0.5/`) can't lead the proxy off the list or to an
+    internal address. Navigations the page starts itself, by a meta refresh or a script, are checked
+    the same way; one that is refused, or redirects, is stopped and the page stays. Only the main
+    frame's content is kept, so frames and subresources go through without the check."""
+
+    async def handle(route: Route, request: Request) -> None:
+        if is_noise(request):
+            await route.abort()
+            return
+        if not request.is_navigation_request() or request.frame.parent_frame is not None:
+            await route.continue_()
+            return
+        url = request.url
+        if reason := await asyncio.to_thread(check, url):
+            if nav.ready:
+                nav.stopped = nav.stopped or Refused(url, reason)
+            else:
+                nav.refused = nav.refused or Refused(url, reason)
+                nav.ended.set()
+            await route.abort("aborted")
+            return
+        response = await route.fetch(max_redirects=0)
+        location = response.headers.get("location")
+        if 300 <= response.status < 400 and location:
+            if not nav.ready:
+                nav.redirect = urljoin(url, location)
+                nav.ended.set()
+            await route.abort("aborted")
+            return
+        await route.fulfill(response=response)
+
+    return handle
 
 
 # Freezes the page and returns its text blocks. A block is the text of the nearest block-level
@@ -228,17 +296,53 @@ async def settle(page: Page, ms: int) -> None:
         pass
 
 
-async def render(url: str) -> Rendered:
+async def load(page: Page, url: str, nav: Navigation, timeout: float = 30):
+    """Navigates to `url` and waits until its DOM is ready, or until the guard ends the navigation
+    with a redirect or a refusal. Returns the response, if the page got one."""
+    try:
+        response = await page.goto(url, wait_until="commit", timeout=timeout * 1000)
+    except Error:
+        if nav.ended.is_set():
+            return None
+        raise
+    ready = asyncio.ensure_future(page.wait_for_load_state("domcontentloaded", timeout=timeout * 1000))
+    ended = asyncio.ensure_future(nav.ended.wait())
+    try:
+        done, _ = await asyncio.wait({ready, ended}, return_when=asyncio.FIRST_COMPLETED)
+        if ready in done:
+            ready.result()  # raises the timeout
+    finally:
+        for task in (ready, ended):
+            task.cancel()
+        await asyncio.gather(ready, ended, return_exceptions=True)
+    return response
+
+
+async def render(url: str, check: Check) -> Rendered:
+    """Renders `url`, refusing (Refused) when it, or any page it redirects to, fails `check`."""
     context = await (await browser()).new_context(
         user_agent=UA, locale="fi-FI", viewport={"width": 1280, "height": 900}, java_script_enabled=True
     )
-    await context.route("**/*", block_noise)
     page = await context.new_page()
+    nav = Navigation()
+    await page.route("**/*", guard(check, nav))
     t0 = time.monotonic()
     marks: list[str] = []
     mark = lambda name: marks.append(f"{name} {time.monotonic() - t0:.1f}s")
     try:
-        response = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        page.on("domcontentloaded", lambda _: setattr(nav, "ready", True))
+        target, response = url, None
+        for _ in range(MAX_REDIRECTS + 1):
+            nav.redirect = None
+            nav.ended.clear()
+            response = await load(page, target, nav)
+            if nav.refused:
+                raise nav.refused
+            if not nav.redirect:
+                break
+            target = nav.redirect
+        else:
+            raise Refused(target, f"More than {MAX_REDIRECTS} redirects.")
         status = response.status if response else 0
         mark("dom")
         await settle(page, 4000)
@@ -258,6 +362,8 @@ async def render(url: str) -> Rendered:
         blocks = await page.evaluate(SNAPSHOT_JS)
         html = await page.content()
         mark("snapshot")
+        if nav.stopped:
+            print(f"render {url}: stopped a navigation to {nav.stopped.url}: {nav.stopped.reason}", flush=True)
         print(f"render {url}: " + ", ".join(marks), flush=True)
         return Rendered(url=page.url, status=status, html=html, blocks=blocks)
     finally:
