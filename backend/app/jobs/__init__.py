@@ -13,7 +13,6 @@ PERIODIC: list[tuple[str, int]] = [
     ("cluster", 300),
     ("lifecycle", 600),
     ("narrative_vectors", 300),
-    ("settle_reports", 300),
     ("paraphrases", 600),
 ]
 MAX_ATTEMPTS = 5
@@ -102,4 +101,4 @@ def fail(conn: Connection, job: Job, error: str, retry: bool = True) -> None:
 
 
 # Owner modules register their handlers on import.
-from app.jobs import analyze, cluster, fetch, paraphrase, settle, variants  # noqa: F401
+from app.jobs import analyze, cluster, fetch, paraphrase, variants  # noqa: F401
