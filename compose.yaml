@@ -1,0 +1,54 @@
+x-backend: &backend
+  build: ./backend
+  image: ${COMPOSE_PROJECT_NAME:-junction26}-backend
+  environment:
+    - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
+    - FP_URL=http://fingerprint:8100
+    - ANTHROPIC_API_KEY
+    - ANTHROPIC_BASE_URL
+    - ANALYSIS_MODEL
+  depends_on:
+    db:
+      condition: service_healthy
+    fingerprint:
+      condition: service_started
+  init: true
+  restart: unless-stopped
+
+services:
+  db:
+    image: timescale/timescaledb-ha:pg17
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  fingerprint:
+    build:
+      context: .
+      dockerfile: fingerprint-service/Dockerfile
+    image: ${COMPOSE_PROJECT_NAME:-junction26}-fingerprint
+    ports:
+      - "${FP_PORT:-8100}:8100"
+    init: true
+    restart: unless-stopped
+
+  api:
+    <<: *backend
+    ports:
+      - "${API_PORT:-8000}:8000"
+
+  worker:
+    <<: *backend
+    command: ["python", "-m", "app.worker"]
+
+volumes:
+  pgdata:

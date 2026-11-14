@@ -1,0 +1,29 @@
+[project]
+name = "trust-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "psycopg[binary,pool]",
+  "pgvector",
+  "httpx",
+  "trafilatura",
+  "anthropic",
+  "numpy",
+  "scikit-learn",
+  "networkx",
+]
+
+[dependency-groups]
+dev = ["pytest", "ruff"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+extend-select = ["I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
