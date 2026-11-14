@@ -10,9 +10,9 @@ import { Highlighter, type FlaggedRange } from '@/entrypoints/content/highlighte
 import { blockFor, buildModel, offsetsOf, textNodesUnder } from '@/entrypoints/content/textModel';
 import { OverlayUi, type CardActions } from '@/entrypoints/content/ui';
 import { fingerprintSentences, splitSentences, type Sentence } from '@/lib/fingerprint';
-import { highlightStyle, matchRank, STATE_LABELS, STATES } from '@/lib/state';
+import { HIGHLIGHT_STYLES, highlightStyle, matchRank, STATE_LABELS, STATES } from '@/lib/state';
 import type { Helpfulness, LookupResult, Narrative, NarrativeState } from '@/lib/types';
-import { panelCss } from './panel';
+import { guideCss, panelCss } from './panel';
 
 interface Config {
   url: string;
@@ -85,22 +85,8 @@ const userId: string = (() => {
   return id;
 })();
 
-interface Me {
-  email: string | null;
-  verified: boolean;
-}
-
-let me: Me = { email: null, verified: false };
+// Notes and ratings need no account, as in the extension; this browser's install id writes them.
 let myRatings = store.get<Record<string, Helpfulness>>('hashtrust.myRatings', {});
-
-const loadMe = async () => {
-  try {
-    me = await api<Me>(`me?userId=${encodeURIComponent(userId)}`);
-  } catch {
-    /* signed out as far as the panel shows */
-  }
-  renderAccount();
-};
 
 // ---- The side panel, beside the frame in the /view shell (same origin), else on the page itself.
 
@@ -120,20 +106,21 @@ root.innerHTML = `<style>${panelCss}</style>
     <div class="brand"><b>HashTrust</b><span>demo</span><button class="toggle" title="Collapse panel">»</button></div>
     <form target="_top"><input name="url" type="url" required aria-label="Article URL"><button class="btn primary">Scan</button></form>
     <div class="status"></div>
-    <div class="account"></div>
   </header>
   <div class="list"></div>
   <footer>
     <p class="demo-note">A demo: this page was rendered again on our server, so it may not look or work exactly like the
     original, and some sites don't work. The real product is the browser extension.
     <a class="readme" target="_blank" rel="noopener">How to install it</a></p>
-    <p>Select a passage on the page to add a note. Click a highlight to rate its notes.</p>
+    <p>Select a passage on the page to add a note. Click a highlight to rate its notes.
+    <button class="link" data-act="guide">How it works</button></p>
   </footer>
 </div>`;
 const $ = <T extends Element>(s: string) => root.querySelector(s) as T;
 $<HTMLInputElement>('input').value = cfg.url;
 $<HTMLFormElement>('form').action = cfg.proxy + 'view';
 $<HTMLAnchorElement>('.readme').href = cfg.readme;
+$<HTMLButtonElement>('[data-act=guide]').addEventListener('click', () => showGuide());
 $<HTMLButtonElement>('.toggle').addEventListener('click', () => {
   const collapsed = panelHost.classList.toggle('collapsed');
   panelHost.style.width = collapsed ? '44px' : '340px';
@@ -142,26 +129,10 @@ $<HTMLButtonElement>('.toggle').addEventListener('click', () => {
 });
 const statusEl = $<HTMLDivElement>('.status');
 const listEl = $<HTMLDivElement>('.list');
-const accountEl = $<HTMLDivElement>('.account');
 const esc = (s: unknown) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const clip = (t: string, max: number) => (t.length > max ? t.slice(0, max) + '…' : t);
 const spinner = '<span class="spinner" aria-hidden="true"></span>';
-
-function renderAccount() {
-  accountEl.innerHTML = me.verified
-    ? `Signed in as <b>${esc(me.email)}</b> <button class="link" data-act="logout">Sign out</button>`
-    : `<button class="link" data-act="login">Sign in</button> to add and rate notes.`;
-  accountEl.querySelector('button')?.addEventListener('click', async (e) => {
-    const act = (e.currentTarget as HTMLElement).dataset.act;
-    if (act === 'logout') {
-      me = await api<Me>('auth/logout', { userId }).catch(() => me);
-      renderAccount();
-    } else {
-      signIn(new DOMRect(window.innerWidth - 420, 16, 0, 0)).catch(() => {});
-    }
-  });
-}
 
 // ---- Locating matches: whitespace is ignored, since extracted text adds spaces at line breaks and
 // block edges that the DOM may not have.
@@ -314,16 +285,6 @@ function sentencesInRange(range: Range): Sentence[] {
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-function signIn(anchor: DOMRect): Promise<void> {
-  return new Promise((resolve) => {
-    ui.openSignIn(anchor, async (action, credentials) => {
-      me = await api<Me>(`auth/${action}`, { ...credentials, userId });
-      renderAccount();
-      resolve();
-    });
-  });
-}
-
 async function openNote(range: Range) {
   const sentences = sentencesInRange(range);
   if (!sentences.length) {
@@ -332,20 +293,10 @@ async function openNote(range: Range) {
     return;
   }
   const anchor = range.getBoundingClientRect();
-  if (!me.verified) await loadMe();
-  if (!me.verified) {
-    await signIn(anchor);
-    if (!me.verified) return;
-  }
   const text = sentences.map((s) => s.text).join(' ');
   const { contentHash, sentenceHashes } = await fingerprintSentences(sentences);
   ui.openNoteForm(anchor, text, async (note) => {
-    try {
-      await api('notes', { ...note, userId, passage: { text, url: cfg.url.split('#')[0], contentHash, sentenceHashes } });
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 403) throw new Error('Sign in first.');
-      throw err;
-    }
+    await api('notes', { ...note, userId, passage: { text, url: cfg.url.split('#')[0], contentHash, sentenceHashes } });
     window.getSelection()?.removeAllRanges();
     ui.toast('Note submitted. It is shown once it passes review and readers rate it.');
   });
@@ -411,7 +362,7 @@ function setupCards() {
       try {
         await api(`notes/${encodeURIComponent(noteId)}/report`, { userId, reason });
       } catch (err) {
-        ui.toast(`Could not report the note: ${err instanceof ApiError && err.status === 403 ? 'sign in first' : message(err)}`, 'error');
+        ui.toast(`Could not report the note: ${err instanceof ApiError && err.status === 403 ? 'reporting needs an account, which the extension\'s popup signs in to' : message(err)}`, 'error');
         throw err;
       }
     },
@@ -506,12 +457,56 @@ function testMatches(): CheckMatch[] {
   });
 }
 
+// ---- The guide: how to use the demo, over the page on the first visit and from the panel's "How it works".
+
+const GUIDE_KEY = 'hashtrust.guideSeen';
+
+function showGuide() {
+  doc.getElementById('ht-guide')?.remove();
+  const host = doc.createElement('div');
+  host.id = 'ht-guide';
+  const panelWidth = panelHost.classList.contains('collapsed') ? 44 : 340;
+  host.style.cssText = `all:initial;position:fixed;top:${shell ? 36 : 0}px;left:0;right:${panelWidth}px;bottom:0;z-index:2147483646;`;
+  const guide = host.attachShadow({ mode: 'open' });
+  const swatch = (state: NarrativeState) =>
+    `<span class="swatch" style="${HIGHLIGHT_STYLES[state]}">${esc(STATE_LABELS[state])}</span>`;
+  guide.innerHTML = `<style>${guideCss}</style>
+  <div class="backdrop">
+    <section class="card" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+      <p class="eyebrow">HashTrust demo</p>
+      <h2 id="guide-title">How to use it</h2>
+      <ol>
+        <li><b>Highlights</b> mark passages that belong to a narrative readers are tracking. The colour is what their notes say:
+          <span class="swatches">${swatch('misleading')}${swatch('context')}${swatch('controversial')}${swatch('needs_ratings')}</span>
+          A lighter highlight matched by meaning, not by wording.</li>
+        <li><b>Hover</b> a highlight to see its note. <b>Click</b> it to read every note and rate them.</li>
+        <li><b>Select a sentence</b> and click <b>Add context</b> to write your own note. No account needed.</li>
+        <li>The <b>panel on the right</b> lists every narrative found on this page; click one to jump to it.</li>
+      </ol>
+      <p class="demo">This is a demo: a copy of ${esc(cfg.host)} rendered on our server, so some things on the page may not
+        work. The real product is the browser extension, which does this on the pages you read.
+        <a href="${esc(cfg.readme)}" target="_blank" rel="noopener">How to install it</a></p>
+      <div class="actions"><button class="btn primary" autofocus>Got it</button></div>
+    </section>
+  </div>`;
+  const close = () => {
+    store.set(GUIDE_KEY, true);
+    host.remove();
+    doc.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+  guide.querySelector('.btn')!.addEventListener('click', close);
+  guide.querySelector('.backdrop')!.addEventListener('click', (e) => e.target === e.currentTarget && close());
+  doc.addEventListener('keydown', onKey);
+  doc.body.append(host);
+  (guide.querySelector('.btn') as HTMLButtonElement).focus();
+}
+
 // ---- Run.
 
 setupSelection();
 setupCards();
-renderAccount();
-void loadMe();
+if (!store.get(GUIDE_KEY, false)) showGuide();
 
 if (!cfg.blocks.length) {
   statusEl.innerHTML = `<span class="err">No text extracted from ${esc(cfg.host)}.</span>`;

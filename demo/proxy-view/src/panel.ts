@@ -54,8 +54,6 @@ input:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px o
 .btn.primary:hover { opacity: .88; }
 .status { margin-top: 10px; font-size: 12px; color: var(--ink-2); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .status b { color: var(--ink); font-weight: 650; }
-.account { margin-top: 6px; font-size: 12px; color: var(--ink-3); }
-.account b { color: var(--ink-2); font-weight: 600; }
 .link {
   border: 0; background: none; padding: 0; font: inherit; color: var(--ink); cursor: pointer;
   text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--line);
@@ -104,4 +102,54 @@ footer { padding: 10px 16px 12px; border-top: 1px solid var(--line); font-size: 
 :host(.collapsed) header > *:not(.brand), :host(.collapsed) .brand > *:not(.toggle),
 :host(.collapsed) .list, :host(.collapsed) footer { display: none; }
 :host(.collapsed) header { padding: 8px 6px; border: 0; }
+`;
+
+/** The guide over the page, on the same tokens. */
+export const guideCss = `
+:host { all: initial; }
+.backdrop {
+  --ink: oklch(0.24 0.012 70); --ink-2: oklch(0.43 0.012 70); --ink-3: oklch(0.55 0.01 70);
+  --paper: oklch(0.992 0.003 85); --paper-2: oklch(0.966 0.006 85); --line: oklch(0.9 0.008 85);
+  --action: oklch(0.28 0.014 70); --action-ink: oklch(0.98 0.004 85); --focus: oklch(0.58 0.14 255);
+  --note: oklch(0.955 0.035 85);
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  position: absolute; inset: 0; display: grid; place-items: center; padding: 16px;
+  background: oklch(0.2 0.01 70 / 0.42); backdrop-filter: blur(2px);
+  font: 400 14px/1.5 var(--font); color: var(--ink); -webkit-font-smoothing: antialiased;
+  animation: fade 180ms ease-out;
+}
+@media (prefers-color-scheme: dark) {
+  .backdrop {
+    --ink: oklch(0.94 0.006 85); --ink-2: oklch(0.79 0.01 85); --ink-3: oklch(0.66 0.01 85);
+    --paper: oklch(0.235 0.008 70); --paper-2: oklch(0.275 0.009 70); --line: oklch(0.36 0.01 70);
+    --action: oklch(0.93 0.008 85); --action-ink: oklch(0.22 0.01 70); --note: oklch(0.31 0.04 75);
+    background: oklch(0 0 0 / 0.55);
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+.card {
+  width: min(520px, 100%); max-height: calc(100% - 16px); overflow: auto; padding: 22px 24px 20px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: 0 1px 2px oklch(0.2 0.01 70 / 0.08), 0 24px 60px -12px oklch(0.2 0.01 70 / 0.4);
+  animation: rise 220ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+.eyebrow { margin: 0; font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+h2 { margin: 2px 0 14px; font-size: 19px; font-weight: 650; letter-spacing: -.01em; }
+ol { margin: 0; padding-left: 20px; display: grid; gap: 10px; color: var(--ink-2); }
+li::marker { color: var(--ink-3); font-weight: 600; }
+b { color: var(--ink); font-weight: 650; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 6px; }
+.swatch { font-size: 12.5px; padding: 1px 4px; border-radius: 3px; color: var(--ink); }
+.demo { margin: 16px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--note); color: var(--ink-2); font-size: 13px; }
+.demo a { color: var(--ink); font-weight: 600; text-underline-offset: 2px; }
+.actions { display: flex; justify-content: flex-end; margin-top: 16px; }
+.btn {
+  font: 600 13.5px/1 var(--font); height: 36px; padding: 0 18px; border-radius: 9px; cursor: pointer;
+  border: 1px solid var(--action); background: var(--action); color: var(--action-ink);
+}
+.btn:hover { opacity: .88; }
+.btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@keyframes fade { from { opacity: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+@media (prefers-reduced-motion: reduce) { .backdrop, .card { animation: none; } }
 `;

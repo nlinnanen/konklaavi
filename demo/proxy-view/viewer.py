@@ -240,7 +240,15 @@ SHELL = """<!doctype html><meta charset=utf-8><meta name=viewport content="width
 @media (prefers-color-scheme:dark){{:root{{--ink:oklch(.94 .006 85);--ink-2:oklch(.79 .01 85);--ink-3:oklch(.66 .01 85);
 --paper:oklch(.235 .008 70);--paper-2:oklch(.275 .009 70);--paper-3:oklch(.31 .01 70);--line:oklch(.36 .01 70)}}}}
 html,body{{margin:0;height:100%;overflow:hidden;background:var(--paper)}}
-iframe{{position:fixed;top:0;left:0;width:calc(100vw - 340px);height:100%;border:0;background:#fff;opacity:0;transition:opacity .3s}}
+iframe{{position:fixed;top:36px;left:0;width:calc(100vw - 340px);height:calc(100% - 36px);border:0;background:#fff;opacity:0;transition:opacity .3s}}
+#ht-banner{{position:fixed;top:0;left:0;width:calc(100vw - 340px);height:36px;box-sizing:border-box;padding:0 16px;
+display:flex;align-items:center;gap:10px;background:oklch(.955 .035 85);color:oklch(.3 .03 70);border-bottom:1px solid oklch(.85 .07 80);
+font:13px/1.3 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;white-space:nowrap;overflow:hidden}}
+#ht-banner b{{font-size:11px;font-weight:700;letter-spacing:.08em;padding:3px 7px;border-radius:5px;background:oklch(.52 .1 75);color:#fff}}
+#ht-banner span{{overflow:hidden;text-overflow:ellipsis}}
+#ht-banner a{{margin-left:auto;color:inherit;font-weight:600;text-underline-offset:2px}}
+@media (prefers-color-scheme:dark){{#ht-banner{{background:oklch(.31 .04 75);color:oklch(.92 .02 85);border-color:oklch(.45 .07 80)}}}}
+body.ht-collapsed #ht-banner{{width:calc(100vw - 44px)}}
 iframe.ready{{opacity:1}}
 body.ht-collapsed iframe{{width:calc(100vw - 44px)}}
 #ht-loading{{position:fixed;inset:0;display:grid;place-items:center;background:var(--paper);color:var(--ink);
@@ -262,6 +270,8 @@ li.done{{color:var(--ink-2)}} li.done::before{{background:var(--ink-3);animation
 @keyframes pulse{{50%{{opacity:.35}}}}
 @media (prefers-reduced-motion:reduce){{.ring,li.on::before{{animation:none}}}}
 </style>
+<div id=ht-banner role=note><b>DEMO</b><span>A copy of {host} rendered by HashTrust. Links, videos and logins on it may not work.</span>
+<a href="{readme}" target=_blank rel=noopener>The real product is the browser extension →</a></div>
 <iframe id=ht-frame src="{src}"></iframe>
 <div id=ht-loading role=status aria-live=polite><div class=box>
 <div class=ring></div>
@@ -301,6 +311,7 @@ def view(url: str, test: bool = False, fresh: bool = False):
     return SHELL.format(
         src=html.escape(src, quote=True),
         host=html.escape(urlparse(url).hostname or url),
+        readme=html.escape(README_URL, quote=True),
         notice="It may not work on every site. The real product is the browser extension: "
         f"<a href='{html.escape(README_URL, quote=True)}' target=_blank rel=noopener>how to install it</a>.",
     )
@@ -394,10 +405,8 @@ async def frame_page(request: Request, url: str, test: bool, fresh: bool):
 API_ROUTES = [
     (re.compile(r"check"), "POST"),
     (re.compile(r"narratives/\d+"), "GET"),
-    (re.compile(r"me"), "GET"),
     (re.compile(r"notes"), "POST"),
     (re.compile(r"notes/\d+/(ratings|report)"), "POST"),
-    (re.compile(r"auth/(login|register|logout)"), "POST"),
 ]
 
 
