@@ -3,6 +3,7 @@ import {
   applyIndexUpdate,
   HitReporter,
   INDEX_REFRESH_MS,
+  type IndexChange,
   LocalIndexApi,
   MAX_LOOKUP_BATCH,
   NarrativeIndex,
@@ -226,6 +227,27 @@ describe('LocalIndexApi', () => {
     await api.refresh();
     expect((await api.lookup(['s1', 's2'])).map((r) => r.hash)).toEqual(['s1', 's2']);
     expect(requests).toEqual(['GET http://backend/index', 'GET http://backend/index?since=1']);
+  });
+
+  it('reports the narratives a delta changed, and whether it added any', async () => {
+    backend([
+      index({ version: 1, narratives: [narrative('n1'), narrative('n2')] }),
+      index({ version: 2, full: false, narratives: [narrative('n1', 'controversial')], removed: ['n2'] }),
+      index({ version: 3, full: false, narratives: [narrative('n3')] }),
+      index({ version: 3, full: false }),
+    ]);
+    const api = new LocalIndexApi('http://backend', memoryStore(), () => 0);
+    await api.refresh();
+    const changes: IndexChange[] = [];
+    api.onChange = (change) => changes.push(change);
+
+    await api.refresh();
+    await api.refresh();
+    await api.refresh();
+    expect(changes).toEqual([
+      { narrativeIds: ['n2', 'n1'], added: false },
+      { narrativeIds: ['n3'], added: true },
+    ]);
   });
 
   it('matches units to narratives at the narrative level and as related, embedding each once', async () => {

@@ -353,8 +353,14 @@ export class NarrativeIndex {
 /** Embeddings kept per unit content hash, so a unit seen again is not embedded again. */
 const MAX_CACHED_EMBEDDINGS = 5000;
 
-/** How old a downloaded index gets before a lookup triggers a delta download. */
-export const INDEX_REFRESH_MS = 5 * 60_000;
+/** How old a downloaded index gets before a lookup triggers a delta download; the background also refreshes on this period. */
+export const INDEX_REFRESH_MS = 30_000;
+
+/** The narratives a download changed or removed; `added` when it brought narratives the index lacked, which may match any page. */
+export interface IndexChange {
+  narrativeIds: string[];
+  added: boolean;
+}
 const INDEX_KEY = 'index';
 
 interface StoredIndex {
@@ -373,6 +379,8 @@ export class LocalIndexApi implements TrustApi {
   private index?: NarrativeIndex;
   private refreshing?: Promise<void>;
   private embeddings = new Map<string, Float32Array>();
+  /** Called after each download that changed the index. */
+  onChange?: (change: IndexChange) => void;
 
   constructor(
     readonly baseUrl: string,
@@ -436,11 +444,7 @@ export class LocalIndexApi implements TrustApi {
 
   /** Waits for the first download; an index older than INDEX_REFRESH_MS answers while a delta downloads. */
   private async ready(): Promise<NarrativeIndex> {
-    if (!this.stored) {
-      const stored = await this.store.get<StoredIndex>(INDEX_KEY);
-      // A stored index of another shape (without `narratives`) is downloaded again.
-      if (stored?.baseUrl === this.baseUrl && Array.isArray(stored.snapshot.narratives)) this.stored = stored;
-    }
+    await this.load();
     if (!this.stored) await this.refresh();
     else if (this.now() - this.stored.checkedAt >= INDEX_REFRESH_MS) {
       this.refresh().catch((e) => console.warn('[hashtrust] index refresh failed', e));
@@ -455,12 +459,21 @@ export class LocalIndexApi implements TrustApi {
     return this.refreshing;
   }
 
+  private async load(): Promise<void> {
+    if (this.stored) return;
+    const stored = await this.store.get<StoredIndex>(INDEX_KEY);
+    // A stored index of another shape (without `narratives`) is downloaded again.
+    if (stored?.baseUrl === this.baseUrl && Array.isArray(stored.snapshot.narratives)) this.stored ??= stored;
+  }
+
   private async download(): Promise<void> {
+    await this.load();
     const update = await this.remote.index(this.stored?.snapshot.version);
     if (this.stored && isEmptyDelta(update)) {
       this.stored = { ...this.stored, checkedAt: this.now(), snapshot: { ...this.stored.snapshot, version: update.version } };
       return;
     }
+    const before = new Set(this.stored?.snapshot.narratives.map((n) => n.narrativeId));
     this.stored = {
       baseUrl: this.baseUrl,
       checkedAt: this.now(),
@@ -468,6 +481,9 @@ export class LocalIndexApi implements TrustApi {
     };
     this.index = undefined;
     await this.store.set(INDEX_KEY, this.stored);
+    const changed = [...(update.full ? before : update.removed), ...update.narratives.map((n) => n.narrativeId)];
+    const narrativeIds = [...new Set(changed)];
+    this.onChange?.({ narrativeIds, added: update.narratives.some((n) => !before.has(n.narrativeId)) });
   }
 }
 

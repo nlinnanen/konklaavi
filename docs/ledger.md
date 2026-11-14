@@ -241,6 +241,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - data: The offline benchmark lives in `backend/app/eval/benchmark/`, runs only against BENCHMARK_DATABASE_URL (a different database name than the product's), and imports cases as note narratives without notes.
 - data: The dashboard computes narrative state in SQL with the same precedence as the API, reads the moderation queue from the database and acts through the API.
 - team: Sign-in is email and password in FastAPI, with no email verification; magic links, SMTP and Mailpit are removed.
+- team: Notes update near real-time: a rating queues a coalesced scoring run, moderation and scoring jobs run before page jobs, and the extension refreshes its index every 30 seconds.
 
 ## Deferred
 

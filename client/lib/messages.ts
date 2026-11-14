@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser';
-import type { LookupBlock, NarrativeBlock } from './api';
+import type { IndexChange, LookupBlock, NarrativeBlock } from './api';
 import type { HighlightStyle } from './state';
 import type {
   Credentials,
@@ -24,6 +24,8 @@ export interface BackgroundApi {
   reportNote: [{ noteId: string; reason: string }, null];
   /** This install's ratings by note id. */
   myRatings: [null, Record<string, Helpfulness>];
+  /** Pulls the local index now; nothing to pull in the other modes. */
+  refreshIndex: [null, null];
   clearMock: [null, null];
   register: [Credentials, MeResponse];
   login: [Credentials, MeResponse];
@@ -94,7 +96,10 @@ export interface EmbedRequest {
 }
 
 /** Requests the popup sends to the content script in the active tab. */
-export type ContentRequest = { target: 'content'; type: 'pageStatus' } | { target: 'content'; type: 'rescan' };
+export type ContentRequest =
+  | { target: 'content'; type: 'pageStatus' }
+  | { target: 'content'; type: 'rescan' }
+  | ({ target: 'content'; type: 'indexChanged' } & IndexChange);
 
 /** A highlighted passage of the page. */
 export interface PageMatch {

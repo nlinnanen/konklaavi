@@ -14,6 +14,8 @@ PERIODIC: list[tuple[str, int]] = [
     ("narrative_vectors", 300),
     ("score_notes", 300),
 ]
+# Kinds a reader waits on, claimed before every other due job.
+URGENT = ("moderate_note", "score_notes")
 MAX_ATTEMPTS = 5
 # A job running longer than this is taken to have lost its worker and can be claimed again.
 LEASE = timedelta(minutes=10)
@@ -47,8 +49,23 @@ def enqueue(
     return row[0]
 
 
+def enqueue_unless_queued(conn: Connection, kind: str) -> None:
+    """Enqueue a payload-less job unless one of its kind is waiting, so a burst of triggers runs it once.
+
+    A running job doesn't count: it may have read the data before the trigger's change.
+    """
+    conn.execute(
+        "INSERT INTO job (kind) SELECT %(kind)s"
+        " WHERE NOT EXISTS (SELECT 1 FROM job WHERE kind = %(kind)s AND state = 'queued')",
+        {"kind": kind},
+    )
+
+
 def claim(conn: Connection) -> Job | None:
     """Mark the next due job running and count the attempt. Commit before running the handler.
+
+    URGENT kinds go first; the worker runs one job per loop, so a backlog of page jobs delays them by
+    at most the one job already running.
 
     A job whose lease expired is due again, or failed when it is out of attempts.
     """
@@ -63,13 +80,13 @@ def claim(conn: Connection) -> Job | None:
         WHERE id = (
           SELECT id FROM job
           WHERE (state = 'queued' AND run_after <= now()) OR (state = 'running' AND updated_at < now() - %s)
-          ORDER BY run_after, id
+          ORDER BY kind = ANY(%s) DESC, run_after, id
           LIMIT 1
           FOR UPDATE SKIP LOCKED
         )
         RETURNING id, kind, payload, attempts
         """,
-        (LEASE,),
+        (LEASE, list(URGENT)),
     ).fetchone()
     return Job(*row) if row else None
 
