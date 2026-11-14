@@ -1,7 +1,7 @@
 import { browser } from 'wxt/browser';
 import { cleanUrl } from '@/lib/domain';
 import { fingerprintSentences, splitSentences, type Sentence } from '@/lib/fingerprint';
-import { BackgroundError, callBackground, type ContentRequest, type PageStatus } from '@/lib/messages';
+import { callBackground, type ContentRequest, type PageStatus } from '@/lib/messages';
 import { getSettings, onSettingsChanged } from '@/lib/settings';
 import { INDEX_REFRESH_MS } from '@/lib/api';
 import type { Helpfulness, Narrative, Settings } from '@/lib/types';
@@ -89,7 +89,7 @@ function sentencesInRange(range: Range): Sentence[] {
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-/** Writing a note on a passage: sign-in first, then the form, then the posted note. */
+/** Writing a note on a passage: the form, then the posted note. */
 class NoteFlow {
   constructor(
     private ui: OverlayUi,
@@ -104,39 +104,20 @@ class NoteFlow {
       return;
     }
     const anchor = range.getBoundingClientRect();
-    let verified: boolean;
-    try {
-      verified = (await callBackground('me', null)).verified;
-    } catch (err) {
-      this.ui.toast(`Could not check your account: ${message(err)}`, 'error');
-      return;
-    }
-    if (!verified) {
-      this.ui.openSignIn(anchor, async (action, credentials) => {
-        await callBackground(action, credentials);
-        await this.open(range);
-      });
-      return;
-    }
     const text = sentences.map((s) => s.text).join(' ');
     const { contentHash, sentenceHashes } = await fingerprintSentences(sentences);
     this.ui.openNoteForm(anchor, text, async (note) => {
-      try {
-        await callBackground('addNote', {
-          ...note,
-          passage: { text, url: cleanUrl(location.href), contentHash, sentenceHashes },
-        });
-      } catch (err) {
-        if (err instanceof BackgroundError && err.status === 403) throw new Error('Sign in from the HashTrust popup first.');
-        throw err;
-      }
+      await callBackground('addNote', {
+        ...note,
+        passage: { text, url: cleanUrl(location.href), contentHash, sentenceHashes },
+      });
       window.getSelection()?.removeAllRanges();
       this.ui.toast('Note submitted. It is shown once it passes review and readers rate it.');
       await this.scanner.refresh([contentHash, ...sentenceHashes]);
     });
   }
 
-  /** Opens the note form, or the sign-in prompt, for the sentences the range touches. */
+  /** Opens the note form for the sentences the range touches. */
   openFor(range: Range) {
     void this.open(range).catch((e) => console.warn('[hashtrust] opening the note form failed', e));
   }

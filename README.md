@@ -29,7 +29,7 @@ Using it:
   | Needs ratings | its notes are waiting for enough ratings |
   | Tracked | the narrative is tracked but has no notes yet |
 
-- **Sign in** from the popup to write and rate notes. The demo server skips email verification.
+- **Sign in** from the popup to build reputation; notes and ratings work without it. The demo server skips email verification.
 - **Select a passage** to add a note, saying whether it is misleading and citing sources. Rate other readers' notes as helpful, somewhat helpful or not helpful. The bridging algorithm shows a note only once raters who usually disagree both find it helpful.
 - **The popup** lists the matches on the current page, the legend and the settings.
 

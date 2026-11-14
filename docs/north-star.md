@@ -10,13 +10,13 @@ Recognition is not a judgement. HashTrust says that a passage belongs to a narra
 
 ## Context notes
 
-The judgement comes from readers. A signed-in reader selects a passage and adds a note that says whether the narrative is misleading or not misleading, explains the context and links sources. That act creates the narrative, and from then on the fingerprints carry the note to every copy of the passage.
+The judgement comes from readers. A reader selects a passage and adds a note that says whether the narrative is misleading or not misleading, explains the context and links sources. That act creates the narrative, and from then on the fingerprints carry the note to every copy of the passage.
 
-Other signed-in readers rate notes as helpful, somewhat helpful or not helpful. The open-source Community Notes bridging algorithm decides which notes are shown: a note becomes helpful only when raters who usually disagree with each other both find it helpful, and a note that splits raters along that divide is shown as controversial. The highlight on a page follows the shown note, so readers see a misleading warning, added context, a dispute, or just the tracking line.
+Other readers rate notes as helpful, somewhat helpful or not helpful. The open-source Community Notes bridging algorithm decides which notes are shown: a note becomes helpful only when raters who usually disagree with each other both find it helpful, and a note that splits raters along that divide is shown as controversial. The highlight on a page follows the shown note, so readers see a misleading warning, added context, a dispute, or just the tracking line.
 
 ## Reputation
 
-Reputation belongs to a verified account and follows its track record. Writers gain it when their notes become helpful and lose it when they become not helpful. Raters gain it when their early ratings agree with the eventual outcome. Moderator rights come from high reputation or from being named by the operators.
+Signing in is optional. Reputation belongs to a verified account and follows its track record; a reader without an account writes and rates at the reputation of a new account, which does not grow. Writers gain it when their notes become helpful and lose it when they become not helpful. Raters gain it when their early ratings agree with the eventual outcome. Moderator rights come from high reputation or from being named by the operators.
 
 ## Moderation and its limits
 

@@ -1,6 +1,7 @@
 """Accounts and a user's standing.
 
-An install signs in to an account with its email and password, which links the install to the account.
+An install signs in to an account with its email and password, which links the install to the account
+and gives the account the notes the install wrote without one.
 The email is not verified: it names the account and decides moderators through MODERATOR_EMAILS.
 """
 
@@ -63,6 +64,10 @@ def link(conn: Connection, install_id: UUID, account_id: UUID, email: str) -> No
         "INSERT INTO install (id, account_id) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET account_id = %s",
         (install_id, account_id, account_id),
     )
+    conn.execute(
+        "UPDATE note SET account_id = %s WHERE author_install = %s AND account_id IS NULL",
+        (account_id, install_id),
+    )
 
 
 def check_password(conn: Connection, email: str, password: str) -> UUID:
@@ -121,23 +126,28 @@ def post_logout(request: Install) -> dict:
 
 @router.get("/me")
 def get_me(user_id: Annotated[UUID, Query(alias="userId")]) -> dict:
-    """The account's email, reputation, notes and rating record; an unlinked install has none of them."""
+    """The account's email, reputation, notes and rating record.
+
+    An install without an account has no email, the capped reputation of a new account and the notes it wrote.
+    """
     with connection() as conn:
         me = standing(conn, user_id)
         notes = conn.execute(
             """
             SELECT n.id, n.narrative_id, r.title, n.classification, n.body, n.status, n.moderation, n.created_at
             FROM note n JOIN narrative r ON r.id = n.narrative_id
-            WHERE n.account_id = %s
+            WHERE n.account_id = %s OR (n.account_id IS NULL AND n.author_install = %s)
             ORDER BY n.created_at DESC
             """,
-            (me.account_id,),
+            (me.account_id, user_id),
         ).fetchall()
     return {
         "userId": str(user_id),
         "email": me.email,
         "verified": me.account_id is not None,
         "reputation": me.reputation,
+        "reputationCapped": me.capped,
+        "reputationHint": "Sign in to keep your reputation and let it grow." if me.capped else None,
         "moderator": me.moderator,
         "notes": [
             {

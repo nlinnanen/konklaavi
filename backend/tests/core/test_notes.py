@@ -24,9 +24,29 @@ def post_note(client, user, passage=PASSAGE, **fields):
     return client.post("/notes", json=body)
 
 
-def test_writing_a_note_needs_a_verified_account(client, conn):
-    assert post_note(client, uuid.uuid4()).status_code == 403
-    assert conn.execute("SELECT count(*) FROM narrative").fetchone()[0] == 0
+def test_an_install_without_an_account_writes_and_rates_notes_at_a_fixed_reputation(client, conn, signed_in):
+    writer, rater = uuid.uuid4(), uuid.uuid4()
+    response = post_note(client, writer)
+    assert response.status_code == 200, response.text
+    note_id = response.json()["noteId"]
+    other = post_note(client, signed_in(), {**PASSAGE, "contentHash": "c-2", "sentenceHashes": ["q1"]}).json()
+    response = client.post(
+        f"/notes/{other['noteId']}/ratings", json={"userId": str(rater), "helpfulness": "helpful"}
+    )
+    assert response.status_code == 200
+    conn.commit()
+    assert conn.execute("SELECT count(*) FROM job WHERE kind = 'score_notes'").fetchone()[0] == 1
+
+    conn.execute("UPDATE note SET status = 'helpful', decided_at = now()")
+    conn.commit()
+    me = client.get("/me", params={"userId": str(writer)}).json()
+    assert (me["verified"], me["reputation"], me["reputationCapped"]) == (False, 0.25, True)
+    assert [note["id"] for note in me["notes"]] == [note_id]
+
+    # Signing in gives the account the install's notes.
+    credentials = {"userId": str(writer), "email": "writer@example.org", "password": "correct horse"}
+    me = client.post("/auth/register", json=credentials).json()
+    assert (me["reputation"], me["reputationCapped"], len(me["notes"])) == (0.5, False, 1)
 
 
 def test_a_note_creates_a_narrative_whose_passage_looks_up_at_once(client, conn, signed_in):

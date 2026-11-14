@@ -1,7 +1,7 @@
 """Context notes: writing, rating, reporting and moderating them.
 
-Writing and reporting a note need an install signed in to an account. Ratings are stored for any
-install; scoring counts only those of installs linked to an account (app/jobs/score.py).
+Any install writes and rates notes; reporting one needs an install signed in to an account. Scoring
+counts each account once per note and each install without an account on its own (app/jobs/score.py).
 """
 
 import re
@@ -65,6 +65,12 @@ def verified_account(conn: Connection, user_id: UUID) -> UUID:
     return row[0]
 
 
+def install_account(conn: Connection, user_id: UUID) -> UUID | None:
+    """The account the install is linked to, recording an install not seen before."""
+    conn.execute("INSERT INTO install (id) VALUES (%s) ON CONFLICT DO NOTHING", (user_id,))
+    return conn.execute("SELECT account_id FROM install WHERE id = %s", (user_id,)).fetchone()[0]
+
+
 def first_sentence(text: str) -> str:
     sentence = re.split(r"(?<=[.!?])\s+", " ".join(text.split()), maxsplit=1)[0]
     return sentence if len(sentence) <= TITLE_LENGTH else sentence[: TITLE_LENGTH - 1].rstrip() + "…"
@@ -124,7 +130,7 @@ def post_note(request: NoteRequest) -> dict:
     The note waits in pending_review until moderate_note reviews it.
     """
     with connection() as conn:
-        account_id = verified_account(conn, request.user_id)
+        account_id = install_account(conn, request.user_id)
         conn.execute("SELECT pg_advisory_xact_lock(%s)", (_CREATE_LOCK_KEY,))
         narrative_id = note_narrative(conn, request.passage) or create_narrative(conn, request.passage)
         note_id = conn.execute(
@@ -144,26 +150,24 @@ def post_note(request: NoteRequest) -> dict:
     return {"noteId": str(note_id), "narrativeId": str(narrative_id)}
 
 
-def note_author(conn: Connection, note_id: int) -> UUID:
-    row = conn.execute("SELECT account_id FROM note WHERE id = %s", (note_id,)).fetchone()
+def note_author(conn: Connection, note_id: int) -> tuple[UUID, UUID | None]:
+    """The note's author install and account."""
+    row = conn.execute("SELECT author_install, account_id FROM note WHERE id = %s", (note_id,)).fetchone()
     if row is None:
         raise HTTPException(404, f"note {note_id} does not exist")
-    return row[0]
+    return row
 
 
 @router.post("/notes/{note_id}/ratings")
 def post_rating(note_id: int, request: RatingRequest) -> dict:
     """Store the install's rating of a note, replacing its earlier one. Authors don't rate their own notes.
 
-    A rating that scoring counts queues a score_notes run.
+    A new or changed rating queues a score_notes run.
     """
     with connection() as conn:
-        author = note_author(conn, note_id)
-        conn.execute("INSERT INTO install (id) VALUES (%s) ON CONFLICT DO NOTHING", (request.user_id,))
-        account_id = conn.execute(
-            "SELECT account_id FROM install WHERE id = %s", (request.user_id,)
-        ).fetchone()[0]
-        if account_id is not None and account_id == author:
+        author_install, author_account = note_author(conn, note_id)
+        account_id = install_account(conn, request.user_id)
+        if request.user_id == author_install or (account_id is not None and account_id == author_account):
             raise HTTPException(403, "you wrote this note")
         changed = conn.execute(
             """
@@ -174,7 +178,7 @@ def post_rating(note_id: int, request: RatingRequest) -> dict:
             """,
             (note_id, request.user_id, account_id, request.helpfulness),
         ).rowcount
-        if changed and account_id is not None:
+        if changed:
             enqueue_unless_queued(conn, "score_notes")
     return {"ok": True}
 

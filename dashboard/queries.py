@@ -63,11 +63,10 @@ _NOTE_COLUMNS = """
        nt.intercept,
        nt.factor,
        count(r.note_id) AS ratings,
-       count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL) AS counted,
-       count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL AND r.helpfulness = 'helpful') AS helpful,
-       count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL AND r.helpfulness = 'somewhat') AS somewhat,
-       count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL AND r.helpfulness = 'not_helpful')
-         AS not_helpful,
+       count(DISTINCT COALESCE(i.account_id, r.install)) AS counted,
+       count(r.note_id) FILTER (WHERE r.helpfulness = 'helpful') AS helpful,
+       count(r.note_id) FILTER (WHERE r.helpfulness = 'somewhat') AS somewhat,
+       count(r.note_id) FILTER (WHERE r.helpfulness = 'not_helpful') AS not_helpful,
        nt.created_at
 FROM note nt
 JOIN narrative n ON n.id = nt.narrative_id

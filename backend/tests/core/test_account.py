@@ -39,7 +39,6 @@ def test_a_wrong_password_is_rejected(client):
 
 
 def test_reputation_follows_helpful_notes_and_early_agreeing_ratings(client, conn, narrative, signed_in):
-    assert (me(client, uuid.uuid4())["verified"], me(client, uuid.uuid4())["reputation"]) == (False, None)
     narrative(["h1"])
     writer = conn.execute("SELECT author_install FROM note").fetchone()[0]
     rater = signed_in()

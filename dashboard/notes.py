@@ -66,7 +66,9 @@ st.dataframe(
         "classification": "Says",
         "status": "Status",
         "moderation": "Moderation",
-        "counted": st.column_config.NumberColumn("Counted", help="Ratings from verified accounts"),
+        "counted": st.column_config.NumberColumn(
+            "Counted", help="Raters scoring counts: each account once, and each install without one"
+        ),
         "ratings": "All ratings",
         "helpful": "Helpful",
         "somewhat": "Somewhat",

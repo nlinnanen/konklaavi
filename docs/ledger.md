@@ -244,6 +244,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - team: Notes update near real-time: a rating queues a coalesced scoring run, moderation and scoring jobs run before page jobs, and the extension refreshes its index every 30 seconds.
 - team: Moderators use an admin panel served by FastAPI with Jinja2 and HTMX, with cookie sessions; it shows narrative clusters, the moderation queue, notes and users.
 - ext: On-device embedding tries WebGPU (fp16 with `shader-f16`, else fp32), then WASM q8 with up to 4 threads in the cross-origin isolated Chrome extension pages, else single-threaded; Firefox stays on WASM. The popup's "Benchmark embeddings" checks that order on real hardware.
+- team: Sign-in is optional: anonymous installs write and rate notes with reputation fixed at the default; signing in lets reputation grow.
 
 ## Deferred
 
