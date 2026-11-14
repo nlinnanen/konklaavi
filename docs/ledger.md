@@ -166,6 +166,9 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - data: the negatives are 313 reliable-outlet articles in nine languages; Reuters, AP, Le Monde, France 24 and LSM refuse anonymous fetches and are left out.
 - integrator: The narrative match threshold is 0.825. The team accepts a false-positive rate of 3-5% for recall: in the full evaluation 0.825 gives 2.2% false positives on 312 reliable-outlet pages, 79.5% recall on known narratives and 52.8% on unseen ones.
 - integrator: Text longer than the embedding model's input is chunked into overlapping sentence windows, each embedded on its own, on the client and when building narrative vectors; nothing is truncated.
+- integrator: Active fact-checker (`factcheck`) narratives count as settled truth for user reputation, like active EUvsDisinfo cases.
+- integrator: Users can sign in with an optional email magic link that keeps their reputation; anonymous install IDs still vote at low weight.
+- integrator: The crowdsourcing slice follows the seed-data work: reputation for reports of new content that later settle as misinformation, a penalty for flagging settled-good content, and reputation shown to the user.
 
 ## Deferred
 
