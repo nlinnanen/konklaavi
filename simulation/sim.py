@@ -175,7 +175,7 @@ def simulate(
     seed: int,
     cap: int,
     history: int,
-    targets: list[tuple[str, str]],
+    targets: list[tuple[str, str | None]],
     items: int = 20,
     turnout: float = 0.3,
 ) -> dict:
@@ -213,10 +213,10 @@ def simulate(
     return result
 
 
-def pick_targets(api, given: list[str]) -> list[tuple[str, str]]:
+def pick_targets(api, given: list[str]) -> list[tuple[str, str | None]]:
     """One sentence each of up to two distinct active narratives: the given hashes, or picks from /index."""
     if given:
-        return [(h, "?") for h in given[:2]]
+        return [(h, None) for h in given[:2]]
     try:
         sentences = api.active_sentences()
     except httpx.HTTPStatusError as error:
@@ -240,6 +240,12 @@ def _needed(n: int | None, cap: int) -> str:
     return f"> {cap}" if n is None else str(n)
 
 
+def target(row: dict) -> str:
+    return (
+        f"narrative {row['narrative_id']}" if row["narrative_id"] else f"sentence {row['sentence_hash'][:12]}"
+    )
+
+
 def print_table(label: str, result: dict) -> None:
     cap = result["cap"]
     print(f"run {label!r}\n")
@@ -259,7 +265,7 @@ def print_table(label: str, result: dict) -> None:
     if not result["brigade_retire"]:
         print("not run: no active narrative sentence")
     for row in result["brigade_retire"]:
-        print(f"{'narrative ' + row['narrative_id']:40}{row['accounts']:>12}{_needed(row['needed'], cap):>8}")
+        print(f"{target(row):40}{row['accounts']:>12}{_needed(row['needed'], cap):>8}")
 
 
 def main() -> None:
