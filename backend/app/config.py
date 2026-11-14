@@ -26,7 +26,7 @@ def load() -> Settings:
         anthropic_api_key=_env("ANTHROPIC_API_KEY"),
         anthropic_base_url=_env("ANTHROPIC_BASE_URL"),
         analysis_model=_env("ANALYSIS_MODEL"),
-        narrative_match_threshold=float(_env("NARRATIVE_MATCH_THRESHOLD") or "0.85"),
+        narrative_match_threshold=float(_env("NARRATIVE_MATCH_THRESHOLD") or "0.825"),
     )
 
 

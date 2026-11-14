@@ -43,7 +43,7 @@ best known recall at a false-positive rate of at most 1.0%: 0.85
 
 ## Reading the numbers
 
-- The production threshold is 0.85: the highest recall on known narratives with a false-positive rate of at most 1%. At 0.85 no reliable-outlet page is flagged.
+- The production threshold is 0.825, chosen to accept a false-positive rate of a few percent for recall: 2.2% of reliable-outlet pages are flagged, and recall is 79.5% on known narratives and 52.8% on unseen ones.
 - Narrative-level matching raises recall on known narratives from 32.9% (copies and edited copies only) to 72.6%, because most republications reword the claim rather than copy it.
 - Unseen narratives are claims HashTrust was never given. 36.1% of them are still caught at 0.85, because EUvsDisinfo often documents the same claim again as a new case.
 - Below 0.825 the false-positive rate climbs quickly; the threshold trades recall for zero false positives on purpose.

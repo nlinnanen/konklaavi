@@ -164,7 +164,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - data: the eval sweeps thresholds 0.70 to 0.95 in steps of 0.025 and reports `best_threshold`, the best known recall at a false-positive rate of at most 1%, the higher threshold on a tie.
 - data: the eval leaves out narrative candidates for blocks /lookup flagged through their block hash or any sentence hash.
 - data: the negatives are 313 reliable-outlet articles in nine languages; Reuters, AP, Le Monde, France 24 and LSM refuse anonymous fetches and are left out.
-- integrator: The narrative match threshold is 0.85, the best recall on known narratives at a false-positive rate of at most 1% in the full evaluation (0.0% on 312 reliable-outlet pages).
+- integrator: The narrative match threshold is 0.825. The team accepts a false-positive rate of 3-5% for recall: in the full evaluation 0.825 gives 2.2% false positives on 312 reliable-outlet pages, 79.5% recall on known narratives and 52.8% on unseen ones.
 - integrator: Text longer than the embedding model's input is chunked into overlapping sentence windows, each embedded on its own, on the client and when building narrative vectors; nothing is truncated.
 
 ## Deferred
