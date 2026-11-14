@@ -24,7 +24,7 @@ DATASET = "NLP-UniBW/eu_vs_disinfo"
 PAGE_SIZE = 100
 # Pause between requests to the rows API.
 REQUEST_INTERVAL = 1.0
-USER_AGENT = "hashtrust/0.1 (benchmark)"
+USER_AGENT = "konklaavi/0.1 (benchmark)"
 
 
 class _Paragraphs(HTMLParser):

@@ -270,7 +270,7 @@ wheels = [
 ]
 
 [[package]]
-name = "hashtrust-crowd"
+name = "konklaavi-crowd"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

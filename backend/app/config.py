@@ -29,7 +29,7 @@ class Settings:
     narrative_match_threshold: float
     # Cosine at which a block is related to a narrative, below the match threshold.
     related_match_threshold: float
-    # Lowercased hostnames HashTrust serves from, its demo proxy included; never tracked as pages.
+    # Lowercased hostnames Konklaavi serves from, its demo proxy included; never tracked as pages.
     own_hosts: frozenset[str]
     # Commit the image was built from; CI bakes it in, and the deploy waits until /health reports it.
     version: str

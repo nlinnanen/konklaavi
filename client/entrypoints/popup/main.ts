@@ -42,7 +42,7 @@ function renderLegend() {
 function renderPage(status: PageStatus | null) {
   const el = $('#page');
   if (!status) {
-    el.innerHTML = `<p class="muted">HashTrust can't read this page. Reload the tab, or open an article.</p>`;
+    el.innerHTML = `<p class="muted">Konklaavi can't read this page. Reload the tab, or open an article.</p>`;
     return;
   }
   const byNarrative = new Map<string, PageMatch[]>();

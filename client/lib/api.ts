@@ -446,7 +446,7 @@ export class LocalIndexApi implements TrustApi {
     await this.load();
     if (!this.stored) await this.refresh();
     else if (this.now() - this.stored.checkedAt >= INDEX_REFRESH_MS) {
-      this.refresh().catch((e) => console.warn('[hashtrust] index refresh failed', e));
+      this.refresh().catch((e) => console.warn('[konklaavi] index refresh failed', e));
     }
     this.index ??= new NarrativeIndex(this.stored!.snapshot);
     return this.index;

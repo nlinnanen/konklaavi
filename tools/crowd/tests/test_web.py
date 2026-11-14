@@ -28,7 +28,7 @@ def test_the_longest_rule_wins_and_allow_wins_a_tie():
 
 
 def test_a_group_naming_the_crowd_agent_replaces_the_star_group():
-    robots = Robots("User-agent: *\nDisallow: /\n\nUser-agent: hashtrust-crowd\nDisallow: /private")
+    robots = Robots("User-agent: *\nDisallow: /\n\nUser-agent: konklaavi-crowd\nDisallow: /private")
     assert robots.allows("https://x.test/news")
     assert not robots.allows("https://x.test/private/1")
 

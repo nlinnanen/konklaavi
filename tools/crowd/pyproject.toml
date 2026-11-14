@@ -1,7 +1,7 @@
 [project]
-name = "hashtrust-crowd"
+name = "konklaavi-crowd"
 version = "0.1.0"
-description = "LLM crowd bots that write and rate HashTrust notes on real news pages"
+description = "LLM crowd bots that write and rate Konklaavi notes on real news pages"
 requires-python = ">=3.12"
 dependencies = [
   "anthropic>=2.8.0",

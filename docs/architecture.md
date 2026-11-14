@@ -2,7 +2,7 @@
 
 The goals are in [north-star.md](north-star.md), the contracts in [api.md](api.md), the tables in [data-model.md](data-model.md) and the containers in [components.md](components.md).
 
-HashTrust has two halves. Fingerprint tracking recognises that a passage belongs to a narrative and records where the narrative has spread, without judging it. Context notes attach readers' judgements to a narrative, and a scoring job decides which of them are shown. A narrative exists because a reader wrote a note on one of its passages.
+Konklaavi has two halves. Fingerprint tracking recognises that a passage belongs to a narrative and records where the narrative has spread, without judging it. Context notes attach readers' judgements to a narrative, and a scoring job decides which of them are shown. A narrative exists because a reader wrote a note on one of its passages.
 
 ## Scanning a page
 

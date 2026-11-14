@@ -452,7 +452,7 @@ export class OverlayUi {
     const sourcesLabel = el('label', 'label', 'Sources', el('small', undefined, 'Optional, one link per line'));
     sourcesLabel.htmlFor = sources.id;
 
-    const fine = el('p', 'fine', 'Your note and this passage are sent to HashTrust. Readers who usually disagree decide together whether it is shown.');
+    const fine = el('p', 'fine', 'Your note and this passage are sent to Konklaavi. Readers who usually disagree decide together whether it is shown.');
     const error = el('p', 'error hidden');
     error.setAttribute('role', 'alert');
     const submit = el('button', 'btn primary', 'Submit note');
@@ -518,7 +518,7 @@ export class OverlayUi {
     this.renderCard(view, pinned, myRatings, actions);
     this.card.classList.toggle('pinned', pinned);
     this.card.setAttribute('role', pinned ? 'dialog' : 'tooltip');
-    this.card.setAttribute('aria-label', `HashTrust: ${STATE_LABELS[view.narrative.state]}`);
+    this.card.setAttribute('aria-label', `Konklaavi: ${STATE_LABELS[view.narrative.state]}`);
     this.card.classList.remove('hidden');
     if (visible && key === this.cardKey) return;
     this.cardKey = key;

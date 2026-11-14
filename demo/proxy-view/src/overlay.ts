@@ -29,7 +29,7 @@ interface CheckMatch {
   result: LookupResult;
 }
 
-const cfg: Config = JSON.parse(document.getElementById('hashtrust-data')!.textContent!);
+const cfg: Config = JSON.parse(document.getElementById('konklaavi-data')!.textContent!);
 
 // ---- API through the proxy, as the extension's background worker would call it.
 
@@ -77,16 +77,16 @@ const store = {
 
 /** This browser's install id, as the extension keeps one per install. */
 const userId: string = (() => {
-  let id = store.get<string | null>('hashtrust.userId', null);
+  let id = store.get<string | null>('konklaavi.userId', null);
   if (!id) {
     id = crypto.randomUUID();
-    store.set('hashtrust.userId', id);
+    store.set('konklaavi.userId', id);
   }
   return id;
 })();
 
 // Notes and ratings need no account, as in the extension; this browser's install id writes them.
-let myRatings = store.get<Record<string, Helpfulness>>('hashtrust.myRatings', {});
+let myRatings = store.get<Record<string, Helpfulness>>('konklaavi.myRatings', {});
 
 // ---- The top bar: the demo badge, the address bar and the page's status, over the frame in the /view
 // shell (same origin), else on the page itself. It replaces the shell's banner. Like the extension, the
@@ -97,7 +97,7 @@ const doc = shell ?? document;
 doc.getElementById('ht-host')?.remove();
 doc.getElementById('ht-loading')?.remove();
 doc.getElementById('ht-banner')?.remove();
-if (shell) shell.title = `${document.title || cfg.host} · HashTrust`;
+if (shell) shell.title = `${document.title || cfg.host} · Konklaavi`;
 const barHost = doc.createElement('div');
 barHost.id = 'ht-host';
 barHost.style.cssText = 'all:initial;position:fixed;top:0;left:0;right:0;height:48px;z-index:2147483647;';
@@ -105,7 +105,7 @@ doc.body.append(barHost);
 const root = barHost.attachShadow({ mode: 'open' });
 root.innerHTML = `<style>${barCss}</style>
 <div class="bar" role="banner">
-  <span class="badge" title="A copy of the page rendered by HashTrust; links, videos and logins on it may not work">DEMO</span>
+  <span class="badge" title="A copy of the page rendered by Konklaavi; links, videos and logins on it may not work">DEMO</span>
   <form target="_top"><input name="url" type="url" required aria-label="Article address"><button class="btn primary">Open</button></form>
   <div class="status" role="status"></div>
   <button class="btn quiet" data-act="guide">How it works</button>
@@ -127,7 +127,7 @@ const spinner = '<span class="spinner" aria-hidden="true"></span>';
 function textIndex() {
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
     acceptNode: (n) =>
-      n.parentElement && !n.parentElement.closest('style,script,noscript,template,textarea,hashtrust-ui')
+      n.parentElement && !n.parentElement.closest('style,script,noscript,template,textarea,konklaavi-ui')
         ? NodeFilter.FILTER_ACCEPT
         : NodeFilter.FILTER_REJECT,
   });
@@ -293,7 +293,7 @@ function setupCards() {
       try {
         await api(`notes/${encodeURIComponent(noteId)}/ratings`, { userId, helpfulness });
         myRatings = { ...myRatings, [noteId]: helpfulness };
-        store.set('hashtrust.myRatings', myRatings);
+        store.set('konklaavi.myRatings', myRatings);
       } catch (err) {
         ui.toast(`Could not save your rating: ${message(err)}`, 'error');
         throw err;
@@ -323,7 +323,7 @@ function setupCards() {
         const detail = await api<Narrative>(`narratives/${encodeURIComponent(item.result.narrative.narrativeId)}`);
         ui.updateCard(view(item, detail), myRatings, actions);
       } catch (e) {
-        console.warn('[hashtrust] loading the narrative failed', e);
+        console.warn('[konklaavi] loading the narrative failed', e);
       }
     };
     const actions = actionsFor(item, refresh);
@@ -402,7 +402,7 @@ function testMatches(): CheckMatch[] {
 // ---- The guide: a tour of the features over the page, on the first visit and from the panel's
 // "How it works". Each step spotlights what it explains: the banner, a highlight, a paragraph, the panel.
 
-const GUIDE_KEY = 'hashtrust.guideSeen';
+const GUIDE_KEY = 'konklaavi.guideSeen';
 
 interface Step {
   title: string;
@@ -429,7 +429,7 @@ function steps(): Step[] {
   const swatch = (state: NarrativeState) =>
     `<span class="swatch" style="${HIGHLIGHT_STYLES[state]}">${esc(STATE_LABELS[state])}</span>`;
   const paragraph = [...document.querySelectorAll('p')].find(
-    (p) => (p.textContent ?? '').trim().length > 140 && !p.closest('hashtrust-ui') && p.getClientRects().length,
+    (p) => (p.textContent ?? '').trim().length > 140 && !p.closest('konklaavi-ui') && p.getClientRects().length,
   );
   const highlightRect = () => {
     if (!first) return null;
@@ -438,8 +438,8 @@ function steps(): Step[] {
   };
   return [
     {
-      title: 'Welcome to the HashTrust demo',
-      body: `HashTrust shows you, as you read, which passages belong to a narrative that readers are tracking and
+      title: 'Welcome to the Konklaavi demo',
+      body: `Konklaavi shows you, as you read, which passages belong to a narrative that readers are tracking and
         what their notes say about it. This short tour shows how. It takes a minute.`,
     },
     {
@@ -480,7 +480,7 @@ function steps(): Step[] {
     },
     {
       title: "That's it",
-      body: `Try it on this page, or open another article. To have HashTrust on the pages you read, install the browser extension.
+      body: `Try it on this page, or open another article. To have Konklaavi on the pages you read, install the browser extension.
         <a href="${esc(cfg.readme)}" target="_blank" rel="noopener">How to install it</a>`,
     },
   ];

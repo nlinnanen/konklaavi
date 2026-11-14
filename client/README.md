@@ -1,4 +1,4 @@
-# HashTrust: browser extension
+# Konklaavi: browser extension
 
 The extension recognises passages that belong to a tracked narrative, by sentence fingerprints and on-device embeddings, and highlights them with the state their crowdsourced context notes give them. Readers select a passage to add a note (misleading or not misleading, with context and sources) and rate other readers' notes; the backend's Community Notes scoring decides which note is shown.
 
@@ -34,7 +34,7 @@ npm run compile        # typecheck
 
 To load the build manually, go to `chrome://extensions`, turn on Developer mode, click "Load unpacked" and choose `dist/chrome-mv3`.
 
-`npm run zip:firefox` packages the Firefox build (Firefox 140 or later) as `dist/hashtrust-extension-<version>-firefox.zip`; the latest-demo release has it as `hashtrust-firefox.zip`. To install it, open `about:debugging`, choose "This Firefox", click "Load Temporary Add-on" and pick the zip or `dist/firefox-mv2/manifest.json`; Firefox removes it on restart.
+`npm run zip:firefox` packages the Firefox build (Firefox 140 or later) as `dist/konklaavi-extension-<version>-firefox.zip`; the latest-demo release has it as `konklaavi-firefox.zip`. To install it, open `about:debugging`, choose "This Firefox", click "Load Temporary Add-on" and pick the zip or `dist/firefox-mv2/manifest.json`; Firefox removes it on restart.
 
 ## End-to-end test
 
@@ -43,8 +43,8 @@ To load the build manually, go to `chrome://extensions`, turn on Developer mode,
 Chromium needs system libraries that a plain machine or the VM may lack. `e2e/Dockerfile` provides them:
 
 ```bash
-docker build -t hashtrust-e2e -f e2e/Dockerfile e2e
-docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work hashtrust-e2e npm run test:e2e
+docker build -t konklaavi-e2e -f e2e/Dockerfile e2e
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work konklaavi-e2e npm run test:e2e
 ```
 
 Run both from `client/` after `npm install`; the container uses the mounted `node_modules`.

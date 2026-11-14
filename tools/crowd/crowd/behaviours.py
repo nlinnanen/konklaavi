@@ -95,7 +95,7 @@ RATE_TOOL = {
 }
 
 _FRAME = (
-    "This is a simulation that generates test data for HashTrust, a browser extension where readers attach "
+    "This is a simulation that generates test data for Konklaavi, a browser extension where readers attach "
     "context notes to passages of online articles, and other readers rate the notes. Stay in character:\n\n"
     "{persona}\n\n"
 )

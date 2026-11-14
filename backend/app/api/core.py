@@ -372,7 +372,7 @@ def enqueue_hit_fetch(conn: Connection, url: str, narrative_id: int) -> None:
 @router.post("/hits")
 def post_hits(request: HitsRequest) -> dict:
     """Record detections by the extension and fetch each page once a day; hits on unknown narratives or on
-    HashTrust's own hosts are dropped."""
+    Konklaavi's own hosts are dropped."""
     with connection() as conn:
         known = {
             row[0]

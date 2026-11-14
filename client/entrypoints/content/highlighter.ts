@@ -13,7 +13,7 @@ export interface FlaggedRange {
 
 export const highlightSupported = typeof CSS !== 'undefined' && 'highlights' in CSS;
 
-const STYLE_ID = 'hashtrust-highlight-style';
+const STYLE_ID = 'konklaavi-highlight-style';
 const STYLES = Object.keys(HIGHLIGHT_STYLES) as HighlightStyle[];
 
 /** Registered highlight name per style. */

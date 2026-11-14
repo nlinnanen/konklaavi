@@ -1,6 +1,6 @@
 {
-  "name": "hashtrust-extension",
-  "description": "HashTrust browser extension for crowdsourced content trust",
+  "name": "konklaavi-extension",
+  "description": "Konklaavi browser extension for crowdsourced content trust",
   "private": true,
   "version": "0.1.0",
   "type": "module",

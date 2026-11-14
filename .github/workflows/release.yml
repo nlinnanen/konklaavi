@@ -164,9 +164,9 @@ jobs:
           path: dist/firefox
       - name: Publish the latest-demo release
         run: |
-          cp dist/chrome/*.zip hashtrust-chrome.zip
-          cp dist/firefox/*.zip hashtrust-firefox.zip
+          cp dist/chrome/*.zip konklaavi-chrome.zip
+          cp dist/firefox/*.zip konklaavi-firefox.zip
           gh release delete latest-demo --cleanup-tag --yes || true
-          gh release create latest-demo hashtrust-chrome.zip hashtrust-firefox.zip --target "$SHA" --prerelease \
+          gh release create latest-demo konklaavi-chrome.zip konklaavi-firefox.zip --target "$SHA" --prerelease \
             --title "Demo extension (${SHA:0:7})" \
-            --notes "Chrome and Firefox extension built from $SHA. Chrome: unzip hashtrust-chrome.zip and load the folder at chrome://extensions with Developer mode on. Firefox 140 or later: open about:debugging, This Firefox, Load Temporary Add-on, and pick hashtrust-firefox.zip."
+            --notes "Chrome and Firefox extension built from $SHA. Chrome: unzip konklaavi-chrome.zip and load the folder at chrome://extensions with Developer mode on. Firefox 140 or later: open about:debugging, This Firefox, Load Temporary Add-on, and pick konklaavi-firefox.zip."

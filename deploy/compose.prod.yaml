@@ -78,7 +78,7 @@ services:
   proxy-view:
     image: ${IMAGE_PREFIX:-ghcr.io/nlinnanen/junction26}-proxy-view:${IMAGE_TAG:?set IMAGE_TAG (the release script does)}
     environment:
-      HASHTRUST_API: https://${DOMAIN:?set DOMAIN in .env}/api
+      KONKLAAVI_API: https://${DOMAIN:?set DOMAIN in .env}/api
       PUBLIC_BASE: https://${DOMAIN:?set DOMAIN in .env}/demo
     networks: [proxy-view]
     shm_size: 1gb

@@ -32,7 +32,7 @@ NARRATIVES = [
     (
         "four-day-week",
         (
-            "HashTrust demo passage: a four-day work week makes every company more productive. "
+            "Konklaavi demo passage: a four-day work week makes every company more productive. "
             "Offices that switch never go back."
         ),
         [
@@ -49,7 +49,7 @@ NARRATIVES = [
     (
         "daylight-saving",
         (
-            "HashTrust demo passage: ending daylight saving time would save every household money. "
+            "Konklaavi demo passage: ending daylight saving time would save every household money. "
             "The clock change has no benefits left."
         ),
         [
@@ -60,7 +60,7 @@ NARRATIVES = [
     (
         "city-cycling",
         (
-            "HashTrust demo passage: new cycle lanes always empty a city's shops. "
+            "Konklaavi demo passage: new cycle lanes always empty a city's shops. "
             "Car parking is what keeps high streets alive."
         ),
         [
@@ -77,7 +77,7 @@ NARRATIVES = [
     (
         "remote-work",
         (
-            "HashTrust demo passage: remote workers are always less productive than office workers. "
+            "Konklaavi demo passage: remote workers are always less productive than office workers. "
             "Every manager agrees."
         ),
         [

@@ -2,18 +2,18 @@
 # requires-python = ">=3.12"
 # dependencies = ["fastapi", "uvicorn", "httpx", "trafilatura", "playwright"]
 # ///
-"""HashTrust proxy view: shows a page with what the extension would flag, without the extension.
+"""Konklaavi proxy view: shows a page with what the extension would flag, without the extension.
 
 The server renders the page in headless Chromium (render.py), so comments and other content its
 JavaScript loads are there, freezes it into static HTML without scripts, keeps its CSS and images
 through <base href>, and injects overlay.bundle.js: the browser extension's highlights, cards, note form and sign-in
 (src/overlay.ts with the extension's modules, built by build.mjs, which needs `npm install` in
-client/). It sends the visible text, block by block, to the HashTrust API's /check, highlights the
+client/). It sends the visible text, block by block, to the Konklaavi API's /check, highlights the
 matches in place, and forwards the extension's other API calls through /api/. Without a browser it falls back to
 a plain fetch and the main text that trafilatura extracts. The first run downloads Chromium.
 
     uv run demo/proxy-view/viewer.py                       # uses the deployed API
-    HASHTRUST_API=http://localhost:8000 uv run demo/proxy-view/viewer.py
+    KONKLAAVI_API=http://localhost:8000 uv run demo/proxy-view/viewer.py
     open http://localhost:8787
 
 Behind a reverse proxy under a path, set PUBLIC_BASE to the public address of that path
@@ -42,17 +42,18 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
-API = os.environ.get("HASHTRUST_API", "https://srv2160986.hstgr.cloud/api").rstrip("/")
+# HASHTRUST_API is the name before the rename, which a server not yet reconfigured still sets.
+API = os.environ.get("KONKLAAVI_API", os.environ.get("HASHTRUST_API", "https://srv2160986.hstgr.cloud/api")).rstrip("/")
 PORT = int(os.environ.get("PORT", "8787"))
 HERE = Path(__file__).parent
 UA = render.UA
 # Set to 0 to skip the browser and use the plain fetch.
-RENDER = os.environ.get("HASHTRUST_RENDER", "1") != "0"
+RENDER = os.environ.get("KONKLAAVI_RENDER", os.environ.get("HASHTRUST_RENDER", "1")) != "0"
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "").rstrip("/")
 # Where the extension's install instructions are.
 README_URL = os.environ.get("README_URL", "https://github.com/nlinnanen/junction26#try-it")
 NOTICE = (
-    "This demo renders the page again on our server, without its scripts, and shows what the HashTrust "
+    "This demo renders the page again on our server, without its scripts, and shows what the Konklaavi "
     "browser extension would highlight on it. It may not work on every site: some block automated "
     "browsers or need their scripts to show their content."
 )
@@ -133,7 +134,7 @@ async def lifespan(_: FastAPI):
         task.cancel()
 
 
-app = FastAPI(title="HashTrust proxy view", lifespan=lifespan)
+app = FastAPI(title="Konklaavi proxy view", lifespan=lifespan)
 
 
 def page(title: str, body: str) -> HTMLResponse:
@@ -178,8 +179,8 @@ def form(url: str = "") -> str:
 @app.get("/", response_class=HTMLResponse)
 def home():
     return page(
-        "HashTrust demo",
-        "<main><h1>HashTrust <span>demo</span></h1><p class=lede>Open an article and see which passages "
+        "Konklaavi demo",
+        "<main><h1>Konklaavi <span>demo</span></h1><p class=lede>Open an article and see which passages "
         f"in it and its comments belong to a tracked narrative, and what readers' notes say.</p>{form()}"
         + (f"<p class=meta>Works with {html.escape(', '.join(ALLOWED))}.</p>" if ALLOWED else "")
         + f"<div class=notice><p>{html.escape(NOTICE)}</p><p>{PRODUCT}</p></div>"
@@ -233,7 +234,7 @@ def rewrite(doc: lxml.html.HtmlElement, base: str, proxy: str) -> None:
 
 
 SHELL = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
-<title>HashTrust demo</title>
+<title>Konklaavi demo</title>
 <style>
 :root{{--ink:oklch(.24 .012 70);--ink-2:oklch(.43 .012 70);--ink-3:oklch(.55 .01 70);--paper:oklch(.992 .003 85);
 --paper-2:oklch(.966 .006 85);--paper-3:oklch(.935 .008 85);--line:oklch(.9 .008 85)}}
@@ -267,12 +268,12 @@ li.done{{color:var(--ink-2)}} li.done::before{{background:var(--ink-3);animation
 @keyframes pulse{{50%{{opacity:.35}}}}
 @media (prefers-reduced-motion:reduce){{.ring,li.on::before{{animation:none}}}}
 </style>
-<div id=ht-banner role=note><b>DEMO</b><span>A copy of {host} rendered by HashTrust. Links, videos and logins on it may not work.</span>
+<div id=ht-banner role=note><b>DEMO</b><span>A copy of {host} rendered by Konklaavi. Links, videos and logins on it may not work.</span>
 <a href="{readme}" target=_blank rel=noopener>The real product is the browser extension →</a></div>
 <iframe id=ht-frame src="{src}"></iframe>
 <div id=ht-loading role=status aria-live=polite><div class=box>
 <div class=ring></div>
-<h1>HashTrust <span>demo</span></h1>
+<h1>Konklaavi <span>demo</span></h1>
 <p class=host>{host}</p>
 <ol><li>Opening the page</li><li>Accepting cookies</li><li>Loading comments and replies</li>
 <li>Reading the text</li><li>Matching against tracked narratives</li></ol>
@@ -384,7 +385,7 @@ async def frame_page(request: Request, url: str, test: bool, fresh: bool):
         "readme": README_URL,
     }
     data = lxml.html.fragment_fromstring(
-        "<script id=hashtrust-data type=application/json></script>", create_parent=False
+        "<script id=konklaavi-data type=application/json></script>", create_parent=False
     )
     # </script> inside the JSON would end the element early.
     data.text = json.dumps(config).replace("</", "<\\/")
@@ -447,5 +448,5 @@ def overlay_script() -> str:
 
 if __name__ == "__main__":
     overlay_script()
-    print(f"HashTrust proxy view on http://localhost:{PORT}  (API {API})")
+    print(f"Konklaavi proxy view on http://localhost:{PORT}  (API {API})")
     uvicorn.run(app, host="0.0.0.0", port=PORT)

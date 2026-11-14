@@ -1,6 +1,6 @@
 # Build plan
 
-HashTrust has two halves. Fingerprint tracking recognises that a passage belongs to a narrative and where the narrative has spread, without judging it. Context notes let signed-in readers attach context to a narrative, and the Community Notes bridging algorithm decides which notes are shown. Every label comes from the crowd. The decisions behind this are in [ledger.md](ledger.md); the contracts are in [api.md](api.md).
+Konklaavi has two halves. Fingerprint tracking recognises that a passage belongs to a narrative and where the narrative has spread, without judging it. Context notes let signed-in readers attach context to a narrative, and the Community Notes bridging algorithm decides which notes are shown. Every label comes from the crowd. The decisions behind this are in [ledger.md](ledger.md); the contracts are in [api.md](api.md).
 
 ## Narratives
 

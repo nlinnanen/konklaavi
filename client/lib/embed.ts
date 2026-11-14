@@ -38,7 +38,7 @@ async function loadFirst(pipeline: PipelineFactory, candidates: ModelOptions[]):
       return await pipeline('feature-extraction', EMBEDDING_MODEL, options);
     } catch (error) {
       failure = error;
-      if (candidates.length > 1) console.warn('[hashtrust] loading the embedding model failed', options, error);
+      if (candidates.length > 1) console.warn('[konklaavi] loading the embedding model failed', options, error);
     }
   }
   throw failure;

@@ -1,12 +1,12 @@
 # North star
 
-Network security such as WAFs and bot filtering stops bad requests before they reach a site. It cannot see bad content that arrives through valid, encrypted requests, because that content only exists in readable form inside the browser. HashTrust is the content layer that sits there: a browser extension that recognises passages belonging to a tracked narrative as the user reads, and shows what other readers have said about that narrative.
+Network security such as WAFs and bot filtering stops bad requests before they reach a site. It cannot see bad content that arrives through valid, encrypted requests, because that content only exists in readable form inside the browser. Konklaavi is the content layer that sits there: a browser extension that recognises passages belonging to a tracked narrative as the user reads, and shows what other readers have said about that narrative.
 
 ## Fingerprints as antivirus for narratives
 
-Antivirus software recognises a known program by its signature wherever it turns up, without deciding anew each time what the program does. HashTrust does the same for narratives. A sentence hash catches copies, MinHash bands catch edited copies, and multilingual embeddings catch the same claim in other words, so one narrative is recognised on every site and in every rewording. The backend fetches the public pages where the narrative is seen and records where it appeared first and how far it has spread.
+Antivirus software recognises a known program by its signature wherever it turns up, without deciding anew each time what the program does. Konklaavi does the same for narratives. A sentence hash catches copies, MinHash bands catch edited copies, and multilingual embeddings catch the same claim in other words, so one narrative is recognised on every site and in every rewording. The backend fetches the public pages where the narrative is seen and records where it appeared first and how far it has spread.
 
-Recognition is not a judgement. HashTrust says that a passage belongs to a narrative seen on N sites since a given date, and nothing more on its own authority.
+Recognition is not a judgement. Konklaavi says that a passage belongs to a narrative seen on N sites since a given date, and nothing more on its own authority.
 
 ## Context notes
 
@@ -22,7 +22,7 @@ Signing in is optional. Reputation belongs to a verified account and follows its
 
 Every submitted note goes through an LLM review for abuse, spam and off-topic content, and a flagged note waits for a human. Readers can report a note, which sends it back to the review queue. Volunteer moderators work through that queue in the dashboard and approve or hide notes.
 
-These measures have limits, and we state them openly. The bridging algorithm resists one-sided brigades but needs enough raters with different views before any note is shown, so a new narrative often has none. Sign-up does not verify emails, so only rate limits slow mass sign-ups. The LLM review catches abuse and spam, not subtle falsehoods. Source links are optional, so readers judge a note partly on whether it cites any. Moderators are volunteers and can be wrong or slow. HashTrust shows what a broad set of readers found helpful, which is a signal about a narrative, not a verdict on truth.
+These measures have limits, and we state them openly. The bridging algorithm resists one-sided brigades but needs enough raters with different views before any note is shown, so a new narrative often has none. Sign-up does not verify emails, so only rate limits slow mass sign-ups. The LLM review catches abuse and spam, not subtle falsehoods. Source links are optional, so readers judge a note partly on whether it cites any. Moderators are volunteers and can be wrong or slow. Konklaavi shows what a broad set of readers found helpful, which is a signal about a narrative, not a verdict on truth.
 
 ## Privacy
 

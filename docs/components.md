@@ -8,7 +8,7 @@ The flows between these components are in [architecture.md](architecture.md), th
 flowchart LR
   Reader(["Reader<br/>extension user"])
   Mod(["Moderator / analyst"])
-  Sys["HashTrust"]
+  Sys["Konklaavi"]
   Web["Public web pages"]
   LLM["Claude via Hostinger AI Router"]
 
@@ -31,7 +31,7 @@ flowchart LR
   Reader(["Reader"])
   Mod(["Moderator / analyst"])
 
-  subgraph Sys["HashTrust"]
+  subgraph Sys["Konklaavi"]
     Ext["Extension<br/>TypeScript, WXT, transformers.js"]
     API["API<br/>Python, FastAPI"]
     Worker["Worker<br/>Python"]

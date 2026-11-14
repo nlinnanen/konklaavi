@@ -184,15 +184,15 @@ def test_a_hit_through_the_demo_proxy_counts_for_the_original_page_and_own_pages
     client, conn, narrative, monkeypatch
 ):
     monkeypatch.setattr(
-        fetch, "settings", replace(fetch.settings, own_hosts=frozenset({"hashtrust.example"}))
+        fetch, "settings", replace(fetch.settings, own_hosts=frozenset({"konklaavi.example"}))
     )
     narrative_id = narrative(["s1"])
     proxied = (
-        "https://hashtrust.example/demo/frame?url="
+        "https://konklaavi.example/demo/frame?url="
         + quote("https://news.example/a?id=1", safe="")
         + "&test=1"
     )
-    post_hits(client, ("s1", narrative_id, proxied), ("s1", narrative_id, "https://hashtrust.example/admin"))
+    post_hits(client, ("s1", narrative_id, proxied), ("s1", narrative_id, "https://konklaavi.example/admin"))
 
     assert conn.execute("SELECT url FROM page").fetchall() == [("https://news.example/a?id=1",)]
     assert conn.execute("SELECT payload->>'url' FROM job WHERE kind = 'fetch'").fetchall() == [

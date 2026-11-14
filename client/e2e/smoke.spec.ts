@@ -169,7 +169,7 @@ async function openFixture(backendMode: Settings['backendMode']) {
 const highlighted = (name: string) =>
   page.evaluate((n) => [...(CSS.highlights.get(n) ?? [])].map((r) => r.toString()).sort(), name);
 
-const card = () => page.locator('hashtrust-ui .card');
+const card = () => page.locator('konklaavi-ui .card');
 
 test.describe('remote backend', () => {
   test.beforeAll(() => openFixture('remote'));
@@ -210,9 +210,9 @@ test.describe('remote backend', () => {
     await page.mouse.down();
     await page.mouse.move(box!.x + 200, box!.y + 4);
     await page.mouse.up();
-    await page.locator('hashtrust-ui .add-btn').click();
+    await page.locator('konklaavi-ui .add-btn').click();
 
-    const panel = page.locator('hashtrust-ui .panel');
+    const panel = page.locator('konklaavi-ui .panel');
     await expect(panel).toContainText('Add context');
     await panel.getByText('Not misleading', { exact: true }).click();
     await panel.getByRole('textbox', { name: /^Context/ }).fill('Planting dates vary by region.');

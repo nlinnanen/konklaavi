@@ -138,7 +138,7 @@ export class PageScanner {
   /** Logs a failed pass, or stops quietly when the extension runtime is gone. */
   private failed(what: string, e: unknown) {
     if (e instanceof ContextInvalidatedError) this.stop();
-    else console.warn(`[hashtrust] ${what} failed`, e);
+    else console.warn(`[konklaavi] ${what} failed`, e);
   }
 
   private flushDirty() {

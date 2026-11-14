@@ -26,7 +26,7 @@ export async function deviceCapabilities(): Promise<DeviceCapabilities> {
       const adapter = await navGpu.requestAdapter();
       if (adapter) gpu = { shaderF16: adapter.features.has('shader-f16') };
     } catch (e) {
-      console.warn('[hashtrust] no WebGPU adapter', e);
+      console.warn('[konklaavi] no WebGPU adapter', e);
     }
   }
   return {
@@ -63,7 +63,7 @@ export function createDeviceEmbedder(path?: EmbeddingPath): Embedder {
     };
     // Fixed when ONNX runtime starts, so it holds for every backend this document loads.
     wasm.numThreads = backends.some((b) => b.path === 'wasm-single') ? 1 : wasmThreads(caps);
-    console.info('[hashtrust] embedding backends', backends.map((b) => b.path), 'wasm threads', wasm.numThreads);
+    console.info('[konklaavi] embedding backends', backends.map((b) => b.path), 'wasm threads', wasm.numThreads);
     return createEmbedder(
       pipeline as unknown as PipelineFactory,
       backends.map(({ device, dtype }) => ({ device, dtype })),

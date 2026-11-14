@@ -1,12 +1,12 @@
 # Crowd bots
 
-LLM personas that read real news sites and write and rate HashTrust notes through the public API, so that scoring, moderation and reputation run on realistic data. Each persona has a behaviour: `careful_fact_checker`, `casual_reader`, `camp_a` and `camp_b` are honest (the camps differ only in political framing), `troll` and `brigade` act in bad faith. `crowd.yaml` is a trial of 8 personas and `crowd-overnight.yaml` an overnight run of 30.
+LLM personas that read real news sites and write and rate Konklaavi notes through the public API, so that scoring, moderation and reputation run on realistic data. Each persona has a behaviour: `careful_fact_checker`, `casual_reader`, `camp_a` and `camp_b` are honest (the camps differ only in political framing), `troll` and `brigade` act in bad faith. `crowd.yaml` is a trial of 8 personas and `crowd-overnight.yaml` an overnight run of 30.
 
 A persona with `logged_in: true` signs in as `bot-<name>@crowd.hashtrust.test`, with the password in `CROWD_BOT_PASSWORD` or one generated into the state file; one without writes as an anonymous install. The state file `.crowd-state-<api host>.json` beside the config holds those identities and every note and rating each persona made, which is the ground truth for checking whether reputation separates the good personas from the bad ones. It holds passwords and stays out of git; the run appends one line per action to `crowd-<api host>.log`.
 
 ## Sites
 
-The bots read RSS feeds of rt.com (served from rt-english.com), sputnikglobe.com, Yle News and BBC News, as `hashtrust-crowd`, obeying robots.txt and waiting at least 3 seconds between requests to a host. Pages that fail or yield under 800 characters of text are skipped.
+The bots read RSS feeds of rt.com (served from rt-english.com), sputnikglobe.com, Yle News and BBC News, as `konklaavi-crowd`, obeying robots.txt and waiting at least 3 seconds between requests to a host. Pages that fail or yield under 800 characters of text are skipped.
 
 Left out: apnews.com answers the crawler's requests with 403, reuters.com's robots.txt forbids automated collection, and truth.social answers its Mastodon-compatible API, robots.txt included, with a 403 from Cloudflare, so its public posts can't be read without a browser session.
 

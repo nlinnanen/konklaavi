@@ -13,7 +13,7 @@ import feedparser
 import httpx
 import trafilatura
 
-USER_AGENT = "hashtrust-crowd"
+USER_AGENT = "konklaavi-crowd"
 MIN_INTERVAL = 3.0
 # Text shorter than this is a paywall, a consent wall or a video page.
 MIN_ARTICLE_CHARS = 800

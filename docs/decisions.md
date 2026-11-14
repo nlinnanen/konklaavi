@@ -2,7 +2,7 @@
 
 ## Labels come from the crowd
 
-HashTrust recognises narratives and records their spread, but it does not label them on its own authority. Every label a reader sees is a context note written by another reader and shown because the scoring job found it helpful. The product database holds no imported content and no labels from sources, fact-checkers or language models.
+Konklaavi recognises narratives and records their spread, but it does not label them on its own authority. Every label a reader sees is a context note written by another reader and shown because the scoring job found it helpful. The product database holds no imported content and no labels from sources, fact-checkers or language models.
 
 ## Fingerprints
 

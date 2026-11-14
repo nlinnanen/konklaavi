@@ -27,7 +27,7 @@ MAX_SOURCES = 10
 TITLE_LENGTH = 200
 
 Url = Annotated[str, Field(max_length=2000, pattern=r"^https?://\S+$")]
-# A page a reader is on, under its original URL when HashTrust's demo proxy shows it.
+# A page a reader is on, under its original URL when Konklaavi's demo proxy shows it.
 PageUrl = Annotated[Url, AfterValidator(canonical_page_url)]
 
 

@@ -66,7 +66,7 @@ def canonical_page_url(url: str, own_hosts: frozenset[str] | None = None) -> str
 
 
 def own_page(url: str) -> bool:
-    """Whether the URL is on one of HashTrust's own hosts, which are never tracked."""
+    """Whether the URL is on one of Konklaavi's own hosts, which are never tracked."""
     return (urlsplit(url).hostname or "").lower() in settings.own_hosts
 
 

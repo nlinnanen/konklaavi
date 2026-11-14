@@ -1,4 +1,4 @@
-"""The HashTrust public API, as docs/api.md defines it."""
+"""The Konklaavi public API, as docs/api.md defines it."""
 
 import httpx
 
@@ -12,7 +12,7 @@ class ApiError(Exception):
 class Api:
     def __init__(self, base: str):
         self.client = httpx.Client(
-            base_url=base.rstrip("/"), timeout=60, headers={"User-Agent": "hashtrust-crowd"}
+            base_url=base.rstrip("/"), timeout=60, headers={"User-Agent": "konklaavi-crowd"}
         )
 
     def _send(self, method: str, path: str, **kwargs) -> dict:

@@ -12,7 +12,7 @@ const SKIP_TAGS = new Set([
   'code', 'pre', 'svg', 'canvas', 'iframe', 'object', 'head', 'nav',
 ]);
 
-export const UI_HOST_TAG = 'hashtrust-ui';
+export const UI_HOST_TAG = 'konklaavi-ui';
 
 const blockCache = new WeakMap<Element, boolean>();
 

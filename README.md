@@ -1,6 +1,6 @@
-# HashTrust
+# Konklaavi
 
-HashTrust is a content layer for the browser. Its extension recognises passages that belong to a tracked narrative, by sentence hashes, MinHash bands and on-device embeddings, and highlights them with the state that crowdsourced context notes give the narrative. Signed-in readers add notes to a selected passage and rate other readers' notes, and the Community Notes bridging algorithm decides which note is shown. The backend tracks where each narrative spreads by fetching the public pages it is seen on.
+Konklaavi is a content layer for the browser. Its extension recognises passages that belong to a tracked narrative, by sentence hashes, MinHash bands and on-device embeddings, and highlights them with the state that crowdsourced context notes give the narrative. Signed-in readers add notes to a selected passage and rate other readers' notes, and the Community Notes bridging algorithm decides which note is shown. The backend tracks where each narrative spreads by fetching the public pages it is seen on.
 
 Built for Junction 2026, on the "Trust the source" challenge direction.
 
@@ -15,7 +15,7 @@ The extension isn't in a web store, so you load it unpacked. That needs no revie
 1. Download the zip from the [`latest-demo` release](https://github.com/nlinnanen/junction26/releases/tag/latest-demo). Every deploy rebuilds it against the demo API.
 2. Unzip it into a folder you keep.
 3. Open `chrome://extensions` (or Edge or Brave), turn on **Developer mode** and click **Load unpacked**. Choose the unzipped folder.
-4. Pin HashTrust from the puzzle-piece menu and open an article.
+4. Pin Konklaavi from the puzzle-piece menu and open an article.
 
 Using it:
 
@@ -47,13 +47,13 @@ To run it locally, with any site allowed (needs Node and `npm install` in `clien
 ALLOWED_DOMAINS='*' uv run demo/proxy-view/viewer.py    # then open http://localhost:8787
 ```
 
-- It uses the demo API. Set `HASHTRUST_API=http://localhost:8000` for a local backend. The first run downloads Chromium for Playwright.
+- It uses the demo API. Set `KONKLAAVI_API=http://localhost:8000` for a local backend. The first run downloads Chromium for Playwright.
 - Add `&test=1` to a `/view?url=...` link to inject three labelled fake matches. This checks that a site renders and highlights, whatever narratives it carries.
 - Sites behind bot protection refuse the fetch; the panel says so.
 
 ## Documentation
 
-- [North star](docs/north-star.md): what HashTrust is for and where its limits lie.
+- [North star](docs/north-star.md): what Konklaavi is for and where its limits lie.
 - [Architecture](docs/architecture.md): scanning a page, adding and rating notes, scoring and moderation.
 - [Components](docs/components.md): container and component diagrams and what each part does.
 - [Data model](docs/data-model.md): fingerprint levels, the narrative graph and the storage schema.

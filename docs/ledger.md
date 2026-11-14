@@ -124,7 +124,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - core: the production stack and Caddyfile are validated locally with DOMAIN=localhost.
 - ext: the local index refreshes on lookup: an index 5 minutes old answers while a `?since` delta downloads in the background, so nothing polls while the browser is idle.
 - ext: LocalIndexApi waits for the first full download; a failed first download fails the lookup.
-- ext: the index is stored in IndexedDB (`hashtrust`, store `kv`, key `index`) with its baseUrl and last check time; an index for another backend URL is ignored.
+- ext: the index is stored in IndexedDB (`konklaavi`, store `kv`, key `index`) with its baseUrl and last check time; an index for another backend URL is ignored.
 - ext: local lookup results have zero vote counts, are flagged only when the narrative is active, and carry the narrative's verdict.
 - ext: detection hits go out after each local lookup as one POST /hits batch of the flagged results with a signature, each hash once per page (URL without fragment, last 500 pages remembered), for http(s) pages only, when `sendHits` is on; failures are logged and dropped.
 - ext: a build with `WXT_API_URL` set defaults to Local index with that URL.
@@ -140,7 +140,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: the cluster job leaves out fingerprints that are not prose or that `variants.boilerplate` marks.
 - core: the database runs without timescaledb-tune (`NO_TS_TUNE`), since the tune script panics where the container has no cgroup `memory.max` and aborts initdb before the toolkit extension is installed.
 - integrator: Narrative-level matching runs only where the text stays with its owner: the extension's local index mode and `/check`. `/lookup` stays exact and variant, because sending embeddings would leak page text.
-- integrator: The app is named HashTrust.
+- integrator: The app is named Konklaavi.
 - pipeline: int8 quantization is floor(v * 127 + 0.5) clamped to [-127, 127] in TypeScript and Python, so both encode the same bytes; Python's round() would round halves to even.
 - pipeline: a narrative's block vectors are its up to 5 attached prose, non-boilerplate fingerprints with an embedding, ranked by cosine distance to the mean of those blocks' embeddings, ties by id.
 - pipeline: the claim vector embeds `narrative_text` (title and claim joined by a newline) through the fingerprint service; a narrative with no 5-word sentence gets no claim vector.
@@ -218,7 +218,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - data: the Feedback page counts each voter's latest feedback vote per (narrative, match_level), weighted by the voter's GET /me weight without burst division.
 - data: false-positive candidates are narrative or related match levels whose weighted Not misinformation share is above 0.5.
 - data: recent disputes are narratives in state disputed ordered by updated_at, since the schema has no disputed_at column.
-- team: HashTrust has two halves: fingerprint tracking of narratives (no verdicts of its own) and crowdsourced context notes on narratives. All labels come from the crowd.
+- team: Konklaavi has two halves: fingerprint tracking of narratives (no verdicts of its own) and crowdsourced context notes on narratives. All labels come from the crowd.
 - team: No seed content and no source-based labels: the EUvsDisinfo, ClaimReview and Pravda-network seeds and their verdicts, and LLM-generated labels, leave the product. The product isn't framed around Kremlin propaganda.
 - team: Note consensus uses the open-source Community Notes bridging algorithm: a note is shown when raters who usually disagree both rate it helpful. Writing notes and counting ratings need a verified (signed-in) account; reputation follows a user's track record.
 - team: Moderation is reputation gating, LLM review of submitted notes, and a volunteer human review queue, and the pitch states it openly.
@@ -246,7 +246,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - ext: On-device embedding tries WebGPU (fp16 with `shader-f16`, else fp32), then WASM q8 with up to 4 threads in the cross-origin isolated Chrome extension pages, else single-threaded; Firefox stays on WASM. The popup's "Benchmark embeddings" checks that order on real hardware.
 - team: Notes whose raters have little history are decided by plain agreement; bridging decides once raters have history. Demo rater history is seeded by app.demo.seed_raters and removable.
 - team: Sign-in is optional: anonymous installs write and rate notes with reputation fixed at the default; signing in lets reputation grow.
-- team: HashTrust never tracks its own domain; pages shown through its proxy are recorded under their original URL.
+- team: Konklaavi never tracks its own domain; pages shown through its proxy are recorded under their original URL.
 - team: Test data comes from LLM crowd bots (tools/crowd) that read real sites and write and rate notes through the public API; bot accounts live under crowd.hashtrust.test and are removable.
 
 ## Deferred

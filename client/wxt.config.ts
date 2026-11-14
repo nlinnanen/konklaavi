@@ -13,9 +13,9 @@ export default defineConfig({
   // Visible folder so it shows up in the browser's "Load unpacked" file picker.
   outDir: 'dist',
   manifest: ({ browser }) => ({
-    name: 'HashTrust',
+    name: 'Konklaavi',
     description:
-      'HashTrust: flag misinformation and manipulative content, and see what others have flagged.',
+      'Konklaavi: flag misinformation and manipulative content, and see what others have flagged.',
     permissions: browser === 'firefox' ? ['storage', 'alarms'] : ['storage', 'alarms', 'offscreen'],
     // The embedding model downloads from the Hugging Face hub, which redirects to its CDN.
     host_permissions: ['https://huggingface.co/*', 'https://*.hf.co/*'],

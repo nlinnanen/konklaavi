@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <base href="{{ base }}">
-<title>{% block title %}{% endblock %} · HashTrust admin</title>
+<title>{% block title %}{% endblock %} · Konklaavi admin</title>
 <link rel="stylesheet" href="static/admin.css">
 <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js"
         integrity="sha384-2OatzQy1H+Zd/IIrjr1TcuDGqLXeHhbooAyJY1KdQMKnr4LZ22k31GBLdYKHmVjg"
@@ -13,7 +13,7 @@
 <body>
 {% if admin %}
 <header class="top">
-  <a class="brand" href="./">HashTrust <span>admin</span></a>
+  <a class="brand" href="./">Konklaavi <span>admin</span></a>
   <nav>
     <a href="./" {% if page == 'narratives' %}aria-current="page"{% endif %}>Narratives</a>
     <a href="map" {% if page == 'map' %}aria-current="page"{% endif %}>Cluster map</a>

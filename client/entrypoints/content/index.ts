@@ -119,7 +119,7 @@ class NoteFlow {
 
   /** Opens the note form for the sentences the range touches. */
   openFor(range: Range) {
-    void this.open(range).catch((e) => console.warn('[hashtrust] opening the note form failed', e));
+    void this.open(range).catch((e) => console.warn('[konklaavi] opening the note form failed', e));
   }
 }
 
@@ -213,7 +213,7 @@ function setupCards(ui: OverlayUi, highlighter: Highlighter, notes: NoteFlow) {
         const detail = await callBackground('narrative', item.result.narrative.narrativeId);
         ui.updateCard(view(item, detail), myRatings, actions);
       } catch (e) {
-        console.warn('[hashtrust] loading the narrative failed', e);
+        console.warn('[konklaavi] loading the narrative failed', e);
       }
     };
     const actions = actionsFor(item, refresh);

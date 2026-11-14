@@ -1,6 +1,6 @@
 # Evaluation
 
-The narrative recognition benchmark measures one thing: whether HashTrust's fingerprints and embeddings recognise an article as carrying a narrative it tracks, and how often they match reliable reporting by mistake. It says nothing about whether a narrative is true or misleading, which is what context notes are for. EUvsDisinfo is used because each of its cases documents one claim and cites the articles across many sites that carried it, which makes it a ready-made set of pages known to share a narrative.
+The narrative recognition benchmark measures one thing: whether Konklaavi's fingerprints and embeddings recognise an article as carrying a narrative it tracks, and how often they match reliable reporting by mistake. It says nothing about whether a narrative is true or misleading, which is what context notes are for. EUvsDisinfo is used because each of its cases documents one claim and cites the articles across many sites that carried it, which makes it a ready-made set of pages known to share a narrative.
 
 The benchmark runs offline against its own database, never the product's, and only when someone starts it by hand; [backend/app/eval/benchmark/README.md](../backend/app/eval/benchmark/README.md) says how. The numbers below come from a run on the full committed case file (400 cases) on 2026-11-14, and the raw output is [backend/app/eval/results/latest.json](../backend/app/eval/results/latest.json).
 

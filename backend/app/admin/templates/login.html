@@ -3,9 +3,9 @@
 {% block main_class %}login{% endblock %}
 {% block content %}
 <form class="login-card" method="post" action="login">
-  <p class="brand">HashTrust <span>admin</span></p>
+  <p class="brand">Konklaavi <span>admin</span></p>
   <h1>Sign in</h1>
-  <p class="muted">Use the email and password of your HashTrust account. Moderation needs a moderator account.</p>
+  <p class="muted">Use the email and password of your Konklaavi account. Moderation needs a moderator account.</p>
   <label>Email <input type="email" name="email" value="{{ email or '' }}" autocomplete="username" required autofocus></label>
   <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
   {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}

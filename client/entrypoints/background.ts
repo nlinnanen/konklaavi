@@ -83,7 +83,7 @@ function deviceEmbedder(): Embedder {
 
 const mockApi = new MockApi(localStore);
 const embedder = deviceEmbedder();
-const indexStore = indexedDbStore('hashtrust');
+const indexStore = indexedDbStore('konklaavi');
 /** Kept across mode switches, so switching back to the local index reuses the parsed index. */
 let localApi: LocalIndexApi | undefined;
 
@@ -123,7 +123,7 @@ function warmUp(settings: Settings) {
   if (settings.backendMode !== 'local') return;
   getApi(settings)
     .lookup([])
-    .catch((e) => console.warn('[hashtrust] loading the index failed', e));
+    .catch((e) => console.warn('[konklaavi] loading the index failed', e));
 }
 
 const hitReporters = new Map<string, HitReporter>();
@@ -138,7 +138,7 @@ function reportHits(settings: Settings, pageUrl: string | undefined, results: Lo
     reporter = new HitReporter((hits) => remote.submitHits(hits));
     hitReporters.set(settings.backendUrl, reporter);
   }
-  reporter.report(pageUrl, results).catch((e) => console.warn('[hashtrust] sending detection hits failed', e));
+  reporter.report(pageUrl, results).catch((e) => console.warn('[konklaavi] sending detection hits failed', e));
 }
 
 /** The page a URL shows, the original for a page the demo proxy on the backend's host renders. */
@@ -186,7 +186,7 @@ async function handle(msg: BackgroundRequest, sender: Browser.runtime.MessageSen
       const passage = { ...msg.payload.passage, url: pageOf(settings, msg.payload.passage.url) };
       const res = await api.addNote({ ...msg.payload, passage, userId: await getUserId() });
       // The new narrative or note is in the index from now on.
-      if (api instanceof LocalIndexApi) await api.refresh().catch((e) => console.warn('[hashtrust] index refresh failed', e));
+      if (api instanceof LocalIndexApi) await api.refresh().catch((e) => console.warn('[konklaavi] index refresh failed', e));
       return res;
     }
     case 'rateNote': {
@@ -224,7 +224,7 @@ export default defineBackground(() => {
   void getSettings().then(warmUp);
   void browser.alarms.create(REFRESH_ALARM, { periodInMinutes: INDEX_REFRESH_MS / 60_000 });
   browser.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === REFRESH_ALARM) refreshIndex().catch((e) => console.warn('[hashtrust] index refresh failed', e));
+    if (alarm.name === REFRESH_ALARM) refreshIndex().catch((e) => console.warn('[konklaavi] index refresh failed', e));
   });
 
   browser.runtime.onMessage.addListener((msg: any, sender, sendResponse: (r: Envelope<unknown>) => void) => {

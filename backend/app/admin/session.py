@@ -16,7 +16,7 @@ from psycopg import Connection
 from app import trust
 from app.db import connection
 
-COOKIE = "hashtrust_admin"
+COOKIE = "konklaavi_admin"
 LIFETIME = timedelta(days=7)
 
 

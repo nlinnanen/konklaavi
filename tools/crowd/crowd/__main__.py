@@ -64,7 +64,7 @@ def remove(args, config, state: State) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(prog="crowd", description="LLM crowd bots for HashTrust")
+    parser = argparse.ArgumentParser(prog="crowd", description="LLM crowd bots for Konklaavi")
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("run", "report", "remove"):
         sub = commands.add_parser(name)
