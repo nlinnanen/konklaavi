@@ -13,37 +13,37 @@ def client(conn):
 
 
 @pytest.fixture
-def vote(client):
-    """Post a vote; returns the request body."""
+def signed_in(conn):
+    """Add an install linked to an account for the given email; returns the install id."""
 
-    def post(verdict, hashes, content_hash=None, user=None, domain="example.com", excerpt="Some excerpt."):
-        body = {
-            "userId": str(user or uuid.uuid4()),
-            "contentHash": content_hash or "c-" + "-".join(hashes),
-            "sentenceHashes": hashes,
-            "verdict": verdict,
-            "url": f"https://{domain}/article",
-            "domain": domain,
-            "excerpt": excerpt,
-            "createdAt": "2026-11-14T10:00:00Z",
-        }
-        response = client.post("/votes", json=body)
-        assert response.status_code == 200, response.text
-        return body
+    def add(email=None):
+        install = uuid.uuid4()
+        account = conn.execute(
+            "INSERT INTO user_account (email) VALUES (%s) RETURNING id", (email or f"{install}@example.org",)
+        ).fetchone()[0]
+        conn.execute("INSERT INTO install (id, account_id) VALUES (%s, %s)", (install, account))
+        conn.commit()
+        return install
 
-    return post
+    return add
 
 
 @pytest.fixture
-def narrative(conn):
-    """Add a narrative whose fingerprint contains the given sentence hashes; returns its id."""
+def narrative(conn, signed_in):
+    """Add a note narrative whose fingerprint holds the given sentence hashes, with one note; returns its id."""
 
-    def add(hashes, state="active", content_hash="fp-1", verdict="misinformation"):
+    def add(
+        hashes,
+        content_hash="fp-1",
+        moderation="visible",
+        status="needs_more_ratings",
+        classification="misleading",
+    ):
+        author = signed_in()
         narrative_id = conn.execute(
-            "INSERT INTO narrative (title, verdict, techniques, explanation, source, source_url, state)"
-            " VALUES ('Sanctions destroy Europe', %s, '{fear_appeal}', 'Why.', 'euvsdisinfo', 'https://case', %s)"
-            " RETURNING id",
-            (verdict, state),
+            "INSERT INTO narrative (title, claim, source, source_url, state)"
+            " VALUES ('Sanctions destroy Europe', 'Sanctions destroy Europe.', 'note', 'https://example.com/a', 'active')"
+            " RETURNING id"
         ).fetchone()[0]
         variant_id = conn.execute(
             "INSERT INTO variant (narrative_id) VALUES (%s) RETURNING id", (narrative_id,)
@@ -54,6 +54,11 @@ def narrative(conn):
         ).fetchone()[0]
         for h in hashes:
             conn.execute("INSERT INTO sentence (hash, fingerprint_id) VALUES (%s, %s)", (h, fingerprint_id))
+        conn.execute(
+            "INSERT INTO note (narrative_id, author_install, account_id, classification, body, status, moderation)"
+            " SELECT %s, i.id, i.account_id, %s, 'Context.', %s, %s FROM install i WHERE i.id = %s",
+            (narrative_id, classification, status, moderation, author),
+        )
         conn.commit()
         return narrative_id
 

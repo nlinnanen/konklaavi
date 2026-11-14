@@ -21,14 +21,20 @@ def test_a_magic_link_signs_the_install_in_once(client, caplog):
     assert client.get(path).status_code == 400
 
 
-def test_flagging_a_reliable_outlet_costs_reputation_across_the_account(client, caplog, vote):
-    phone, laptop = uuid.uuid4(), uuid.uuid4()
-    for install in (phone, laptop):
-        with caplog.at_level(logging.WARNING, logger="app.api.account"):
-            client.post("/auth/magic-link", json={"userId": str(install), "email": "reader@example.org"})
-        client.get(re.findall(r"/auth/verify\?token=\S+", caplog.text)[-1])
+def me(client, user):
+    return client.get("/me", params={"userId": str(user)}).json()
 
-    vote("misinformation", ["s1"], user=phone, domain="www.reuters.com")
-    me = client.get("/me", params={"userId": str(laptop)}).json()
-    assert (me["agreed"], me["disagreed"]) == (0, 1)
-    assert me["reputation"] < client.get("/me", params={"userId": str(uuid.uuid4())}).json()["reputation"]
+
+def test_reputation_follows_helpful_notes_and_early_agreeing_ratings(client, conn, narrative, signed_in):
+    assert (me(client, uuid.uuid4())["verified"], me(client, uuid.uuid4())["reputation"]) == (False, None)
+    narrative(["h1"])
+    writer = conn.execute("SELECT author_install FROM note").fetchone()[0]
+    rater = signed_in()
+    client.post("/notes/1/ratings", json={"userId": str(rater), "helpfulness": "somewhat"})
+    assert me(client, writer)["reputation"] == me(client, rater)["reputation"] == 0.25
+
+    conn.execute("UPDATE note SET status = 'helpful', decided_at = now()")
+    conn.commit()
+    assert me(client, writer)["reputation"] > 0.25
+    assert me(client, writer)["notes"][0]["status"] == "helpful"
+    assert me(client, rater)["ratings"] == {"count": 1, "agreed": 1}
