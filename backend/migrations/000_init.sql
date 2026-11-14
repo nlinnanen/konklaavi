@@ -33,7 +33,7 @@ CREATE TABLE narrative (
   explanation  text,
   verdict      text NOT NULL DEFAULT 'misinformation', -- a negative Verdict from client/lib/types.ts
   techniques   text[] NOT NULL DEFAULT '{}',
-  source       text NOT NULL,                          -- euvsdisinfo | report | cluster | network
+  source       text NOT NULL,                          -- euvsdisinfo | report | cluster | network | factcheck
   source_url   text,
   state        text NOT NULL DEFAULT 'candidate',      -- candidate | under_review | active | disputed | retired | rejected
   centroid     vector(384),
