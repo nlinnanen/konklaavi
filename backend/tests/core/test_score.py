@@ -1,5 +1,9 @@
+import dataclasses
 import uuid
 
+from app import trust
+from app.demo import seed_raters
+from app.jobs import score as score_module
 from app.jobs.score import score
 
 
@@ -53,3 +57,38 @@ def test_ratings_of_installs_without_an_account_do_not_count(conn, narrative, si
     rate(conn, note, [uuid.uuid4() for _ in range(10)], "helpful")
     score(conn)
     assert statuses(conn)[note] == "needs_more_ratings"
+
+
+def test_seeded_camps_make_divisive_notes_controversial_and_cross_camp_notes_helpful(conn):
+    seed_raters.seed(conn)
+    liked_by = {body: liked for _, _, notes in seed_raters.NARRATIVES for _, _, body, liked in notes}
+    for body, status, decided_by in conn.execute("SELECT body, status, decided_by FROM note"):
+        expected = {"both": "helpful", "none": "not_helpful"}.get(liked_by[body], "controversial")
+        assert (status, decided_by) == (expected, "bridging"), body
+
+
+def test_removing_the_seed_leaves_no_demo_rows(conn):
+    seed_raters.seed(conn)
+    seed_raters.seed(conn)
+    seed_raters.remove(conn)
+    assert conn.execute("SELECT count(*) FROM note").fetchone()[0] == 0
+    assert conn.execute("SELECT count(*) FROM narrative").fetchone()[0] == 0
+    assert conn.execute("SELECT count(*) FROM user_account").fetchone()[0] == 0
+
+
+def test_raters_without_history_decide_by_agreement_and_the_writer_gains_reputation(
+    conn, narrative, signed_in, monkeypatch
+):
+    monkeypatch.setattr(
+        score_module, "settings", dataclasses.replace(score_module.settings, note_min_ratings=2)
+    )
+    seed_raters.seed(conn)
+    writer = signed_in()
+    note = add_note(conn, narrative([]), writer)
+    rate(conn, note, [signed_in(), signed_in()], "helpful")
+    score(conn)
+    assert conn.execute("SELECT status, decided_by FROM note WHERE id = %s", (note,)).fetchone() == (
+        "helpful",
+        "agreement",
+    )
+    assert trust.standing(conn, writer).reputation > 0.25

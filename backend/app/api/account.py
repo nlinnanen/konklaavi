@@ -119,7 +119,8 @@ def get_me(user_id: Annotated[UUID, Query(alias="userId")]) -> dict:
         me = standing(conn, user_id)
         notes = conn.execute(
             """
-            SELECT n.id, n.narrative_id, r.title, n.classification, n.body, n.status, n.moderation, n.created_at
+            SELECT n.id, n.narrative_id, r.title, n.classification, n.body, n.status, n.decided_by, n.moderation,
+                   n.created_at
             FROM note n JOIN narrative r ON r.id = n.narrative_id
             WHERE n.account_id = %s
             ORDER BY n.created_at DESC
@@ -140,10 +141,11 @@ def get_me(user_id: Annotated[UUID, Query(alias="userId")]) -> dict:
                 "classification": classification,
                 "body": body,
                 "status": status,
+                "decidedBy": decided_by,
                 "moderation": moderation,
                 "createdAt": created.isoformat(),
             }
-            for id_, narrative_id, title, classification, body, status, moderation, created in notes
+            for id_, narrative_id, title, classification, body, status, decided_by, moderation, created in notes
         ],
         "ratings": {"count": me.ratings, "agreed": me.agreed},
     }
