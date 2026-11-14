@@ -7,6 +7,7 @@ import type {
   LookupBlock,
   LookupResult,
   MagicLinkRequest,
+  MagicLinkResponse,
   MatchLevel,
   MeResponse,
   Narrative,
@@ -150,8 +151,10 @@ export class RemoteApi implements TrustApi {
     await this.post('/hits', { hits });
   }
 
-  async requestMagicLink(req: MagicLinkRequest): Promise<void> {
-    await this.post('/auth/magic-link', req);
+  /** True when the server signed the install in without email. */
+  async requestMagicLink(req: MagicLinkRequest): Promise<boolean> {
+    const res = await this.post<MagicLinkResponse>('/auth/magic-link', req);
+    return res?.signedIn === true;
   }
 }
 

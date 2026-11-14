@@ -61,3 +61,6 @@ narrative_match_threshold: ""
 # Magic-link sign-in email: smtp[s]://user:pass@host:port. Required in production for sign-in to work.
 smtp_url: "{{ vault_smtp_url | default('') }}"
 mail_from: ""
+# Demo only: sign-in skips email and trusts the address typed, so anyone can claim any account,
+# moderator emails included.
+auth_skip_email_verification: true

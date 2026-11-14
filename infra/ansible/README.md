@@ -38,6 +38,7 @@ In `group_vars/all/vault.yml`, set the secrets and encrypt the file:
 - `vault_ghcr_token`: a classic personal access token with only `read:packages`, created under GitHub Settings, Developer settings.
 - `vault_hostinger_router_key`: the Hostinger AI Router key. `anthropic_base_url`, `moderation_model`, `moderator_emails`, `moderator_reputation` and `note_min_ratings` go in `main.yml`; empty values keep the defaults (`https://router.hostinger.com`, `claude-haiku-5.5`, no moderator emails, 0.8, 5).
 - `vault_smtp_url`: the SMTP server for magic-link sign-in email, as `smtp[s]://user:pass@host:port`, with `mail_from` in `main.yml`. Without it, sign-in email fails in production. `PUBLIC_API_URL`, the API address in those emails, is set to `https://<app_domain>/api`.
+- `auth_skip_email_verification` in `main.yml`: demo only. When true, sign-in links the install to whatever email is typed without sending mail, so anyone can sign in as any account, moderators included. It is for a demo server without `vault_smtp_url`.
 
 ```sh
 ansible-vault encrypt group_vars/all/vault.yml

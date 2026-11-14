@@ -5,6 +5,9 @@ name: release
 # run `sudo /usr/local/sbin/junction26-release <sha>` (infra/ansible, role app). It then waits until
 # the public API reports the new commit.
 #
+# After a deploy, the extension zip CI built for that commit replaces the assets of the latest-demo
+# pre-release, whose tag moves to the commit.
+#
 # Rollback or redeploy: run this workflow by hand with the sha of an earlier main commit. That skips
 # the build and releases the images already in GHCR for it.
 on:
@@ -135,3 +138,26 @@ jobs:
           done
           echo "::error::$url reports '${version:-nothing}', expected $SHA."
           exit 1
+
+  extension:
+    needs: deploy
+    if: ${{ !cancelled() && inputs.sha == '' && needs.deploy.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-chrome
+          path: dist
+      - name: Publish the latest-demo release
+        run: |
+          gh release delete latest-demo --cleanup-tag --yes || true
+          gh release create latest-demo dist/*.zip --target "$SHA" --prerelease \
+            --title "Demo extension (${SHA:0:7})" \
+            --notes "Chrome extension built from $SHA. Unzip it and load the folder at chrome://extensions with Developer mode on."

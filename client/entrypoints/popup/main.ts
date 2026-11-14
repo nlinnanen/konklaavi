@@ -148,8 +148,8 @@ async function main() {
     const email = String(new FormData(signIn).get('email') ?? '').trim();
     const status = $('#sign-in-status');
     try {
-      await callBackground('requestMagicLink', email);
-      status.textContent = `Check ${email} for your sign-in link.`;
+      const signedIn = await callBackground('requestMagicLink', email);
+      status.textContent = signedIn ? `Signed in as ${email}.` : `Check ${email} for your sign-in link.`;
       awaitSignIn();
     } catch (err) {
       status.textContent = `Could not send the link: ${err instanceof Error ? err.message : String(err)}`;

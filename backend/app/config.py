@@ -29,6 +29,8 @@ class Settings:
     mail_from: str | None
     # Base URL of the API in links sent by email.
     public_api_url: str
+    # Demo servers without email: POST /auth/magic-link signs the install in at once, for any email.
+    auth_skip_email_verification: bool
     # Commit the image was built from; CI bakes it in, and the deploy waits until /health reports it.
     version: str
 
@@ -53,6 +55,7 @@ def load() -> Settings:
         smtp_url=_env("SMTP_URL"),
         mail_from=_env("MAIL_FROM"),
         public_api_url=(_env("PUBLIC_API_URL") or f"http://localhost:{api_port}").rstrip("/"),
+        auth_skip_email_verification=(_env("AUTH_SKIP_EMAIL_VERIFICATION") or "").lower() in {"1", "true", "yes"},
         version=_env("APP_VERSION") or "dev",
     )
 

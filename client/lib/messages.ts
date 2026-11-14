@@ -24,8 +24,8 @@ export interface BackgroundApi {
   /** This install's ratings by note id. */
   myRatings: [null, Record<string, Helpfulness>];
   clearMock: [null, null];
-  /** Emails a sign-in link for this install to the given address. */
-  requestMagicLink: [string, null];
+  /** Emails a sign-in link for this install to the given address; true when it signed in at once. */
+  requestMagicLink: [string, boolean];
   me: [null, MeResponse];
 }
 export type BackgroundRequest = {

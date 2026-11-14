@@ -163,8 +163,7 @@ async function handle(msg: BackgroundRequest, sender: Browser.runtime.MessageSen
       return null;
     case 'requestMagicLink': {
       if (settings.backendMode === 'mock') throw new Error('Signing in needs a backend; the mock is always signed in');
-      await new RemoteApi(settings.backendUrl).requestMagicLink({ userId: await getUserId(), email: msg.payload });
-      return null;
+      return new RemoteApi(settings.backendUrl).requestMagicLink({ userId: await getUserId(), email: msg.payload });
     }
     case 'me':
       return api.me(await getUserId());
