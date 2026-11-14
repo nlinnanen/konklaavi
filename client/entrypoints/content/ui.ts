@@ -422,7 +422,7 @@ export class OverlayUi {
     sources.name = 'sources';
     sources.rows = 2;
     sources.placeholder = 'https://…';
-    const sourcesLabel = el('label', 'label', 'Sources', el('small', undefined, 'One link per line'));
+    const sourcesLabel = el('label', 'label', 'Sources', el('small', undefined, 'Optional, one link per line'));
     sourcesLabel.htmlFor = sources.id;
 
     const fine = el('p', 'fine', 'Your note and this passage are sent to HashTrust. Readers who usually disagree decide together whether it is shown.');

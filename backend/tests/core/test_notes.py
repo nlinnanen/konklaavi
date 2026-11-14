@@ -69,10 +69,10 @@ def test_moderation_keeps_the_note_pending_without_an_api_key(client, conn, sign
 
 def test_a_clean_review_shows_the_note_and_a_flagged_one_waits_with_its_reason(client, conn, signed_in):
     note_id = int(post_note(client, signed_in()).json()["noteId"])
-    moderate.moderate(conn, note_id, lambda note: (["unsourced"], "No source backs the figure."))
+    moderate.moderate(conn, note_id, lambda note: (["spam"], "Advertises a product."))
     assert conn.execute("SELECT moderation, moderation_reason FROM note").fetchone() == (
         "pending_review",
-        "unsourced: No source backs the figure.",
+        "spam: Advertises a product.",
     )
     moderate.moderate(conn, note_id, lambda note: ([], ""))
     assert conn.execute("SELECT moderation, moderation_reason FROM note").fetchone() == ("visible", None)

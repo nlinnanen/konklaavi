@@ -30,7 +30,7 @@ The install id identifies a reader, and signing in with an email and a password 
 
 ## Moderation
 
-Every note is reviewed by Claude, which answers through a tool call that reports abuse, spam, off-topic content and factual claims without sources. A clean note becomes visible and a flagged one waits in the review queue, as does every note when no API key is set. Readers' reports send a note back to the queue, and moderators approve or hide it from the dashboard. The model runs through Hostinger's AI Router with the Anthropic SDK.
+Every note is reviewed by Claude, which answers through a tool call that reports abuse, spam and off-topic content; source links are optional. A clean note becomes visible and a flagged one waits in the review queue, as does every note when no API key is set. Readers' reports send a note back to the queue, and moderators approve or hide it from the dashboard. The model runs through Hostinger's AI Router with the Anthropic SDK.
 
 ## Index
 

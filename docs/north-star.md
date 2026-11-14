@@ -20,9 +20,9 @@ Reputation belongs to a verified account and follows its track record. Writers g
 
 ## Moderation and its limits
 
-Every submitted note goes through an LLM review for abuse, spam, off-topic content and factual claims without sources, and a flagged note waits for a human. Readers can report a note, which sends it back to the review queue. Volunteer moderators work through that queue in the dashboard and approve or hide notes.
+Every submitted note goes through an LLM review for abuse, spam and off-topic content, and a flagged note waits for a human. Readers can report a note, which sends it back to the review queue. Volunteer moderators work through that queue in the dashboard and approve or hide notes.
 
-These measures have limits, and we state them openly. The bridging algorithm resists one-sided brigades but needs enough raters with different views before any note is shown, so a new narrative often has none. Sign-up does not verify emails, so only rate limits slow mass sign-ups. The LLM review catches abuse and missing sources, not subtle falsehoods. Moderators are volunteers and can be wrong or slow. HashTrust shows what a broad set of readers found helpful, which is a signal about a narrative, not a verdict on truth.
+These measures have limits, and we state them openly. The bridging algorithm resists one-sided brigades but needs enough raters with different views before any note is shown, so a new narrative often has none. Sign-up does not verify emails, so only rate limits slow mass sign-ups. The LLM review catches abuse and spam, not subtle falsehoods. Source links are optional, so readers judge a note partly on whether it cites any. Moderators are volunteers and can be wrong or slow. HashTrust shows what a broad set of readers found helpful, which is a signal about a narrative, not a verdict on truth.
 
 ## Privacy
 
