@@ -21,6 +21,8 @@ class Settings:
     mail_from: str | None
     # Base URL of the API in links sent by email.
     public_api_url: str
+    # Commit the image was built from; CI bakes it in, and the deploy waits until /health reports it.
+    version: str
 
 
 def load() -> Settings:
@@ -38,6 +40,7 @@ def load() -> Settings:
         smtp_url=_env("SMTP_URL"),
         mail_from=_env("MAIL_FROM"),
         public_api_url=(_env("PUBLIC_API_URL") or f"http://localhost:{api_port}").rstrip("/"),
+        version=_env("APP_VERSION") or "dev",
     )
 
 

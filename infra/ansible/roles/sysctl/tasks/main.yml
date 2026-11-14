@@ -1,0 +1,8 @@
+# Network and kernel hardening. IP forwarding stays as Docker sets it.
+- name: Set hardening sysctls
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/60-hardening.conf
+    reload: true
+  loop: "{{ sysctl_hardening | dict2items }}"

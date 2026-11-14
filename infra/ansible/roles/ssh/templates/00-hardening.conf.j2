@@ -1,0 +1,21 @@
+# Managed by Ansible (infra/ansible/roles/ssh).
+PermitRootLogin no
+AllowUsers {{ admin_user }} {{ deploy_user }}
+
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+
+MaxAuthTries 3
+MaxSessions 4
+LoginGraceTime 30
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+X11Forwarding no
+AllowAgentForwarding no
+# Local forwarding stays on for SSH tunnels to the API and dashboard (ssh -L 8501:localhost:8501).
+AllowTcpForwarding local
+PermitTunnel no

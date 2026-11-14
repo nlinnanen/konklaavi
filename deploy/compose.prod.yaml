@@ -1,4 +1,6 @@
 # Production override: docker compose -f compose.yaml -f deploy/compose.prod.yaml ...
+# The app images come from GHCR, built by .github/workflows/release.yml; the VPS never builds.
+# IMAGE_TAG (sha-<commit>) is set in .env by /usr/local/sbin/junction26-release.
 # Only Caddy listens publicly; the API and dashboard listen on localhost for SSH tunnels.
 
 x-database-url: &database-url DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/postgres
@@ -13,21 +15,31 @@ services:
       start_period: 3m
 
   fingerprint:
+    image: ${IMAGE_PREFIX:-ghcr.io/nlinnanen/junction26}-fingerprint:${IMAGE_TAG:?set IMAGE_TAG (the release script does)}
+    build: !reset null
     ports: !reset []
 
   api:
+    image: ${IMAGE_PREFIX:-ghcr.io/nlinnanen/junction26}-backend:${IMAGE_TAG:?set IMAGE_TAG (the release script does)}
+    build: !reset null
     environment:
       - *database-url
     ports: !override
       - "127.0.0.1:${API_PORT:-8000}:8000"
 
   worker:
+    image: ${IMAGE_PREFIX:-ghcr.io/nlinnanen/junction26}-backend:${IMAGE_TAG:?set IMAGE_TAG (the release script does)}
+    build: !reset null
     environment:
       - *database-url
 
   dashboard:
+    image: ${IMAGE_PREFIX:-ghcr.io/nlinnanen/junction26}-dashboard:${IMAGE_TAG:?set IMAGE_TAG (the release script does)}
+    build: !reset null
     environment:
       - *database-url
+    # The eval results are baked into the image.
+    volumes: !reset []
     ports: !override
       - "127.0.0.1:${DASH_PORT:-8501}:8501"
 

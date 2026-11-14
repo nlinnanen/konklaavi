@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import account, core
+from app.config import settings
 from app.db import close_pool, open_pool
 from app.migrate import migrate
 
@@ -24,4 +25,4 @@ app.include_router(account.router)
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True}
+    return {"ok": True, "version": settings.version}

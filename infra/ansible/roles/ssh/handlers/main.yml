@@ -1,0 +1,5 @@
+# Existing sessions, including Ansible's own, survive the restart.
+- name: Restart ssh
+  ansible.builtin.systemd_service:
+    name: ssh
+    state: restarted

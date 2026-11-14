@@ -1,0 +1,5 @@
+# Copy to vault.yml (gitignored) and encrypt it: ansible-vault encrypt group_vars/all/vault.yml
+vault_postgres_password: ""   # openssl rand -hex 24; only takes effect when the database volume is created
+vault_ghcr_token: ""          # classic token with read:packages only
+vault_hostinger_router_key: ""  # Hostinger AI Router key
+vault_smtp_url: ""              # smtp[s]://user:pass@host:port, for magic-link email

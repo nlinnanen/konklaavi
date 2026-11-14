@@ -1,0 +1,5 @@
+- name: Harden
+  import_playbook: harden.yml
+
+- name: App
+  import_playbook: app.yml

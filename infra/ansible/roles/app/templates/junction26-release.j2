@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Managed by Ansible (infra/ansible/roles/app).
+# Releases one commit: junction26-release <40-character sha>. The deploy user's SSH key is forced to run
+# this through sudo, so it is the only thing CI can do on the VPS. It runs the images CI pushed to GHCR
+# as sha-<commit>; nothing is built here.
+set -euo pipefail
+
+sha=${1:-}
+if [[ ! $sha =~ ^[0-9a-f]{40}$ ]]; then
+  echo "usage: junction26-release <40-character commit sha>" >&2
+  exit 2
+fi
+tag="sha-$sha"
+
+# One release at a time; a second waits for the first.
+exec 9>/run/lock/junction26-release.lock
+flock 9
+
+cd {{ app_dir }}
+export IMAGE_TAG=$tag
+
+echo "Pulling $tag"
+docker compose pull --quiet {{ app_services | join(' ') }}
+
+# Recorded before starting, so restarts, reboots and Ansible runs keep this release.
+sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=$tag/" .env
+
+docker compose up -d --remove-orphans --wait --wait-timeout 900
+docker image prune -f > /dev/null
+logger -t junction26-release "released $tag"
+echo "Released $tag"

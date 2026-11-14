@@ -1,0 +1,99 @@
+name: ci
+
+# Tests every package. Runs on pull requests and integration pushes; release.yml calls it before building images.
+on:
+  pull_request:
+  push:
+    branches: [integration]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm run compile
+      - run: npm test
+      - name: End-to-end test
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - name: Package the extension
+        run: npm run zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-chrome
+          path: client/dist/*.zip
+          if-no-files-found: error
+
+  fingerprint-service:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: fingerprint-service
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: fingerprint-service/package-lock.json
+      - run: npm ci
+      - run: npm run compile
+      - run: npm test
+
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      # The tests run against a real Timescale database and the real fingerprint service (docs/plan.md).
+      - name: Start the database and fingerprint service
+        run: docker compose up -d --build --wait --wait-timeout 600 db fingerprint
+      - uses: astral-sh/setup-uv@v6
+        with:
+          working-directory: backend
+          python-version: "3.12"
+
+      - name: Lint
+        working-directory: backend
+        run: uv run ruff check
+      - name: Test
+        working-directory: backend
+        run: uv run pytest
+      - name: Service logs
+        if: failure()
+        run: docker compose logs db fingerprint
+
+  dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          working-directory: dashboard
+          python-version: "3.12"
+
+      - run: uv run ruff check

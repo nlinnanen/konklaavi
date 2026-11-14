@@ -1,0 +1,24 @@
+# Rules go in before ufw is enabled, so the SSH session running this is never cut off.
+- name: Allow SSH (rate limited)
+  community.general.ufw:
+    rule: limit
+    port: "22"
+    proto: tcp
+    from_ip: "{{ item }}"
+  loop: "{{ ssh_allowed_sources }}"
+
+- name: Allow HTTP and HTTPS
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+  loop:
+    - { port: "80", proto: tcp }
+    - { port: "443", proto: tcp }
+    - { port: "443", proto: udp }
+
+- name: Deny other incoming traffic and enable ufw
+  community.general.ufw:
+    state: enabled
+    default: deny
+    direction: incoming
