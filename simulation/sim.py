@@ -135,14 +135,14 @@ def established_users(api, count: int, history: int) -> list[str]:
     return users
 
 
-def brigade_to_flag(api, honest_votes: int, brigade: list[str]) -> int | None:
-    """Brigade accounts needed to flag a reliable item that `honest_votes` users called trustworthy.
+def brigade_to_flag(api, honest: list[str], brigade: list[str]) -> int | None:
+    """Brigade accounts needed to flag a reliable item that the `honest` users called trustworthy.
 
     The brigade votes misinformation one account at a time; None when all of `brigade` did not suffice.
     """
     item = new_item(True)
-    for _ in range(honest_votes):
-        api.vote(new_user(), item, "trustworthy")
+    for user in honest:
+        api.vote(user, item, "trustworthy")
     for n, user in enumerate(brigade, start=1):
         api.vote(user, item, "misinformation")
         if item.hash in api.flagged([item.hash]):
@@ -187,6 +187,8 @@ def simulate(
         "history": history,
         "population": [population(api, rng, users, items, turnout) for users in POPULATIONS],
     }
+    # Established accounts: the honest voters who called the item trustworthy, and a brigade with history.
+    honest_voters = established_users(api, max(HONEST_VOTES), history)
     established = established_users(api, cap, history)
     brigades: dict[str, Callable[[], list[str]]] = {
         "fresh": lambda: [new_user() for _ in range(cap)],
@@ -196,7 +198,7 @@ def simulate(
         {
             "accounts": accounts,
             "honest_votes": honest_votes,
-            "needed": brigade_to_flag(api, honest_votes, make()),
+            "needed": brigade_to_flag(api, honest_voters[:honest_votes], make()),
         }
         for accounts, make in brigades.items()
         for honest_votes in HONEST_VOTES

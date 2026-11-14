@@ -31,11 +31,21 @@ class FakeApi:
 
 
 def test_brigade_needs_as_many_accounts_as_the_honest_votes_it_outweighs():
-    assert sim.brigade_to_flag(FakeApi(), 3, [sim.new_user() for _ in range(10)]) == 3
+    assert (
+        sim.brigade_to_flag(
+            FakeApi(), [sim.new_user() for _ in range(3)], [sim.new_user() for _ in range(10)]
+        )
+        == 3
+    )
 
 
 def test_brigade_that_never_flags_within_its_size_needs_more():
-    assert sim.brigade_to_flag(FakeApi(), 10, [sim.new_user() for _ in range(5)]) is None
+    assert (
+        sim.brigade_to_flag(
+            FakeApi(), [sim.new_user() for _ in range(10)], [sim.new_user() for _ in range(5)]
+        )
+        is None
+    )
 
 
 def test_retire_counts_trustworthy_votes_until_the_sentence_is_unflagged():
