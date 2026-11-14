@@ -3,8 +3,8 @@
  * mapped back to DOM Ranges. A block is the nearest non-inline ancestor of a
  * text node; its text is the concatenation of its own text nodes.
  *
- * Voting and lookup use this same model, so a sentence hashes identically
- * whether it's being voted on or scanned.
+ * Notes and lookup use this same model, so a sentence hashes identically
+ * whether it is written on or scanned.
  */
 
 const SKIP_TAGS = new Set([

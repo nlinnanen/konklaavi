@@ -1,196 +1,162 @@
 import { browser } from 'wxt/browser';
-import { callBackground, sourceHref, SOURCE_LABELS, type ContentRequest, type FlaggedItem, type PageStatus } from '@/lib/messages';
-import {
-  getExtensionSettings,
-  updateExtensionSettings,
-  type BackendMode,
-  type ExtensionSettings,
-} from '@/lib/extensionSettings';
 import { escapeHtml, renderAccount } from '@/lib/account';
-import { TIER_LABELS, TIER_STYLES, TIERS, type Tier } from '@/lib/tier';
-import { VERDICTS, VERDICT_LABELS, type DomainStats } from '@/lib/types';
+import { callBackground, type ContentRequest, type PageMatch, type PageStatus } from '@/lib/messages';
+import { getSettings, updateSettings, type BackendMode } from '@/lib/settings';
+import { HIGHLIGHT_STYLES, isWeak, spreadLine, STATE_LABELS, STATES } from '@/lib/state';
+import type { NarrativeState } from '@/lib/types';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 
-async function activeTabId(): Promise<number | undefined> {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  return tab?.id;
-}
-
 async function sendToContent<T>(req: Omit<ContentRequest, 'target'>): Promise<T | null> {
-  const id = await activeTabId();
-  if (id === undefined) return null;
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id === undefined) return null;
   try {
-    return (await browser.tabs.sendMessage(id, { target: 'content', ...req })) as T;
+    return (await browser.tabs.sendMessage(tab.id, { target: 'content', ...req })) as T;
   } catch {
     return null; // no content script on this tab (e.g. browser pages, or tab opened before install)
   }
 }
 
-function renderFlagged(f: FlaggedItem): string {
-  const text = escapeHtml(f.text.length > 160 ? f.text.slice(0, 160) + '…' : f.text);
-  const votes = f.total ? ` <span class="muted">(${f.total})</span>` : '';
-  let narrative = '';
-  if (f.signature) {
-    const href = sourceHref(f.signature);
-    const label = escapeHtml(SOURCE_LABELS[f.signature.source]);
-    const source = href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${label}</a>` : label;
-    narrative = `<div class="narrative"><b>${escapeHtml(f.signature.title)}</b> <span class="muted">· ${source}</span></div>`;
-  }
-  return `<li>${tierChip(f.tier)}${text}${votes}${narrative}</li>`;
-}
-
-/** A tier's name styled as its highlight. */
-function tierChip(tier: Tier): string {
-  return `<span class="chip tier" style="${TIER_STYLES[tier]}">${TIER_LABELS[tier]}</span>`;
-}
-
-const TIER_MEANINGS: Record<Tier, string> = {
-  confirmed: 'a narrative confirmed by fact-checkers',
-  likely: 'the same claim as a known narrative',
-  related: 'a similar theme to a known narrative',
-  reported: 'flagged by users, not yet confirmed',
-  disputed: 'a narrative users dispute',
+const STATE_MEANINGS: Record<NarrativeState, string> = {
+  misleading: 'A note saying it is misleading was rated helpful.',
+  context: 'A note adding context was rated helpful.',
+  controversial: 'Raters split on the notes so far.',
+  needs_ratings: 'Notes are waiting for ratings.',
+  tracked: 'A known narrative with no note shown yet.',
 };
 
-function renderLegend() {
-  $('#legend').innerHTML = TIERS.map((t) => `<li>${tierChip(t)}<span class="muted">${TIER_MEANINGS[t]}</span></li>`).join('');
+function chip(state: NarrativeState): string {
+  return `<span class="badge" data-state="${state}">${STATE_LABELS[state]}</span>`;
 }
 
+function renderLegend() {
+  $('#legend').innerHTML = STATES.map(
+    (s) => `<li>
+      <span class="sample" style="${HIGHLIGHT_STYLES[s]}">Sample text</span>
+      <span><b>${STATE_LABELS[s]}</b><span class="muted">${STATE_MEANINGS[s]}</span></span>
+    </li>`,
+  ).join('');
+}
+
+/** One row per narrative: the strongest of its matches decides whether it reads as a copy or a reworded passage. */
 function renderPage(status: PageStatus | null) {
   const el = $('#page');
   if (!status) {
-    el.innerHTML = `<p class="muted">Not available on this page. Try reloading the tab.</p>`;
+    el.innerHTML = `<p class="muted">HashTrust can't read this page. Reload the tab, or open an article.</p>`;
     return;
   }
-  const items = status.flagged.map(renderFlagged).join('');
-  el.innerHTML = `
-    <div class="stat">
-      <div><b>${status.flagged.length}</b><span class="muted">highlighted</span></div>
-      <div><b>${status.scannedSentences}</b><span class="muted">sentences checked</span></div>
-    </div>
-    ${items ? `<ul class="flagged">${items}</ul>` : `<p class="muted">Nothing on this page has been flagged.</p>`}
-    ${status.highlightSupported ? '' : `<p class="muted">This browser doesn't support in-page highlighting.</p>`}
-    <p class="muted">Select text on the page to rate it.</p>`;
-}
-
-function renderDomain(stats: DomainStats | null, error?: string) {
-  const el = $('#domain');
-  if (error) {
-    el.innerHTML = `<p class="muted">Could not load domain stats: ${escapeHtml(error)}</p>`;
-    return;
-  }
-  if (!stats || stats.votesCount === 0) {
-    el.innerHTML = `<p class="muted">No votes for this domain yet.</p>`;
-    return;
-  }
-  const segments = VERDICTS.filter((v) => stats.counts[v])
-    .map((v) => `<span style="width:${(stats.counts[v] / stats.votesCount) * 100}%;background:var(--${v})" title="${VERDICT_LABELS[v]}"></span>`)
+  const byNarrative = new Map<string, PageMatch[]>();
+  for (const m of status.matches) byNarrative.set(m.narrative.narrativeId, [...(byNarrative.get(m.narrative.narrativeId) ?? []), m]);
+  const rows = [...byNarrative.values()]
+    .sort((a, b) => STATES.indexOf(a[0]!.narrative.state) - STATES.indexOf(b[0]!.narrative.state))
+    .map((matches) => {
+      const { narrative } = matches[0]!;
+      const copies = matches.filter((m) => !isWeak(m.matchLevel)).length;
+      const how = copies ? `${copies} passage${copies === 1 ? '' : 's'}` : 'Reworded or related';
+      return `<li>
+        <div class="row"><b>${escapeHtml(narrative.title)}</b>${chip(narrative.state)}</div>
+        <p class="muted">${how} · ${escapeHtml(spreadLine(narrative.spread))}</p>
+      </li>`;
+    })
     .join('');
-  const legend = VERDICTS.filter((v) => stats.counts[v]).map((v) => `<span>${VERDICT_LABELS[v]}: ${stats.counts[v]}</span>`).join('');
-  el.innerHTML = `
-    <div class="stat">
-      <div><b>${stats.flaggedCount}</b><span class="muted">flagged items</span></div>
-      <div><b>${stats.votesCount}</b><span class="muted">votes</span></div>
-    </div>
-    <div class="bar">${segments}</div>
-    <div class="legend">${legend}</div>`;
+  const scanned = `${status.scannedSentences} sentence${status.scannedSentences === 1 ? '' : 's'} checked`;
+  el.innerHTML = rows
+    ? `<ul class="list">${rows}</ul><p class="muted">${scanned}. Click a highlight to read and rate its notes.</p>`
+    : `<p class="muted">No tracked narrative here (${scanned}). Select a passage to add context.</p>`;
+  if (!status.highlightSupported) el.insertAdjacentHTML('beforeend', `<p class="muted">This browser can't highlight passages.</p>`);
 }
 
-/** Shows the account in remote and local modes; mock mode has no accounts, so the section stays hidden. */
-async function refreshAccount() {
-  let me;
+/** The account, or the sign-in form for an install that is not verified; true when verified. */
+async function refreshAccount(): Promise<boolean> {
+  const account = $('#account');
   try {
-    me = await callBackground('me', null);
+    const me = await callBackground('me', null);
+    account.innerHTML = me.verified ? renderAccount(me) : '';
+    $('#sign-in').hidden = me.verified;
+    return me.verified;
   } catch (e) {
-    $('#account-section').hidden = false;
-    $('#account').innerHTML = `<p class="muted">Could not load account: ${escapeHtml(e instanceof Error ? e.message : String(e))}</p>`;
+    account.innerHTML = `<p class="muted">Could not load your account: ${escapeHtml(e instanceof Error ? e.message : String(e))}</p>`;
     $('#sign-in').hidden = true;
-    return;
+    return false;
   }
-  $('#account-section').hidden = me === null;
-  if (!me) return;
-  $('#account').innerHTML = renderAccount(me);
-  $('#sign-in').hidden = me.email !== null;
+}
+
+/** Checks the account every few seconds for two minutes, so the popup notices the clicked sign-in link. */
+function awaitSignIn() {
+  const started = Date.now();
+  const timer = setInterval(async () => {
+    if ((await refreshAccount()) || Date.now() - started > 120_000) clearInterval(timer);
+  }, 3000);
 }
 
 const MODE_BADGES: Record<BackendMode, string> = {
-  mock: 'mock backend',
-  remote: 'remote backend',
-  local: 'local index',
+  mock: 'Mock',
+  remote: 'Remote',
+  local: 'Local index',
 };
 
-async function loadSettingsForm(): Promise<ExtensionSettings> {
-  const s = await getExtensionSettings();
-  const form = $('#settings') as HTMLFormElement;
-  (form.querySelector(`input[name="backendMode"][value="${s.backendMode}"]`) as HTMLInputElement).checked = true;
-  (form.elements.namedItem('backendUrl') as HTMLInputElement).value = s.backendUrl;
-  (form.elements.namedItem('sendExcerpt') as HTMLInputElement).checked = s.sendExcerpt;
-  (form.elements.namedItem('highlight') as HTMLInputElement).checked = s.highlight;
-  (form.elements.namedItem('sendHits') as HTMLInputElement).checked = s.sendHits;
-  (form.elements.namedItem('sendHits') as HTMLInputElement).disabled = s.backendMode !== 'local';
+async function loadSettingsForm() {
+  const s = await getSettings();
+  const form = $<HTMLFormElement>('#settings');
+  const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
+  form.querySelector<HTMLInputElement>(`input[name="backendMode"][value="${s.backendMode}"]`)!.checked = true;
+  field('backendUrl').value = s.backendUrl;
+  field('backendUrl').disabled = s.backendMode === 'mock';
+  field('highlight').checked = s.highlight;
+  field('sendHits').checked = s.sendHits;
+  field('sendHits').disabled = s.backendMode !== 'local';
+  $('#clear-mock').hidden = s.backendMode !== 'mock';
   $('#mode-badge').textContent = MODE_BADGES[s.backendMode];
-  (form.elements.namedItem('backendUrl') as HTMLInputElement).disabled = s.backendMode === 'mock';
-  return s;
 }
 
-async function refresh() {
-  const status = await sendToContent<PageStatus>({ type: 'pageStatus' });
-  renderPage(status);
-  if (!status) {
-    renderDomain(null);
-    return;
-  }
-  $('#domain-name').textContent = status.domain;
-  try {
-    renderDomain(await callBackground('domainStats', status.domain));
-  } catch (e) {
-    renderDomain(null, e instanceof Error ? e.message : String(e));
-  }
+async function refreshPage() {
+  renderPage(await sendToContent<PageStatus>({ type: 'pageStatus' }));
 }
 
 async function main() {
   renderLegend();
   await loadSettingsForm();
-  const form = $('#settings') as HTMLFormElement;
+  const form = $<HTMLFormElement>('#settings');
   form.addEventListener('change', async () => {
     const data = new FormData(form);
     const mode = data.get('backendMode');
-    await updateExtensionSettings({
+    await updateSettings({
       backendMode: mode === 'remote' || mode === 'local' ? mode : 'mock',
-      backendUrl: String((form.elements.namedItem('backendUrl') as HTMLInputElement).value || ''),
-      sendExcerpt: data.has('sendExcerpt'),
+      backendUrl: (form.elements.namedItem('backendUrl') as HTMLInputElement).value,
       highlight: data.has('highlight'),
       sendHits: (form.elements.namedItem('sendHits') as HTMLInputElement).checked,
     });
     await loadSettingsForm();
     void refreshAccount();
-    setTimeout(refresh, 300); // give the content script a moment to rescan
+    setTimeout(refreshPage, 400); // give the content script a moment to look the page up again
   });
   $('#rescan').addEventListener('click', async () => {
     await sendToContent({ type: 'rescan' });
-    await refresh();
+    await refreshPage();
   });
-  $('#clear-mock').addEventListener('click', async () => {
-    if (!confirm('Delete all locally stored mock votes?')) return;
+  $('#clear-mock').addEventListener('click', () => ($('#clear-confirm').hidden = false));
+  $('#clear-no').addEventListener('click', () => ($('#clear-confirm').hidden = true));
+  $('#clear-yes').addEventListener('click', async () => {
+    $('#clear-confirm').hidden = true;
     await callBackground('clearMock', null);
     await sendToContent({ type: 'rescan' });
-    await refresh();
+    await Promise.all([refreshPage(), refreshAccount()]);
   });
-  const signIn = $('#sign-in') as HTMLFormElement;
+  const signIn = $<HTMLFormElement>('#sign-in');
   signIn.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = String(new FormData(signIn).get('email') ?? '').trim();
     const status = $('#sign-in-status');
     try {
       await callBackground('requestMagicLink', email);
-      status.textContent = `Check your email: we sent a sign-in link to ${email}.`;
+      status.textContent = `Check ${email} for your sign-in link.`;
+      awaitSignIn();
     } catch (err) {
       status.textContent = `Could not send the link: ${err instanceof Error ? err.message : String(err)}`;
     }
   });
   void refreshAccount();
-  await refresh();
+  await refreshPage();
 }
 
 void main();

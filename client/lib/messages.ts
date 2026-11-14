@@ -1,26 +1,38 @@
 import { browser } from 'wxt/browser';
 import type { LookupBlock, NarrativeBlock } from './api';
-import type { Tier } from './tier';
-import type { DomainStats, LookupResult, MeResponse, Signature, Verdict, VoteInput } from './types';
+import type { HighlightStyle } from './state';
+import type {
+  Helpfulness,
+  LookupResult,
+  MatchLevel,
+  MeResponse,
+  Narrative,
+  NarrativeDetail,
+  NoteInput,
+  NoteResponse,
+} from './types';
 
 /** Requests handled by the background worker: [payload, response]. */
 export interface BackgroundApi {
-  vote: [VoteInput, null];
   lookup: [{ hashes: string[]; blocks: LookupBlock[] }, LookupResult[]];
   /** Narrative-level and related matches for embedding units with no exact or variant match. */
   matchNarratives: [NarrativeBlock[], LookupResult[]];
-  domainStats: [string, DomainStats];
+  narrative: [string, NarrativeDetail];
+  addNote: [NoteInput, NoteResponse];
+  rateNote: [{ noteId: string; helpfulness: Helpfulness }, null];
+  reportNote: [{ noteId: string; reason: string }, null];
+  /** This install's ratings by note id. */
+  myRatings: [null, Record<string, Helpfulness>];
   clearMock: [null, null];
   /** Emails a sign-in link for this install to the given address. */
   requestMagicLink: [string, null];
-  /** The install's account and reputation; null in mock mode, which has no accounts. */
-  me: [null, MeResponse | null];
+  me: [null, MeResponse];
 }
 export type BackgroundRequest = {
   [K in keyof BackgroundApi]: { target: 'background'; type: K; payload: BackgroundApi[K][0] };
 }[keyof BackgroundApi];
 
-export type Envelope<T> = { ok: true; data: T } | { ok: false; error: string };
+export type Envelope<T> = { ok: true; data: T } | { ok: false; error: string; status?: number };
 
 /**
  * Thrown when the extension was reloaded or removed while this content script
@@ -30,6 +42,17 @@ export class ContextInvalidatedError extends Error {
   constructor() {
     super('Extension context invalidated');
     this.name = 'ContextInvalidatedError';
+  }
+}
+
+/** A failed background request; `status` is the backend's HTTP status when there was one. */
+export class BackgroundError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+    this.name = 'BackgroundError';
   }
 }
 
@@ -55,7 +78,7 @@ export async function callBackground<K extends keyof BackgroundApi>(
     throw e;
   }
   if (!res) throw new Error('No response from background worker');
-  if (!res.ok) throw new Error(res.error);
+  if (!res.ok) throw new BackgroundError(res.error, res.status);
   // A worker that doesn't handle `type` answers ok with no data.
   if (!('data' in res)) throw new Error(`Background worker sent no data for ${type}`);
   return res.data;
@@ -71,41 +94,16 @@ export interface EmbedRequest {
 /** Requests the popup sends to the content script in the active tab. */
 export type ContentRequest = { target: 'content'; type: 'pageStatus' } | { target: 'content'; type: 'rescan' };
 
-export interface FlaggedItem {
+/** A highlighted passage of the page. */
+export interface PageMatch {
   text: string;
-  verdict: Verdict;
-  tier: Tier;
-  total: number;
-  signature?: Signature;
+  style: HighlightStyle;
+  matchLevel: MatchLevel;
+  narrative: Narrative;
 }
 
 export interface PageStatus {
-  domain: string;
   scannedSentences: number;
-  flagged: FlaggedItem[];
+  matches: PageMatch[];
   highlightSupported: boolean;
-}
-
-export const SOURCE_LABELS: Record<Signature['source'], string> = {
-  euvsdisinfo: 'EUvsDisinfo',
-  report: 'User reports',
-  cluster: 'Detected cluster',
-  network: 'Documented network (VIGINUM)',
-  factcheck: 'Fact-checker',
-};
-
-/** The source URL when it is safe to link to (http or https), else null. */
-export function sourceHref(source: { sourceUrl: string | null }): string | null {
-  if (!source.sourceUrl) return null;
-  try {
-    const url = new URL(source.sourceUrl);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
-  } catch {
-    return null;
-  }
-}
-
-/** The verdict a flagged result is shown with: its narrative's verdict when it has one. */
-export function displayVerdict(result: LookupResult): Verdict {
-  return result.signature?.verdict ?? result.topVerdict;
 }

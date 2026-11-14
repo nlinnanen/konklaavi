@@ -4,7 +4,7 @@ import { fingerprintSentences, hashNormalized, splitSentences, type Sentence } f
 import { callBackground, ContextInvalidatedError } from '@/lib/messages';
 import { bands, minhash } from '@/lib/minhash';
 import { normalizeText } from '@/lib/normalize';
-import { tierOf, tierRank, type Tier } from '@/lib/tier';
+import { highlightStyle, matchRank } from '@/lib/state';
 import type { LookupResult } from '@/lib/types';
 import type { Highlighter, FlaggedRange } from './highlighter';
 import { buildModel, collectBlocks, rangeFor, type BlockModel } from './textModel';
@@ -32,13 +32,13 @@ interface ScannedBlock {
   units: ScannedUnit[];
 }
 
-/** A shown match over sentences `from` to `to` (exclusive) of a block, voted on by `hash`. */
+/** A shown match over sentences `from` to `to` (exclusive) of a block, matched by `hash`. */
 interface Match {
   from: number;
   to: number;
   hash: string;
   result: LookupResult;
-  tier: Tier;
+  rank: number;
 }
 
 /** The block's content hash and bands, computed as the fingerprint service does for a block. */
@@ -69,14 +69,33 @@ const MAX_SENTENCES_PER_PASS = 5000;
 const MAX_UNITS_PER_PASS = 400;
 /** Units per embedding request, so highlights appear while the rest embed. */
 const UNIT_BATCH = 32;
+/** Main-thread work per slice before the scanner lets the page handle input. */
+const SLICE_MS = 8;
+
+/** Resolves at once while the current slice lasts, else after the page has had a turn. */
+function slicer(): () => Promise<void> {
+  let start = performance.now();
+  return async () => {
+    if (performance.now() - start < SLICE_MS) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    start = performance.now();
+  };
+}
+
+/** Resolves when the page is idle, so on-device embedding never competes with the page's own work. */
+function idle(): Promise<void> {
+  return new Promise((resolve) =>
+    'requestIdleCallback' in window ? requestIdleCallback(() => resolve(), { timeout: 2000 }) : setTimeout(resolve, 50),
+  );
+}
 
 /**
  * Splits page text into sentences, hashes them, looks the hashes up via the
- * background worker and hands flagged sentences to the highlighter.
+ * background worker and hands matched sentences to the highlighter.
  */
 export class PageScanner {
   private blocks = new Map<Element, ScannedBlock>();
-  /** hash -> result, or null when the backend has no votes for it. */
+  /** hash -> result, or null when it belongs to no narrative. */
   private results = new Map<string, LookupResult | null>();
   /** Unit hash -> narrative-level or related result, or null when the unit matched nothing. */
   private unitResults = new Map<string, LookupResult | null>();
@@ -124,16 +143,23 @@ export class PageScanner {
     void this.scan(roots);
   }
 
-  /** Scan (or rescan) the blocks containing the given roots. Serialized so passes don't interleave. */
-  scan(roots: Iterable<Node>, force = false): Promise<void> {
-    const list = [...roots];
-    this.running = this.running
-      .then(() => (this.stopped ? undefined : this.doScan(list, force)))
-      .catch((e) => this.failed('scan', e));
+  /** Runs passes one after another, so they don't interleave. */
+  private enqueue(pass: () => Promise<void>): Promise<void> {
+    this.running = this.running.then(() => (this.stopped ? undefined : pass())).catch((e) => this.failed('scan', e));
     return this.running;
   }
 
-  /** Forget cached results (e.g. after voting or switching backend) and rescan everything. */
+  /** Scan (or rescan) the blocks containing the given roots. */
+  scan(roots: Iterable<Node>): Promise<void> {
+    const list = [...roots];
+    return this.enqueue(() => this.doScan(list));
+  }
+
+  /**
+   * Forgets the results of the given hashes, or all of them (after a note or a
+   * backend switch), and looks the scanned blocks up again. Fingerprints are
+   * kept, since the text they come from has not changed.
+   */
   refresh(hashes?: string[]): Promise<void> {
     if (hashes) {
       for (const h of hashes) {
@@ -144,17 +170,19 @@ export class PageScanner {
       this.results.clear();
       this.unitResults.clear();
     }
-    return this.scan([document.body], true);
+    return this.enqueue(() => this.lookupBlocks([...this.blocks.values()]));
   }
 
-  private async doScan(roots: Node[], force: boolean) {
+  private async doScan(roots: Node[]) {
     const touched: ScannedBlock[] = [];
     let budget = MAX_SENTENCES_PER_PASS;
+    const pause = slicer();
     for (const [block, nodes] of collectBlocks(roots)) {
       if (budget <= 0) break;
+      await pause();
       const model = buildModel(block, nodes);
       const prev = this.blocks.get(block);
-      if (prev && !force && prev.model.text === model.text) continue;
+      if (prev && prev.model.text === model.text) continue;
       const split = splitSentences(model.text).slice(0, budget);
       const hashes = await Promise.all(split.map((s) => hashNormalized(s.normalized)));
       const sentences = split.map((s, i) => ({ hash: hashes[i]!, start: s.start, end: s.end, text: s.text }));
@@ -170,6 +198,11 @@ export class PageScanner {
     }
     for (const block of this.blocks.keys()) if (!block.isConnected) this.blocks.delete(block);
     this.highlighter.prune();
+    await this.lookupBlocks(touched);
+  }
+
+  /** Looks up the blocks' hashes without a cached result and repaints them. */
+  private async lookupBlocks(touched: ScannedBlock[]) {
     if (!touched.length) return;
 
     const hashes = [...new Set(touched.flatMap((b) => b.sentences.map((s) => s.hash)))].filter((h) => !this.results.has(h));
@@ -182,7 +215,11 @@ export class PageScanner {
       found.forEach((r) => this.results.set(r.hash, r));
     }
 
-    for (const block of touched) this.highlighter.setBlock(block.model.block, this.flaggedRanges(block));
+    const pause = slicer();
+    for (const block of touched) {
+      await pause();
+      this.highlighter.setBlock(block.model.block, this.flaggedRanges(block));
+    }
     this.matchNarratives(touched).catch((e) => this.failed('narrative matching', e));
   }
 
@@ -191,7 +228,7 @@ export class PageScanner {
    * units with an exactly matched sentence, and matches them against
    * narratives. It runs after the exact and variant highlights are painted,
    * since the first embedding waits for the model to download, and a failure
-   * leaves those highlights alone.
+   * leaves those highlights alone. Each batch waits for the page to be idle.
    */
   private async matchNarratives(touched: ScannedBlock[]) {
     const pending = new Map<string, NarrativeBlock>();
@@ -205,6 +242,8 @@ export class PageScanner {
     }
     const queue = [...pending.values()];
     for (let i = 0; i < queue.length; i += UNIT_BATCH) {
+      await idle();
+      if (this.stopped) return;
       const batch = queue.slice(i, i + UNIT_BATCH);
       batch.forEach((u) => this.unitResults.set(u.hash, null));
       let found: LookupResult[];
@@ -227,14 +266,14 @@ export class PageScanner {
 
   /**
    * One range per run of sentences whose strongest match is the same: each
-   * sentence takes the strongest tier among its exact match, the block's
-   * variant match and the units that cover it, the smallest of those on a tie.
+   * sentence takes the strongest match (`matchRank`) among its exact match,
+   * the block's variant match and the units that cover it, the smallest of
+   * those on a tie.
    */
   private flaggedRanges({ model, sentences, fingerprint, units }: ScannedBlock): FlaggedRange[] {
     const matches: Match[] = [];
     const add = (from: number, to: number, hash: string, result: LookupResult | null | undefined) => {
-      const tier = result && tierOf(result);
-      if (tier) matches.push({ from, to, hash, result, tier });
+      if (result) matches.push({ from, to, hash, result, rank: matchRank(result.matchLevel, result.narrative.state) });
     };
     sentences.forEach((s, i) => add(i, i + 1, s.hash, this.results.get(s.hash)));
     if (fingerprint) add(0, sentences.length, fingerprint.hash, this.results.get(fingerprint.hash));
@@ -242,7 +281,7 @@ export class PageScanner {
     if (!matches.length) return [];
 
     const stronger = (a: Match, b: Match | undefined) =>
-      !b || tierRank(a.tier) > tierRank(b.tier) || (a.tier === b.tier && a.to - a.from < b.to - b.from);
+      !b || a.rank > b.rank || (a.rank === b.rank && a.to - a.from < b.to - b.from);
     const best = sentences.map((_, i) =>
       matches.reduce<Match | undefined>((top, m) => (m.from <= i && i < m.to && stronger(m, top) ? m : top), undefined),
     );
@@ -258,7 +297,7 @@ export class PageScanner {
           range: rangeFor(model, start, end),
           text: model.text.slice(start, end),
           result: match.result,
-          tier: match.tier,
+          style: highlightStyle(match.result.narrative.state, match.result.matchLevel),
           contentHash: match.hash,
           sentenceHashes: [...new Set(sentences.slice(match.from, match.to).map((s) => s.hash))],
         });

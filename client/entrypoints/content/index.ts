@@ -1,12 +1,13 @@
 import { browser } from 'wxt/browser';
-import { cleanUrl, domainOf } from '@/lib/domain';
+import { cleanUrl } from '@/lib/domain';
 import { fingerprintSentences, splitSentences, type Sentence } from '@/lib/fingerprint';
-import { callBackground, displayVerdict, type ContentRequest, type PageStatus } from '@/lib/messages';
+import { BackgroundError, callBackground, type ContentRequest, type PageStatus } from '@/lib/messages';
 import { getSettings, onSettingsChanged } from '@/lib/settings';
+import type { Helpfulness, Narrative } from '@/lib/types';
 import { Highlighter, highlightSupported, type FlaggedRange } from './highlighter';
 import { PageScanner } from './scanner';
-import { OverlayUi, type FeedbackVerdict } from './ui';
 import { blockFor, buildModel, offsetsOf, textNodesUnder } from './textModel';
+import { OverlayUi, type CardActions } from './ui';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -33,23 +34,22 @@ export default defineContentScript({
     });
 
     scanner.start();
-    setupSelectionVoting(ui, scanner);
-    setupTooltips(ui, highlighter, scanner);
+    const notes = new NoteFlow(ui, scanner);
+    setupSelection(ui, notes);
+    setupCards(ui, highlighter, notes);
 
     browser.runtime.onMessage.addListener((msg: any, _sender, sendResponse: (r: unknown) => void) => {
       const req = msg as ContentRequest;
       if (req?.target !== 'content') return false;
       if (req.type === 'pageStatus') {
         const status: PageStatus = {
-          domain: domainOf(location.hostname),
           scannedSentences: scanner.sentenceCount,
           highlightSupported,
-          flagged: highlighter.all().map((f) => ({
+          matches: highlighter.all().map((f) => ({
             text: f.text,
-            verdict: displayVerdict(f.result),
-            tier: f.tier,
-            total: f.result.total,
-            signature: f.result.signature,
+            style: f.style,
+            matchLevel: f.result.matchLevel,
+            narrative: f.result.narrative,
           })),
         };
         sendResponse(status);
@@ -62,8 +62,8 @@ export default defineContentScript({
   },
 });
 
-/** Sentences (snapped to full sentence boundaries) that the selection touches, across blocks. */
-function sentencesInSelection(range: Range): Sentence[] {
+/** Sentences (snapped to full sentence boundaries) that the range touches, across blocks. */
+function sentencesInRange(range: Range): Sentence[] {
   const container = range.commonAncestorContainer;
   const blocks = new Set<Element>();
   for (const t of textNodesUnder(blockFor(container))) {
@@ -80,123 +80,165 @@ function sentencesInSelection(range: Range): Sentence[] {
   return out;
 }
 
-function setupSelectionVoting(ui: OverlayUi, scanner: PageScanner) {
+const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/** Writing a note on a passage: sign-in first, then the form, then the posted note. */
+class NoteFlow {
+  constructor(
+    private ui: OverlayUi,
+    private scanner: PageScanner,
+  ) {}
+
+  private async open(range: Range) {
+    const sentences = sentencesInRange(range);
+    if (!sentences.length) {
+      this.ui.hideAddButton();
+      this.ui.toast('Select at least one full sentence of 5 or more words.', 'error');
+      return;
+    }
+    const anchor = range.getBoundingClientRect();
+    let verified: boolean;
+    try {
+      verified = (await callBackground('me', null)).verified;
+    } catch (err) {
+      this.ui.toast(`Could not check your account: ${message(err)}`, 'error');
+      return;
+    }
+    if (!verified) {
+      this.ui.openSignIn(anchor, async (email) => void (await callBackground('requestMagicLink', email)));
+      return;
+    }
+    const text = sentences.map((s) => s.text).join(' ');
+    const { contentHash, sentenceHashes } = await fingerprintSentences(sentences);
+    this.ui.openNoteForm(anchor, text, async (note) => {
+      try {
+        await callBackground('addNote', {
+          ...note,
+          passage: { text, url: cleanUrl(location.href), contentHash, sentenceHashes },
+        });
+      } catch (err) {
+        if (err instanceof BackgroundError && err.status === 403) throw new Error('Sign in from the HashTrust popup first.');
+        throw err;
+      }
+      window.getSelection()?.removeAllRanges();
+      this.ui.toast('Note submitted. It is shown once it passes review and readers rate it.');
+      await this.scanner.refresh([contentHash, ...sentenceHashes]);
+    });
+  }
+
+  /** Opens the note form, or the sign-in prompt, for the sentences the range touches. */
+  openFor(range: Range) {
+    void this.open(range).catch((e) => console.warn('[hashtrust] opening the note form failed', e));
+  }
+}
+
+function setupSelection(ui: OverlayUi, notes: NoteFlow) {
   let pending: Range | null = null;
 
   const onSelectionDone = (e: Event) => {
-    if (ui.owns(e) || ui.pickerOpen) return;
+    if (ui.owns(e) || ui.panelOpen) return;
     // Let the browser finalize the selection first.
     setTimeout(() => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || sel.rangeCount === 0 || sel.toString().trim().length < 10) {
         pending = null;
-        ui.hideRateButton();
+        ui.hideAddButton();
         return;
       }
       pending = sel.getRangeAt(0).cloneRange();
       const rects = pending.getClientRects();
       const rect = rects[rects.length - 1] ?? pending.getBoundingClientRect();
-      ui.showRateButton(rect, () => {
-        openPicker().catch((e) => console.warn('[hashtrust] opening the rating picker failed', e));
+      ui.showAddButton(rect, () => {
+        if (pending) notes.openFor(pending);
       });
     }, 0);
-  };
-
-  const openPicker = async () => {
-    if (!pending) return;
-    const range = pending;
-    const sentences = sentencesInSelection(range);
-    if (!sentences.length) {
-      ui.hideRateButton();
-      ui.toast('Select at least one full sentence (5+ words) to rate.', 'error');
-      return;
-    }
-    const excerpt = sentences.map((s) => s.text).join(' ');
-    const { contentHash, sentenceHashes } = await fingerprintSentences(sentences);
-
-    ui.openPicker(range.getBoundingClientRect(), excerpt, async ({ verdict, comment }) => {
-      try {
-        await callBackground('vote', {
-          contentHash,
-          sentenceHashes,
-          verdict,
-          comment,
-          excerpt: excerpt.slice(0, 2000),
-          url: cleanUrl(location.href),
-          domain: domainOf(location.hostname),
-        });
-        ui.toast('Thanks! Your vote was recorded.');
-        window.getSelection()?.removeAllRanges();
-        await scanner.refresh(sentenceHashes);
-      } catch (err) {
-        ui.toast(`Could not submit vote: ${err instanceof Error ? err.message : err}`, 'error');
-        throw err;
-      }
-    });
   };
 
   document.addEventListener('mouseup', onSelectionDone);
   document.addEventListener('keyup', (e) => {
     if (e.key === 'Escape') {
-      ui.closePicker();
-      ui.hideRateButton();
+      ui.closePanel();
+      ui.hideAddButton();
     } else if (e.shiftKey || e.key === 'Shift') onSelectionDone(e);
   });
   document.addEventListener('mousedown', (e) => {
     if (ui.owns(e)) return;
-    ui.hideRateButton();
-    if (ui.pickerOpen) ui.closePicker();
+    ui.hideAddButton();
+    if (ui.panelOpen) ui.closePanel();
   });
-  window.addEventListener('scroll', () => ui.hideRateButton(), { passive: true });
+  window.addEventListener('scroll', () => ui.hideAddButton(), { passive: true });
 }
 
 /**
- * Votes on a highlight from its tooltip, about the matched sentence, block or
- * unit, without its text, then rechecks that content.
+ * Hovering a highlight shows its card; clicking one pins it, fetches the
+ * narrative's current notes and offers rating, reporting and a new note.
+ * Escape, a click elsewhere or scrolling unpins it.
  */
-async function voteOn(ui: OverlayUi, scanner: PageScanner, item: FlaggedRange, verdict: FeedbackVerdict) {
-  try {
-    await callBackground('vote', {
-      contentHash: item.contentHash,
-      sentenceHashes: item.sentenceHashes,
-      verdict,
-      url: cleanUrl(location.href),
-      domain: domainOf(location.hostname),
-      narrativeId: item.result.signature?.narrativeId,
-      matchLevel: item.result.signature?.matchLevel,
-    });
-  } catch (err) {
-    ui.toast(`Could not submit vote: ${err instanceof Error ? err.message : err}`, 'error');
-    throw err;
-  }
-  ui.toast('Thanks! Your vote was recorded.');
-  void scanner.refresh([item.contentHash, ...item.sentenceHashes]);
-}
-
-/**
- * Hovering a highlight shows its tooltip; clicking one pins the tooltip so its
- * source link and feedback buttons can be clicked. Escape, a click elsewhere
- * or scrolling unpins it.
- */
-function setupTooltips(ui: OverlayUi, highlighter: Highlighter, scanner: PageScanner) {
+function setupCards(ui: OverlayUi, highlighter: Highlighter, notes: NoteFlow) {
   let frame = 0;
-  let pinned = false;
-  const unpin = () => {
-    pinned = false;
-    ui.hideTooltip();
+  let myRatings: Record<string, Helpfulness> = {};
+  const loadRatings = () =>
+    callBackground('myRatings', null).then(
+      (r) => (myRatings = r),
+      () => myRatings,
+    );
+  void loadRatings();
+
+  const actionsFor = (item: FlaggedRange, refresh: () => Promise<void>): CardActions => ({
+    async rate(noteId, helpfulness) {
+      try {
+        await callBackground('rateNote', { noteId, helpfulness });
+        myRatings = { ...myRatings, [noteId]: helpfulness };
+      } catch (err) {
+        ui.toast(`Could not save your rating: ${message(err)}`, 'error');
+        throw err;
+      }
+      void refresh();
+    },
+    async report(noteId, reason) {
+      try {
+        await callBackground('reportNote', { noteId, reason });
+      } catch (err) {
+        ui.toast(`Could not report the note: ${message(err)}`, 'error');
+        throw err;
+      }
+    },
+    addNote() {
+      ui.hideCard();
+      notes.openFor(item.range);
+    },
+  });
+
+  const view = (item: FlaggedRange, narrative: Narrative = item.result.narrative) => ({
+    narrative,
+    matchLevel: item.result.matchLevel,
+    similarity: item.result.similarity,
+  });
+
+  const pin = (x: number, y: number, item: FlaggedRange) => {
+    const refresh = async () => {
+      try {
+        const detail = await callBackground('narrative', item.result.narrative.narrativeId);
+        ui.updateCard(view(item, detail), myRatings, actions);
+      } catch (e) {
+        console.warn('[hashtrust] loading the narrative failed', e);
+      }
+    };
+    const actions = actionsFor(item, refresh);
+    ui.showCard(x, y, view(item), true, myRatings, actions);
+    void loadRatings().then(refresh);
   };
-  const show = (x: number, y: number, item: FlaggedRange, pin: boolean) =>
-    ui.showTooltip(x, y, item, pin, (verdict) => voteOn(ui, scanner, item, verdict));
 
   document.addEventListener(
     'mousemove',
     (e) => {
-      if (frame || pinned) return;
+      if (frame || ui.cardPinned) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
+        if (ui.cardPinned) return; // pinned by a click since the move
         const hit = highlighter.hitTest(e.clientX, e.clientY);
-        if (hit) show(e.clientX, e.clientY, hit, false);
-        else ui.hideTooltip();
+        if (hit) ui.showCard(e.clientX, e.clientY, view(hit), false, myRatings);
+        else ui.hideCard();
       });
     },
     { passive: true },
@@ -204,13 +246,11 @@ function setupTooltips(ui: OverlayUi, highlighter: Highlighter, scanner: PageSca
   document.addEventListener('click', (e) => {
     if (ui.owns(e)) return;
     const hit = window.getSelection()?.isCollapsed !== false ? highlighter.hitTest(e.clientX, e.clientY) : undefined;
-    if (hit) {
-      pinned = true;
-      show(e.clientX, e.clientY, hit, true);
-    } else if (pinned) unpin();
+    if (hit) pin(e.clientX, e.clientY, hit);
+    else if (ui.cardPinned) ui.hideCard();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && pinned) unpin();
+    if (e.key === 'Escape' && ui.cardPinned) ui.hideCard();
   });
-  window.addEventListener('scroll', unpin, { passive: true });
+  window.addEventListener('scroll', () => ui.hideCard(), { passive: true });
 }
