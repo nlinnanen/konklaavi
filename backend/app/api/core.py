@@ -1,9 +1,11 @@
+import base64
 import re
 from datetime import datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
 import httpx
+import numpy as np
 import trafilatura
 from fastapi import APIRouter, HTTPException
 from psycopg import Connection
@@ -11,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from app import fpclient
+from app.config import settings
 from app.db import connection
 from app.jobs import enqueue
 from app.jobs.fetch import domain_of
@@ -23,6 +26,8 @@ MAX_HITS = 500
 # LSH bands a block must share with a fingerprint to match it at the variant level.
 MIN_SHARED_BANDS = 2
 BANDS = 32
+# Blocks shorter than this are too generic to match a narrative by meaning.
+MIN_NARRATIVE_WORDS = 8
 # A URL gets at most one hit fetch in this interval.
 HIT_FETCH_INTERVAL = timedelta(days=1)
 
@@ -200,6 +205,35 @@ def lookup(conn: Connection, hashes: list[str], blocks: list[BlockBands]) -> dic
     }
 
 
+def narrative_signatures(conn: Connection, embeddings: dict[str, list[float]]) -> dict[str, dict]:
+    """The signature of each block whose cosine to one of a shipped narrative's vectors reaches the threshold.
+
+    Among several matching narratives an active one wins, then the most similar.
+    """
+    if not embeddings:
+        return {}
+    rows = conn.execute(
+        f"""
+        WITH q AS (
+          SELECT * FROM unnest(%(keys)s::text[], %(embeddings)s::text[]) AS q(block, embedding)
+        )
+        SELECT DISTINCT ON (q.block) q.block, {SIGNATURE_COLUMNS}
+        FROM q
+        JOIN narrative_vector nv ON 1 - (nv.embedding <=> q.embedding::vector) >= %(threshold)s
+        JOIN narrative n ON n.id = nv.narrative_id
+        WHERE n.state = ANY(%(states)s)
+        ORDER BY q.block, n.state = 'active' DESC, nv.embedding <=> q.embedding::vector, n.updated_at DESC
+        """,
+        {
+            "keys": list(embeddings),
+            "embeddings": [str(embedding) for embedding in embeddings.values()],
+            "threshold": settings.narrative_match_threshold,
+            "states": list(SHIPPED_STATES),
+        },
+    ).fetchall()
+    return {row[0]: signature(row[1:], "narrative") for row in rows}
+
+
 @router.post("/votes")
 def post_vote(vote: VoteRequest) -> dict:
     with connection() as conn:
@@ -272,14 +306,14 @@ def fetch_blocks(url: str) -> list[str]:
 
 @router.post("/check")
 def post_check(request: CheckRequest) -> dict:
-    """Matches per sentence, and per block for blocks that match only at the variant level."""
+    """Matches per sentence, and per block for blocks that match only at the variant or narrative level."""
     if request.text:
         blocks = text_blocks(request.text)
     elif request.url:
         blocks = fetch_blocks(request.url)
     else:
         raise HTTPException(422, "give text or url")
-    fingerprinted = fpclient.fingerprint(blocks)["blocks"] if blocks else []
+    fingerprinted = fpclient.fingerprint(blocks, embed=True)["blocks"] if blocks else []
     hashes = [s["hash"] for block in fingerprinted for s in block["sentences"]]
     banded = [
         BlockBands(hash=block["contentHash"], bands=block["bands"])
@@ -288,6 +322,16 @@ def post_check(request: CheckRequest) -> dict:
     ]
     with connection() as conn:
         results = lookup(conn, hashes, banded)
+        unmatched = {
+            block["contentHash"]: block["embedding"]
+            for block in fingerprinted
+            if block["embedding"] is not None
+            and len(blocks[block["index"]].split()) >= MIN_NARRATIVE_WORDS
+            and block["contentHash"] not in results
+            and not any(s["hash"] in results for s in block["sentences"])
+        }
+        for hash, match in narrative_signatures(conn, unmatched).items():
+            results[hash] = summarize(hash, Tally(), match)
     matches = []
     for block in fingerprinted:
         sentence_matches = [
@@ -299,6 +343,11 @@ def post_check(request: CheckRequest) -> dict:
         if not sentence_matches and block["contentHash"] in results:
             matches.append({"text": blocks[block["index"]], "result": results[block["contentHash"]]})
     return {"matches": matches}
+
+
+def quantize(embedding: list[float]) -> str:
+    """A unit vector as base64 of its int8 values round(v * 127)."""
+    return base64.b64encode(np.rint(np.array(embedding) * 127).astype(np.int8).tobytes()).decode()
 
 
 def index_signature(row: tuple) -> dict:
@@ -347,6 +396,14 @@ def get_index(since: int | None = None) -> dict:
             " WHERE va.narrative_id = ANY(%s) GROUP BY 1, 2 ORDER BY 1, 2",
             (ids,),
         ).fetchall()
+        vectors = conn.execute(
+            "SELECT narrative_id, embedding::real[] FROM narrative_vector WHERE narrative_id = ANY(%s)"
+            " ORDER BY narrative_id, kind = 'claim' DESC, fingerprint_id",
+            (ids,),
+        ).fetchall()
+    narrative_vectors: dict[int, list[str]] = {id: [] for id in ids}
+    for narrative_id, embedding in vectors:
+        narrative_vectors[narrative_id].append(quantize(embedding))
     fingerprints = []
     for narrative_id, _, numbers, hashes in bands:
         slots: list[str | None] = [None] * BANDS
@@ -359,6 +416,10 @@ def get_index(since: int | None = None) -> dict:
         "signatures": [index_signature(row) for row in narratives],
         "sentences": [{"hash": hash, "narrativeId": str(narrative_id)} for hash, narrative_id in sentences],
         "fingerprints": fingerprints,
+        "narrativeThreshold": settings.narrative_match_threshold,
+        "narrativeVectors": [
+            {"narrativeId": str(id), "vectors": encoded} for id, encoded in narrative_vectors.items()
+        ],
         "removed": [] if full else [str(id) for id in sorted(set(changed) - set(ids))],
     }
 

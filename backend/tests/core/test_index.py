@@ -1,7 +1,12 @@
+import base64
+
 import psycopg
 import pytest
 
+from app.config import settings
+
 BANDS = [f"b{i:02}" for i in range(32)]
+UNIT = [1.0] + [0.0] * 383
 
 
 def add_bands(conn, content_hash, bands):
@@ -44,6 +49,11 @@ def test_full_index_ships_shipped_narratives_with_sentences_and_bands_per_finger
 ):
     active = narrative(["s1", "s2"], content_hash="fp-1")
     add_bands(conn, "fp-1", BANDS)
+    conn.execute(
+        "INSERT INTO narrative_vector (narrative_id, kind, embedding) VALUES (%s, 'claim', %s::vector)",
+        (active, str(UNIT)),
+    )
+    conn.commit()
     review = narrative(["s3"], state="under_review", content_hash="fp-2")
     disputed = narrative(["s4"], state="disputed", content_hash="fp-3")
     narrative(["s5"], state="candidate", content_hash="fp-4")
@@ -63,6 +73,12 @@ def test_full_index_ships_shipped_narratives_with_sentences_and_bands_per_finger
             {"hash": "s4", "narrativeId": str(disputed)},
         ],
         "fingerprints": [{"narrativeId": str(active), "bands": BANDS}],
+        "narrativeThreshold": settings.narrative_match_threshold,
+        "narrativeVectors": [
+            {"narrativeId": str(active), "vectors": [base64.b64encode(bytes([127] + [0] * 383)).decode()]},
+            {"narrativeId": str(review), "vectors": []},
+            {"narrativeId": str(disputed), "vectors": []},
+        ],
         "removed": [],
     }
 
@@ -91,6 +107,8 @@ def test_delta_carries_changed_narratives_in_full_and_lists_those_no_longer_ship
             {"hash": "s1b", "narrativeId": str(extended)},
         ],
         "fingerprints": [],
+        "narrativeThreshold": settings.narrative_match_threshold,
+        "narrativeVectors": [{"narrativeId": str(extended), "vectors": []}],
         "removed": [str(retired)],
     }
 

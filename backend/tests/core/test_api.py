@@ -195,3 +195,41 @@ def test_check_reports_a_block_matching_only_at_the_variant_level(client, narrat
         "edited",
         "variant",
     )
+
+
+def test_check_matches_a_long_block_close_in_meaning_to_a_narrative(client, narrative, conn, monkeypatch):
+    narrative_id = narrative([], content_hash="fp-1")
+    conn.execute(
+        "INSERT INTO narrative_vector (narrative_id, kind, embedding) VALUES (%s, 'claim', %s::vector)",
+        (narrative_id, str([1.0] + [0.0] * 383)),
+    )
+    conn.commit()
+    close = [0.9, (1 - 0.9**2) ** 0.5] + [0.0] * 382
+    paraphrase = "Europe is being ruined from the inside by the sanctions of the West."
+    short = "Sanctions ruin Europe."
+    monkeypatch.setattr(
+        fpclient,
+        "fingerprint",
+        lambda blocks, embed=False: {
+            "version": "v1",
+            "blocks": [
+                {
+                    "index": i,
+                    "contentHash": f"block-{i}",
+                    "sentences": [{"text": text, "start": 0, "end": len(text), "hash": f"s-{i}"}],
+                    "minhash": None,
+                    "bands": None,
+                    "embedding": close if embed else None,
+                }
+                for i, text in enumerate(blocks)
+            ],
+        },
+    )
+    response = client.post("/check", json={"text": f"{paraphrase}\n\n{short}"})
+    assert response.status_code == 200, response.text
+    [match] = response.json()["matches"]
+    assert (match["text"], match["result"]["flagged"], match["result"]["signature"]["matchLevel"]) == (
+        paraphrase,
+        True,
+        "narrative",
+    )
