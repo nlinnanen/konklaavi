@@ -24,10 +24,10 @@ Start a worker on the benchmark database to run the fetch jobs, and give it time
 docker compose run -d --name benchmark-worker -e DATABASE_URL=postgresql://postgres:postgres@db:5432/benchmark worker
 ```
 
-Run the benchmark, which fetches the evaluated pages through that worker and writes `results/latest.json`:
+Run the benchmark, which fetches the evaluated pages through that worker and writes `backend/app/eval/results/latest.json`:
 
 ```sh
-docker compose run --rm -v ./backend/app/eval/benchmark/results:/app/app/eval/benchmark/results -e BENCHMARK_DATABASE_URL=postgresql://postgres:postgres@db:5432/benchmark api python -m app.eval.benchmark run
+docker compose run --rm -v ./backend/app/eval/results:/app/app/eval/results -e BENCHMARK_DATABASE_URL=postgresql://postgres:postgres@db:5432/benchmark api python -m app.eval.benchmark run
 ```
 
 Stop the worker afterwards:

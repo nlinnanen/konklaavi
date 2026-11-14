@@ -41,7 +41,7 @@ from app.jobs.cluster import is_chrome
 HERE = Path(__file__).resolve().parent
 # Shared with app/reliable.py.
 NEGATIVES_FILE = HERE.parent / "negatives.txt"
-RESULTS_FILE = HERE / "results" / "latest.json"
+RESULTS_FILE = HERE.parent / "results" / "latest.json"
 MAX_LOOKUP_HASHES = 500
 MATCH_TEXT_CHARS = 300
 POLL_SECONDS = 5

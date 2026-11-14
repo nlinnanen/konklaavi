@@ -1,0 +1,96 @@
+{
+  "runs": {
+    "unweighted": {
+      "generated_at": "2026-11-14T13:00:26+00:00",
+      "seed": 1,
+      "cap": 30,
+      "history": 5,
+      "population": [
+        {
+          "users": {
+            "honest": 20
+          },
+          "votes": 231,
+          "reliable_flagged": 0.0,
+          "false_flagged": 1.0
+        },
+        {
+          "users": {
+            "honest": 20,
+            "lazy": 10
+          },
+          "votes": 364,
+          "reliable_flagged": 0.1,
+          "false_flagged": 1.0
+        },
+        {
+          "users": {
+            "honest": 20,
+            "lazy": 10,
+            "partisan": 5
+          },
+          "votes": 409,
+          "reliable_flagged": 0.1,
+          "false_flagged": 1.0
+        }
+      ],
+      "brigade_flag": [
+        {
+          "accounts": "fresh",
+          "honest_votes": 0,
+          "needed": 2
+        },
+        {
+          "accounts": "fresh",
+          "honest_votes": 1,
+          "needed": 1
+        },
+        {
+          "accounts": "fresh",
+          "honest_votes": 3,
+          "needed": 3
+        },
+        {
+          "accounts": "fresh",
+          "honest_votes": 10,
+          "needed": 10
+        },
+        {
+          "accounts": "established",
+          "honest_votes": 0,
+          "needed": 2
+        },
+        {
+          "accounts": "established",
+          "honest_votes": 1,
+          "needed": 1
+        },
+        {
+          "accounts": "established",
+          "honest_votes": 3,
+          "needed": 3
+        },
+        {
+          "accounts": "established",
+          "honest_votes": 10,
+          "needed": 10
+        }
+      ],
+      "brigade_retire": [
+        {
+          "accounts": "fresh",
+          "narrative_id": null,
+          "sentence_hash": "764fbd1ffd99f68d5158430c9ed737eb3e52f3a920c4f3be2f7bc6bb19516b1a",
+          "needed": null
+        },
+        {
+          "accounts": "established",
+          "narrative_id": null,
+          "sentence_hash": "be16cfa89bb59e53d8816e825e31ffae22b60b56f6fc6a307629e4d57abdf818",
+          "needed": null
+        }
+      ],
+      "api": "http://localhost:8004"
+    }
+  }
+}
