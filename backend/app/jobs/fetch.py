@@ -11,7 +11,13 @@ from psycopg import Connection
 
 from app import fpclient
 from app.jobs import enqueue, register
-from app.jobs.variants import boilerplate, narrative_text, near_duplicates, update_centroids
+from app.jobs.variants import (
+    SOURCE_LEVEL,
+    boilerplate,
+    narrative_text,
+    near_duplicates,
+    update_centroids,
+)
 
 # A common desktop browser string: some sites refuse unknown clients, and nothing here identifies a user.
 USER_AGENT = (
@@ -196,11 +202,23 @@ def attach_to_narrative(conn: Connection, narrative_id: int, fingerprint_ids: li
     conn.execute("UPDATE fingerprint SET variant_id = %s WHERE id = ANY(%s)", (variant_id, unassigned))
 
 
+def source_level(conn: Connection, narrative_id: int) -> bool:
+    """Whether the narrative labels a source, such as a documented network, rather than one claim."""
+    row = conn.execute("SELECT source FROM narrative WHERE id = %s", (narrative_id,)).fetchone()
+    return row is not None and row[0] in SOURCE_LEVEL
+
+
 def attach_relevant(
     conn: Connection, narrative_id: int, fingerprint_ids: list[int], narrative_embedding: list[float]
 ) -> None:
-    """Attach the relevant blocks among the fingerprints that are not boilerplate to the narrative."""
+    """Attach the relevant blocks among the fingerprints that are not boilerplate to the narrative.
+
+    Every such block is relevant to a source-level narrative, since its pages are the source's own.
+    """
     skip = boilerplate(conn, fingerprint_ids)
+    if source_level(conn, narrative_id):
+        attach_to_narrative(conn, narrative_id, [id_ for id_ in fingerprint_ids if id_ not in skip])
+        return
     blocks = conn.execute(
         "SELECT id, embedding::real[] FROM fingerprint WHERE id = ANY(%s) AND embedding IS NOT NULL",
         ([id_ for id_ in fingerprint_ids if id_ not in skip],),
