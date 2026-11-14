@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayState, leadNote } from './state';
+import { displayState, featuredNote, leadNote } from './state';
 import type { Classification, Note, NoteStatus } from './types';
 
 const note = (id: string, classification: Classification, status: NoteStatus): Note => ({
@@ -38,5 +38,18 @@ describe('displayState', () => {
     expect(displayState([])).toBe('tracked');
     expect(displayState([note('a', 'misleading', 'not_helpful')])).toBe('tracked');
     expect(leadNote({ state: 'tracked', notes: [] })).toBeUndefined();
+  });
+});
+
+describe('featuredNote', () => {
+  it('leads with the decided helpful note, else the most-rated note readers can still decide on', () => {
+    const rated = (n: Note, helpful: number): Note => ({ ...n, ratings: { ...n.ratings, helpful } });
+    const unhelpful = rated(note('a', 'misleading', 'not_helpful'), 9);
+    const few = rated(note('b', 'misleading', 'needs_more_ratings'), 1);
+    const many = rated(note('c', 'not_misleading', 'controversial'), 3);
+    const helpful = note('d', 'misleading', 'helpful');
+    expect(featuredNote({ state: 'misleading', notes: [unhelpful, many, helpful] })?.id).toBe('d');
+    expect(featuredNote({ state: 'controversial', notes: [unhelpful, few, many] })?.id).toBe('c');
+    expect(featuredNote({ state: 'tracked', notes: [unhelpful] })).toBeUndefined();
   });
 });
