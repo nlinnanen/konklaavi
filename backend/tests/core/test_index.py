@@ -36,6 +36,7 @@ def signature(narrative_id, state="active"):
         "source": "euvsdisinfo",
         "sourceUrl": "https://case",
         "state": state,
+        "settled": state == "active",
     }
 
 
@@ -64,7 +65,7 @@ def test_full_index_ships_shipped_narratives_with_sentences_and_bands_per_finger
         "signatures": [
             signature(active),
             signature(review, "under_review"),
-            signature(disputed, "under_review"),
+            signature(disputed, "disputed"),
         ],
         "sentences": [
             {"hash": "s1", "narrativeId": str(active)},
@@ -74,6 +75,7 @@ def test_full_index_ships_shipped_narratives_with_sentences_and_bands_per_finger
         ],
         "fingerprints": [{"narrativeId": str(active), "bands": BANDS}],
         "narrativeThreshold": settings.narrative_match_threshold,
+        "relatedThreshold": settings.related_match_threshold,
         "narrativeVectors": [
             {"narrativeId": str(active), "vectors": [base64.b64encode(bytes([127] + [0] * 383)).decode()]},
             {"narrativeId": str(review), "vectors": []},
@@ -108,6 +110,7 @@ def test_delta_carries_changed_narratives_in_full_and_lists_those_no_longer_ship
         ],
         "fingerprints": [],
         "narrativeThreshold": settings.narrative_match_threshold,
+        "relatedThreshold": settings.related_match_threshold,
         "narrativeVectors": [{"narrativeId": str(extended), "vectors": []}],
         "removed": [str(retired)],
     }

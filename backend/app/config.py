@@ -16,6 +16,8 @@ class Settings:
     paraphrase_model: str | None
     # Cosine at which a block matches a narrative's vectors.
     narrative_match_threshold: float
+    # Cosine at which a block is related to a narrative, below the match threshold.
+    related_match_threshold: float
     # smtp[s]://user:pass@host:port; without it magic links go to the API log.
     smtp_url: str | None
     mail_from: str | None
@@ -37,6 +39,7 @@ def load() -> Settings:
         analysis_model=_env("ANALYSIS_MODEL"),
         paraphrase_model=_env("PARAPHRASE_MODEL"),
         narrative_match_threshold=float(_env("NARRATIVE_MATCH_THRESHOLD") or "0.825"),
+        related_match_threshold=float(_env("RELATED_MATCH_THRESHOLD") or "0.70"),
         smtp_url=_env("SMTP_URL"),
         mail_from=_env("MAIL_FROM"),
         public_api_url=(_env("PUBLIC_API_URL") or f"http://localhost:{api_port}").rstrip("/"),

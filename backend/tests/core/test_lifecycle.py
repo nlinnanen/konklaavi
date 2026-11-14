@@ -50,7 +50,7 @@ def test_a_report_becomes_active_once_three_users_call_its_text_negative(conn, n
     assert state(conn, narrative_id) == "active"
 
 
-def test_a_disputed_narrative_ships_as_under_review_and_is_not_flagged(conn, client, narrative, vote):
+def test_a_disputed_narrative_ships_as_disputed_and_is_not_flagged(conn, client, narrative, vote):
     narrative_id = report(conn, narrative, state="active")
     vote("trustworthy", ["s1"])
     vote("trustworthy", ["s1"])
@@ -59,7 +59,7 @@ def test_a_disputed_narrative_ships_as_under_review_and_is_not_flagged(conn, cli
 
     assert state(conn, narrative_id) == "disputed"
     result = lookup(client, "s1")
-    assert (result["flagged"], result["signature"]["state"]) == (False, "under_review")
+    assert (result["flagged"], result["signature"]["state"]) == (False, "disputed")
 
 
 def test_votes_from_a_burst_of_new_accounts_do_not_flag_content(conn, client, vote):
@@ -88,3 +88,35 @@ def test_a_voter_who_agreed_with_settled_narratives_outweighs_new_accounts(conn,
         2,
         1,
     )
+
+
+def test_trustworthy_feedback_on_matches_disputes_the_narrative_and_agrees_once_it_is_retired(
+    conn, client, narrative
+):
+    narrative_id = narrative(["s1"], content_hash="fp-1")
+    conn.execute("UPDATE narrative SET source = 'cluster' WHERE id = %s", (narrative_id,))
+    conn.commit()
+    users = [uuid.uuid4(), uuid.uuid4()]
+    for i, user in enumerate(users):
+        response = client.post(
+            "/votes",
+            json={
+                "userId": str(user),
+                "contentHash": f"unit-{i}",
+                "sentenceHashes": [f"other-{i}"],
+                "verdict": "trustworthy",
+                "url": "https://example.com/article",
+                "domain": "example.com",
+                "createdAt": "2026-11-14T10:00:00Z",
+                "narrativeId": str(narrative_id),
+                "matchLevel": "related",
+            },
+        )
+        assert response.status_code == 200, response.text
+
+    assert state(conn, narrative_id) == "disputed"
+    assert conn.execute("SELECT count(*) FROM job").fetchone()[0] == 0
+
+    conn.execute("UPDATE narrative SET state = 'retired' WHERE id = %s", (narrative_id,))
+    conn.commit()
+    assert client.get("/me", params={"userId": str(users[0])}).json()["agreed"] == 1
