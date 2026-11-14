@@ -77,4 +77,4 @@ def test_health(database_url):
     with TestClient(app) as client:
         response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"ok": True}
+    assert response.json() == {"ok": True, "version": "dev"}

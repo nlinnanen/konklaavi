@@ -6,4 +6,6 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY app ./app
 COPY migrations ./migrations
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
 CMD ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
