@@ -38,7 +38,7 @@ flowchart LR
     Worker["Worker<br/>Python"]
     FPS["Fingerprint service<br/>Node, client/lib"]
     DB[("Postgres<br/>TimescaleDB, pgvector")]
-    Dash["Dashboard<br/>React, react-sigma"]
+    Dash["Dashboard<br/>Python, Streamlit"]
     Seed["Seed importer<br/>Python script"]
     Sim["Simulation<br/>Python script"]
   end
@@ -63,7 +63,7 @@ flowchart LR
   EU -->|cases| Seed
   Seed -->|seed narratives, fetch jobs| DB
   DB -->|graph, spread metrics| API
-  API -->|graph, spread metrics| Dash
+  DB -->|graph, spread metrics| Dash
   Dash --> Owner
   Sim -->|synthetic reports and hits| API
 
@@ -115,10 +115,10 @@ The fetch job fetches a URL anonymously, which also confirms it is public, then 
 
 - Fingerprint library: normalisation, sentence splitting, SHA-256, MinHash and LSH bands, and the embedding model, written once in TypeScript in `client/lib/`. The extension bundles it, and the fingerprint service runs it in Node for the backend.
 - Extension: chunker, fingerprinter, index sync, local matcher, highlighter, report UI and telemetry sender.
-- API: index deltas, reports, detection hits, and graph and metrics queries for the dashboard.
+- API: index deltas, reports and detection hits.
 - Worker: fetch job, variant matcher, narrative clusterer, analysis job and signature builder.
 - Seed importer: reads EUvsDisinfo cases into narratives with verdicts and explanations, and enqueues fetch jobs for the outlet URLs each case links to.
-- Dashboard: narrative graph, lineage tree and spread over time.
+- Dashboard: a Streamlit app in `dashboard/app.py` that reads Postgres directly and shows the narrative graph, lineage tree and spread over time.
 - Simulation: synthetic honest, lazy, partisan and coordinated users sending reports and hits through the API, plus the evaluation of precision and false-positive rate.
 - Database: schema migrations as plain SQL files.
 

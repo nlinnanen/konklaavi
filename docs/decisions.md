@@ -35,7 +35,7 @@ Postgres is the only datastore, run from the `timescale/timescaledb-ha` image, w
 - The job queue is a table, and workers claim jobs with `SELECT ... FOR UPDATE SKIP LOCKED`.
 - Graph queries use recursive CTEs, and the worker loads subgraphs into networkx for clustering and lineage.
 
-Migrations are plain SQL files run by the container's init scripts.
+Migrations are plain SQL files applied in filename order by a Python runner at API and worker startup.
 
 ## Backend
 
@@ -47,7 +47,7 @@ The analysis job calls Claude through Hostinger's AI Router, using the Anthropic
 
 ## Deployment
 
-The whole stack runs with Docker Compose on the team's Hostinger VPS (KVM 2, 2 vCPU, 8 GB RAM), behind its free domain: Postgres, the API, the worker with the embedding model on CPU, and the dashboard served by the API. The same compose file runs locally and on the VPS.
+The whole stack runs with Docker Compose on the team's Hostinger VPS (KVM 2, 2 vCPU, 8 GB RAM), behind its free domain: Postgres, the fingerprint service with the embedding model on CPU, the API, the worker, and the Streamlit dashboard reading Postgres directly. The same compose file runs locally and on the VPS.
 
 ## Extension
 

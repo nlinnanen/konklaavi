@@ -22,7 +22,7 @@ Each workstream owns its files. Nobody edits another workstream's files; a neede
 - ext: `client/entrypoints/`, `client/lib/api.ts`, the popup.
 - pipeline: `client/lib/` fingerprinting (normalise, sentences, MinHash, embeddings), `fingerprint-service/`, and the fetch, variant and lineage jobs.
 - core: the API routes for votes, lookup, domains, index and hits, the analysis job, signature lifecycle, continuous aggregates, Dockerfiles and deployment.
-- data: the EUvsDisinfo importer, narrative clustering, the dashboard and its API routes, the simulation and the evaluation.
+- data: the EUvsDisinfo importer, narrative clustering, the dashboard, the simulation and the evaluation.
 
 ## Milestones and deliverables
 
@@ -51,7 +51,7 @@ The demo: the dashboard shows a narrative's lineage and spread over time; the ex
 - ext: `LocalIndexApi`, which downloads the index and matches on the client behind the `TrustApi` interface, and detection hits sent to `/hits`.
 - pipeline: fetch jobs triggered by detection hits.
 - core: `/index` and `/hits`, the signature lifecycle, continuous aggregates on observations, and the production compose file with a deployment runbook.
-- data: the dashboard served by the API, the narrative and spread endpoints, the simulation of honest, partisan and coordinated users, and the evaluation report.
+- data: the Streamlit dashboard (`dashboard/app.py`) reading Postgres directly, the simulation of honest, partisan and coordinated users, and the evaluation report.
 
 ## Integration
 
