@@ -1,7 +1,7 @@
 import { browser } from 'wxt/browser';
 import { cleanUrl, domainOf } from '@/lib/domain';
 import { fingerprintSentences, splitSentences, type Sentence } from '@/lib/fingerprint';
-import { callBackground, type ContentRequest, type PageStatus } from '@/lib/messages';
+import { callBackground, displayVerdict, type ContentRequest, type PageStatus } from '@/lib/messages';
 import { getSettings, onSettingsChanged } from '@/lib/settings';
 import { Highlighter, highlightSupported } from './highlighter';
 import { PageScanner } from './scanner';
@@ -42,7 +42,12 @@ export default defineContentScript({
           domain: domainOf(location.hostname),
           scannedSentences: scanner.sentenceCount,
           highlightSupported,
-          flagged: highlighter.all().map((f) => ({ text: f.text, verdict: f.result.topVerdict, total: f.result.total })),
+          flagged: highlighter.all().map((f) => ({
+            text: f.text,
+            verdict: displayVerdict(f.result),
+            total: f.result.total,
+            signature: f.result.signature,
+          })),
         };
         sendResponse(status);
       } else if (req.type === 'rescan') {
@@ -140,20 +145,41 @@ function setupSelectionVoting(ui: OverlayUi, scanner: PageScanner) {
   window.addEventListener('scroll', () => ui.hideRateButton(), { passive: true });
 }
 
+/**
+ * Hovering a highlight shows its tooltip; clicking one pins the tooltip so its
+ * source link can be clicked. Escape, a click elsewhere or scrolling unpins it.
+ */
 function setupTooltips(ui: OverlayUi, highlighter: Highlighter) {
   let frame = 0;
+  let pinned = false;
+  const unpin = () => {
+    pinned = false;
+    ui.hideTooltip();
+  };
+
   document.addEventListener(
     'mousemove',
     (e) => {
-      if (frame) return;
+      if (frame || pinned) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
         const hit = highlighter.hitTest(e.clientX, e.clientY);
-        if (hit) ui.showTooltip(e.clientX, e.clientY, hit.text, hit.result);
+        if (hit) ui.showTooltip(e.clientX, e.clientY, hit.text, hit.result, false);
         else ui.hideTooltip();
       });
     },
     { passive: true },
   );
-  window.addEventListener('scroll', () => ui.hideTooltip(), { passive: true });
+  document.addEventListener('click', (e) => {
+    if (ui.owns(e)) return;
+    const hit = window.getSelection()?.isCollapsed !== false ? highlighter.hitTest(e.clientX, e.clientY) : undefined;
+    if (hit) {
+      pinned = true;
+      ui.showTooltip(e.clientX, e.clientY, hit.text, hit.result, true);
+    } else if (pinned) unpin();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && pinned) unpin();
+  });
+  window.addEventListener('scroll', unpin, { passive: true });
 }

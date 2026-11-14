@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser';
-import type { DomainStats, LookupResult, Verdict, VoteInput } from './types';
+import type { DomainStats, LookupResult, Signature, Verdict, VoteInput } from './types';
 
 /** Requests handled by the background worker: [payload, response]. */
 export interface BackgroundApi {
@@ -33,6 +33,7 @@ export interface FlaggedItem {
   text: string;
   verdict: Verdict;
   total: number;
+  signature?: Signature;
 }
 
 export interface PageStatus {
@@ -40,4 +41,26 @@ export interface PageStatus {
   scannedSentences: number;
   flagged: FlaggedItem[];
   highlightSupported: boolean;
+}
+
+export const SOURCE_LABELS: Record<Signature['source'], string> = {
+  euvsdisinfo: 'EUvsDisinfo',
+  report: 'User reports',
+  cluster: 'Detected cluster',
+};
+
+/** The signature's source URL when it is safe to link to (http or https), else null. */
+export function sourceHref(signature: Signature): string | null {
+  if (!signature.sourceUrl) return null;
+  try {
+    const url = new URL(signature.sourceUrl);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The verdict a flagged result is shown with: its narrative's verdict when it has one. */
+export function displayVerdict(result: LookupResult): Verdict {
+  return result.signature?.verdict ?? result.topVerdict;
 }

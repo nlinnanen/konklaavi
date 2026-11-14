@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser';
-import { callBackground, type ContentRequest, type PageStatus } from '@/lib/messages';
+import { callBackground, sourceHref, SOURCE_LABELS, type ContentRequest, type FlaggedItem, type PageStatus } from '@/lib/messages';
 import { getSettings, updateSettings } from '@/lib/settings';
 import { VERDICTS, VERDICT_LABELS, type DomainStats, type Settings } from '@/lib/types';
 
@@ -24,15 +24,26 @@ async function sendToContent<T>(req: Omit<ContentRequest, 'target'>): Promise<T 
   }
 }
 
+function renderFlagged(f: FlaggedItem): string {
+  const text = escapeHtml(f.text.length > 160 ? f.text.slice(0, 160) + '…' : f.text);
+  const votes = f.total ? ` <span class="muted">(${f.total})</span>` : '';
+  let narrative = '';
+  if (f.signature) {
+    const href = sourceHref(f.signature);
+    const label = escapeHtml(SOURCE_LABELS[f.signature.source]);
+    const source = href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${label}</a>` : label;
+    narrative = `<div class="narrative"><b>${escapeHtml(f.signature.title)}</b> <span class="muted">· ${source}</span></div>`;
+  }
+  return `<li><span class="chip ${f.verdict}">${VERDICT_LABELS[f.verdict]}</span>${text}${votes}${narrative}</li>`;
+}
+
 function renderPage(status: PageStatus | null) {
   const el = $('#page');
   if (!status) {
     el.innerHTML = `<p class="muted">Not available on this page. Try reloading the tab.</p>`;
     return;
   }
-  const items = status.flagged
-    .map((f) => `<li><span class="chip ${f.verdict}">${VERDICT_LABELS[f.verdict]}</span>${escapeHtml(f.text.length > 160 ? f.text.slice(0, 160) + '…' : f.text)} <span class="muted">(${f.total})</span></li>`)
-    .join('');
+  const items = status.flagged.map(renderFlagged).join('');
   el.innerHTML = `
     <div class="stat">
       <div><b>${status.flagged.length}</b><span class="muted">flagged</span></div>
