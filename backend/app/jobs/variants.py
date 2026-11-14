@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -5,7 +6,6 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from app.jobs import register
-from app.jobs.fetch import update_centroids
 
 # Candidates share at least this many LSH bands; a match is confirmed at this estimated Jaccard.
 MIN_SHARED_BANDS = 2
@@ -48,19 +48,74 @@ def confirmed_matches(conn: Connection, fingerprint_id: int, signature: list[int
     )
 
 
+# Each given fingerprint paired with itself and with its near-duplicates: fingerprints with the same
+# dateless text, and confirmed LSH candidates.
+NEAR_DUPLICATES = """
+    SELECT id, id AS dup FROM fingerprint WHERE id = ANY(%(ids)s)
+    UNION
+    SELECT f.id, d.id FROM fingerprint f JOIN fingerprint d ON d.dateless_hash = f.dateless_hash
+    WHERE f.id = ANY(%(ids)s) AND f.prose AND d.prose
+    UNION
+    SELECT pair.id, pair.dup FROM (
+      SELECT mine.fingerprint_id AS id, other.fingerprint_id AS dup
+      FROM lsh_band mine JOIN lsh_band other ON other.band = mine.band AND other.hash = mine.hash
+      WHERE mine.fingerprint_id = ANY(%(ids)s) AND other.fingerprint_id <> mine.fingerprint_id
+      GROUP BY 1, 2 HAVING count(*) >= %(bands)s
+    ) pair
+    JOIN fingerprint a ON a.id = pair.id JOIN fingerprint b ON b.id = pair.dup
+    WHERE (SELECT count(*) FROM unnest(a.minhash, b.minhash) m(x, y) WHERE x = y)
+      >= %(jaccard)s * cardinality(a.minhash)
+"""
+
+
+def near_duplicates(conn: Connection, fingerprint_ids: Iterable[int]) -> set[int]:
+    """The fingerprints and their near-duplicates."""
+    params = {"ids": list(fingerprint_ids), "bands": MIN_SHARED_BANDS, "jaccard": MIN_JACCARD}
+    return {row[0] for row in conn.execute(f"SELECT dup FROM ({NEAR_DUPLICATES}) near", params)}
+
+
+def boilerplate(conn: Connection, fingerprint_ids: Iterable[int]) -> set[int]:
+    """The fingerprints that are not narrative content.
+
+    That is text that is not prose (see migration 200), or text whose near-duplicates appear on 2+ pages
+    of a domain the text itself appears on.
+    """
+    params = {"ids": list(fingerprint_ids), "bands": MIN_SHARED_BANDS, "jaccard": MIN_JACCARD}
+    rows = conn.execute(
+        f"""
+        WITH near AS ({NEAR_DUPLICATES})
+        SELECT near.id FROM near
+        JOIN observation o ON o.fingerprint_id = near.dup
+        JOIN page p ON p.id = o.page_id
+        WHERE p.domain_id IN (
+          SELECT own.domain_id FROM observation mine JOIN page own ON own.id = mine.page_id
+          WHERE mine.fingerprint_id = near.id
+        )
+        GROUP BY near.id, p.domain_id
+        HAVING count(DISTINCT o.page_id) >= 2
+        UNION
+        SELECT id FROM fingerprint WHERE id = ANY(%(ids)s) AND NOT prose
+        """,
+        params,
+    )
+    return {row[0] for row in rows}
+
+
 def is_boilerplate(conn: Connection, fingerprint_id: int) -> bool:
-    """Whether the fingerprint was seen on at least two pages of one domain."""
-    return (
-        conn.execute(
-            """
-            SELECT 1 FROM observation o JOIN page p ON p.id = o.page_id
-            WHERE o.fingerprint_id = %s
-            GROUP BY p.domain_id HAVING count(DISTINCT o.page_id) >= 2
-            LIMIT 1
-            """,
-            (fingerprint_id,),
-        ).fetchone()
-        is not None
+    return fingerprint_id in boilerplate(conn, [fingerprint_id])
+
+
+def update_centroids(conn: Connection, narrative_ids: set[int]) -> None:
+    """Set each narrative's centroid to the mean embedding of its fingerprints."""
+    conn.execute(
+        """
+        UPDATE narrative n SET centroid = (
+          SELECT avg(f.embedding) FROM fingerprint f JOIN variant v ON v.id = f.variant_id
+          WHERE v.narrative_id = n.id
+        )
+        WHERE n.id = ANY(%s)
+        """,
+        (list(narrative_ids),),
     )
 
 
