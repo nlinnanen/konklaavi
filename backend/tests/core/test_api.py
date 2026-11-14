@@ -1,5 +1,7 @@
 import re
 
+import pytest
+
 from app import fpclient
 
 
@@ -9,102 +11,36 @@ def lookup(client, hashes):
     return {r["hash"]: r for r in response.json()["results"]}
 
 
-def test_lookup_returns_only_hashes_with_votes_or_signature(client, vote):
-    vote("misleading", ["h1"])
-    assert set(lookup(client, ["h1", "unknown"])) == {"h1"}
+def test_a_narrative_hash_carries_the_narrative_with_its_state_and_notes(client, narrative):
+    narrative_id = narrative(["h1"], status="helpful")
+    results = lookup(client, ["h1", "unknown"])
+    assert set(results) == {"h1"}
+    result = results["h1"]
+    assert (result["matchLevel"], result["narrative"]["narrativeId"]) == ("exact", str(narrative_id))
+    assert result["narrative"]["state"] == "misleading"
+    assert [note["body"] for note in result["narrative"]["notes"]] == ["Context."]
 
 
-def test_a_single_negative_vote_does_not_flag(client, vote):
-    vote("misinformation", ["h1"])
-    result = lookup(client, ["h1"])["h1"]
-    assert (result["flagged"], result["total"], result["topVerdict"]) == (False, 1, "misinformation")
+@pytest.mark.parametrize(
+    ("status", "classification", "moderation", "state"),
+    [
+        ("helpful", "not_misleading", "visible", "context"),
+        ("controversial", "misleading", "visible", "controversial"),
+        ("needs_more_ratings", "misleading", "visible", "needs_ratings"),
+        ("not_helpful", "misleading", "visible", "tracked"),
+        ("helpful", "misleading", "pending_review", "tracked"),
+    ],
+)
+def test_the_display_state_follows_the_notes_shown(
+    client, narrative, status, classification, moderation, state
+):
+    narrative(["h1"], status=status, classification=classification, moderation=moderation)
+    assert lookup(client, ["h1"])["h1"]["narrative"]["state"] == state
 
 
-def test_half_negative_votes_flag_with_the_top_negative_verdict(client, vote):
-    vote("manipulative", ["h1"])
-    vote("trustworthy", ["h1"])
-    result = lookup(client, ["h1"])["h1"]
-    assert (result["flagged"], result["topVerdict"]) == (True, "manipulative")
-
-    vote("trustworthy", ["h1"])
-    result = lookup(client, ["h1"])["h1"]
-    assert (result["flagged"], result["topVerdict"]) == (False, "trustworthy")
-
-
-def test_votes_count_per_sentence_hash(client, vote):
-    vote("misleading", ["h1", "h2"])
-    vote("misleading", ["h2", "h3"])
-    results = lookup(client, ["h1", "h2", "h3"])
-    assert {h: r["counts"]["misleading"] for h, r in results.items()} == {"h1": 1, "h2": 2, "h3": 1}
-
-
-def test_repeat_vote_replaces_the_earlier_one_and_enqueues_jobs(client, vote, conn):
-    first = vote("misinformation", ["h1"])
-    vote("trustworthy", ["h1"], content_hash=first["contentHash"], user=first["userId"])
-    result = lookup(client, ["h1"])["h1"]
-    assert (result["total"], result["counts"]["trustworthy"]) == (1, 1)
-    vote_id = conn.execute("SELECT id FROM vote").fetchone()[0]
-    jobs = conn.execute("SELECT kind, payload FROM job ORDER BY id").fetchall()
-    assert jobs[-2:] == [
-        ("fetch", {"url": "https://example.com/article", "reason": "vote", "vote_id": vote_id}),
-        ("analyze", {"vote_id": vote_id}),
-    ]
-
-
-def test_narrative_hash_carries_a_signature_and_is_flagged_when_active(client, narrative, conn):
-    narrative_id = narrative(["h1"], state="under_review", verdict="manipulative")
-    result = lookup(client, ["h1"])["h1"]
-    assert result["flagged"] is False
-    assert result["signature"] == {
-        "narrativeId": str(narrative_id),
-        "title": "Sanctions destroy Europe",
-        "verdict": "manipulative",
-        "techniques": ["fear_appeal"],
-        "explanation": "Why.",
-        "source": "euvsdisinfo",
-        "sourceUrl": "https://case",
-        "state": "under_review",
-        "settled": False,
-        "matchLevel": "exact",
-    }
-
-    conn.execute("UPDATE narrative SET state = 'active'")
-    conn.commit()
-    result = lookup(client, ["h1"])["h1"]
-    assert (result["flagged"], result["topVerdict"], result["total"]) == (True, "manipulative", 0)
-
-
-def test_active_narrative_flags_despite_trustworthy_votes(client, narrative, vote):
-    narrative(["h1"])
-    vote("trustworthy", ["h1"])
-    vote("trustworthy", ["h1"])
-    result = lookup(client, ["h1"])["h1"]
-    assert (result["flagged"], result["topVerdict"]) == (True, "misinformation")
-
-
-def test_narratives_outside_review_or_active_give_no_signature(client, narrative):
-    narrative(["h1"], state="candidate")
+def test_a_narrative_whose_notes_are_all_hidden_is_not_shipped(client, narrative):
+    narrative(["h1"], moderation="hidden")
     assert lookup(client, ["h1"]) == {}
-
-
-def test_domain_stats_count_votes_and_flagged_content(client, vote):
-    vote("misinformation", ["a"], content_hash="x")
-    vote("misleading", ["a"], content_hash="x")
-    vote("trustworthy", ["b"], content_hash="y")
-    vote("misinformation", ["c"], content_hash="z", domain="other.org")
-    stats = client.get("/domains/example.com").json()
-    assert stats == {
-        "domain": "example.com",
-        "votesCount": 3,
-        "flaggedCount": 1,
-        "counts": {"misinformation": 1, "misleading": 1, "manipulative": 0, "trustworthy": 1},
-        "topVerdict": "misinformation",
-    }
-
-
-def test_domain_without_votes_has_no_top_verdict(client):
-    stats = client.get("/domains/nowhere.net").json()
-    assert (stats["votesCount"], stats["flaggedCount"], stats["topVerdict"]) == (0, 0, None)
 
 
 def test_check_matches_text_blocks_against_narratives(client, narrative):
@@ -115,8 +51,7 @@ def test_check_matches_text_blocks_against_narratives(client, narrative):
     response = client.post("/check", json={"text": text})
     assert response.status_code == 200, response.text
     [match] = response.json()["matches"]
-    assert match["text"] == known
-    assert match["result"]["flagged"] is True
+    assert (match["text"], match["result"]["matchLevel"]) == (known, "exact")
 
 
 def add_bands(conn, content_hash, bands):
@@ -140,8 +75,7 @@ def test_block_sharing_two_bands_with_a_narrative_matches_at_the_variant_level(c
     narrative_id = narrative([], content_hash="fp-1")
     add_bands(conn, "fp-1", ["b0", "b1", "b2", "b3"])
     result = lookup_blocks(client, [{"hash": "edited", "bands": ["b0", "x1", "b2", "x3"]}])["edited"]
-    assert (result["flagged"], result["total"], result["topVerdict"]) == (True, 0, "misinformation")
-    assert (result["signature"]["narrativeId"], result["signature"]["matchLevel"]) == (
+    assert (result["narrative"]["narrativeId"], result["matchLevel"]) == (
         str(narrative_id),
         "variant",
     )
@@ -159,14 +93,14 @@ def test_bands_match_only_at_the_same_band_index(client, narrative, conn):
     assert lookup_blocks(client, [{"hash": "shifted", "bands": ["b1", "b0", "b3", "b2"]}]) == {}
 
 
-def test_block_hash_that_is_also_a_matched_sentence_keeps_the_exact_signature(client, narrative, conn):
+def test_block_hash_that_is_also_a_matched_sentence_keeps_the_exact_match(client, narrative, conn):
     narrative(["h1"], content_hash="fp-1")
     add_bands(conn, "fp-1", ["b0", "b1"])
     response = client.post(
         "/lookup", json={"hashes": ["h1"], "blocks": [{"hash": "h1", "bands": ["b0", "b1"]}]}
     )
     [result] = response.json()["results"]
-    assert result["signature"]["matchLevel"] == "exact"
+    assert result["matchLevel"] == "exact"
 
 
 def test_check_reports_a_block_matching_only_at_the_variant_level(client, narrative, conn, monkeypatch):
@@ -193,7 +127,7 @@ def test_check_reports_a_block_matching_only_at_the_variant_level(client, narrat
     response = client.post("/check", json={"text": edited})
     assert response.status_code == 200, response.text
     [match] = response.json()["matches"]
-    assert (match["text"], match["result"]["hash"], match["result"]["signature"]["matchLevel"]) == (
+    assert (match["text"], match["result"]["hash"], match["result"]["matchLevel"]) == (
         edited,
         "edited",
         "variant",
@@ -237,21 +171,24 @@ def test_check_matches_sentences_close_in_meaning_to_a_narrative(client, narrati
         (narrative_id, str(unit_vector(1.0))),
     )
     conn.commit()
-    paraphrase = "Europe is being ruined from the inside by the sanctions of the West."
+    reworded = "Europe is being ruined from the inside by the sanctions of the West."
     short = "Sanctions are hurting European households."
     monkeypatch.setattr(
-        fpclient, "fingerprint", fake_fingerprint({paraphrase: unit_vector(0.9), short: unit_vector(0.75)})
+        fpclient, "fingerprint", fake_fingerprint({reworded: unit_vector(0.9), short: unit_vector(0.75)})
     )
-    text = f"{paraphrase}\n\n{short} The weather in Lisbon was mild this week."
+    text = f"{reworded}\n\n{short} The weather in Lisbon was mild this week."
     response = client.post("/check", json={"text": text})
     assert response.status_code == 200, response.text
     matches = [
         (
             m["text"],
-            m["result"]["flagged"],
-            m["result"]["signature"]["matchLevel"],
-            m["result"]["signature"]["similarity"],
+            m["result"]["narrative"]["narrativeId"],
+            m["result"]["matchLevel"],
+            m["result"]["similarity"],
         )
         for m in response.json()["matches"]
     ]
-    assert matches == [(paraphrase, True, "narrative", 0.9), (short, False, "related", 0.75)]
+    assert matches == [
+        (reworded, str(narrative_id), "narrative", 0.9),
+        (short, str(narrative_id), "related", 0.75),
+    ]

@@ -26,22 +26,12 @@ def get_index(client, since=None):
     return response.json()
 
 
-def signature(narrative_id, state="active"):
-    return {
-        "narrativeId": str(narrative_id),
-        "title": "Sanctions destroy Europe",
-        "verdict": "misinformation",
-        "techniques": ["fear_appeal"],
-        "explanation": "Why.",
-        "source": "euvsdisinfo",
-        "sourceUrl": "https://case",
-        "state": state,
-        "settled": state == "active",
-    }
+def shipped(index):
+    return [(n["narrativeId"], n["state"]) for n in index["narratives"]]
 
 
-def set_state(conn, narrative_id, state):
-    conn.execute("UPDATE narrative SET state = %s WHERE id = %s", (state, narrative_id))
+def set_moderation(conn, narrative_id, moderation):
+    conn.execute("UPDATE note SET moderation = %s WHERE narrative_id = %s", (moderation, narrative_id))
     conn.commit()
 
 
@@ -55,23 +45,19 @@ def test_full_index_ships_shipped_narratives_with_sentences_and_bands_per_finger
         (active, str(UNIT)),
     )
     conn.commit()
-    review = narrative(["s3"], state="under_review", content_hash="fp-2")
-    disputed = narrative(["s4"], state="disputed", content_hash="fp-3")
-    narrative(["s5"], state="candidate", content_hash="fp-4")
+    review = narrative(["s3"], moderation="pending_review", content_hash="fp-2")
+    narrative(["s5"], moderation="hidden", content_hash="fp-4")
+    conn.execute("INSERT INTO narrative (title, source, state) VALUES ('Candidate', 'cluster', 'candidate')")
+    conn.commit()
 
     index = get_index(client)
-    assert {k: v for k, v in index.items() if k != "version"} == {
+    assert shipped(index) == [(str(active), "needs_ratings"), (str(review), "tracked")]
+    assert {k: v for k, v in index.items() if k not in ("version", "narratives")} == {
         "full": True,
-        "signatures": [
-            signature(active),
-            signature(review, "under_review"),
-            signature(disputed, "disputed"),
-        ],
         "sentences": [
             {"hash": "s1", "narrativeId": str(active)},
             {"hash": "s2", "narrativeId": str(active)},
             {"hash": "s3", "narrativeId": str(review)},
-            {"hash": "s4", "narrativeId": str(disputed)},
         ],
         "fingerprints": [{"narrativeId": str(active), "bands": BANDS}],
         "narrativeThreshold": settings.narrative_match_threshold,
@@ -79,7 +65,6 @@ def test_full_index_ships_shipped_narratives_with_sentences_and_bands_per_finger
         "narrativeVectors": [
             {"narrativeId": str(active), "vectors": [base64.b64encode(bytes([127] + [0] * 383)).decode()]},
             {"narrativeId": str(review), "vectors": []},
-            {"narrativeId": str(disputed), "vectors": []},
         ],
         "removed": [],
     }
@@ -87,7 +72,7 @@ def test_full_index_ships_shipped_narratives_with_sentences_and_bands_per_finger
 
 def test_delta_carries_changed_narratives_in_full_and_lists_those_no_longer_shipped(client, conn, narrative):
     extended = narrative(["s1"], content_hash="fp-1")
-    retired = narrative(["s2"], content_hash="fp-2")
+    hidden = narrative(["s2"], content_hash="fp-2")
     narrative(["s3"], content_hash="fp-3")
     version = get_index(client)["version"]
 
@@ -95,15 +80,15 @@ def test_delta_carries_changed_narratives_in_full_and_lists_those_no_longer_ship
         "INSERT INTO sentence (hash, fingerprint_id) SELECT 's1b', id FROM fingerprint WHERE content_hash = 'fp-1'"
     )
     conn.commit()
-    set_state(conn, retired, "retired")
+    set_moderation(conn, hidden, "hidden")
     conn.execute("UPDATE narrative SET centroid = array_fill(0.1, ARRAY[384])::vector, updated_at = now()")
     conn.commit()
 
     delta = get_index(client, since=version)
     assert delta["version"] > version
-    assert {k: v for k, v in delta.items() if k != "version"} == {
+    assert shipped(delta) == [(str(extended), "needs_ratings")]
+    assert {k: v for k, v in delta.items() if k not in ("version", "narratives")} == {
         "full": False,
-        "signatures": [signature(extended)],
         "sentences": [
             {"hash": "s1", "narrativeId": str(extended)},
             {"hash": "s1b", "narrativeId": str(extended)},
@@ -112,7 +97,7 @@ def test_delta_carries_changed_narratives_in_full_and_lists_those_no_longer_ship
         "narrativeThreshold": settings.narrative_match_threshold,
         "relatedThreshold": settings.related_match_threshold,
         "narrativeVectors": [{"narrativeId": str(extended), "vectors": []}],
-        "removed": [str(retired)],
+        "removed": [str(hidden)],
     }
 
 
@@ -133,15 +118,25 @@ def test_a_fingerprint_joining_a_narrative_changes_the_index(client, conn, narra
     conn.commit()
 
     delta = get_index(client, since=version)
-    assert [s["narrativeId"] for s in delta["signatures"]] == [str(target)]
+    assert [n["narrativeId"] for n in delta["narratives"]] == [str(target)]
     assert {s["hash"] for s in delta["sentences"]} == {"s1", "s9"}
+
+
+def test_a_note_decided_helpful_changes_the_index(client, conn, narrative):
+    target = narrative(["s1"], content_hash="fp-1")
+    narrative(["s2"], content_hash="fp-2")
+    version = get_index(client)["version"]
+
+    conn.execute("UPDATE note SET status = 'helpful' WHERE narrative_id = %s", (target,))
+    conn.commit()
+    assert shipped(get_index(client, since=version)) == [(str(target), "misleading")]
 
 
 def test_a_version_newer_than_the_database_gets_the_full_index(client, narrative):
     narrative(["s1"])
     version = get_index(client)["version"]
     index = get_index(client, since=version + 1_000_000)
-    assert (index["full"], len(index["signatures"])) == (True, 1)
+    assert (index["full"], len(index["narratives"])) == (True, 1)
 
 
 def post_hits(client, *hits):

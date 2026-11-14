@@ -1,4 +1,4 @@
-"""Optional accounts and a voter's standing.
+"""Accounts and a user's standing.
 
 A magic link sent by email links the extension's install to an account for that email. Tokens are
 single-use, stored as hashes, and expire after TOKEN_LIFETIME.
@@ -19,10 +19,10 @@ from fastapi.responses import HTMLResponse
 from pydantic import Field
 
 from app import mail
-from app.api.core import Body
+from app.api.narratives import Body
 from app.config import settings
 from app.db import connection
-from app.trust import standings
+from app.trust import standing
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -103,56 +103,38 @@ def get_verify(token: str) -> HTMLResponse:
     return page(f"Signed in as {html.escape(email)}, you can close this tab.")
 
 
-def outcome(state: str, settled_by: int | None) -> str:
-    if state in ("retired", "rejected"):
-        return "rejected"
-    return "confirmed" if settled_by is not None else "pending"
-
-
 @router.get("/me")
 def get_me(user_id: Annotated[UUID, Query(alias="userId")]) -> dict:
-    """The voter's email, reputation and the reports of all installs of its account."""
+    """The account's email, reputation, notes and rating record; an unlinked install has none of them."""
     with connection() as conn:
-        standing = standings(conn, [user_id])[user_id]
-        account = conn.execute(
-            "SELECT a.email FROM install i JOIN user_account a ON a.id = i.account_id WHERE i.id = %s",
-            (user_id,),
-        ).fetchone()
-        reports = conn.execute(
+        me = standing(conn, user_id)
+        notes = conn.execute(
             """
-            SELECT n.id, n.title, n.state, n.settled_by, s.source, s.title, s.source_url,
-                   min(v.received_at), n.settled_at
-            FROM vote v
-            JOIN narrative n ON n.id = v.narrative_id AND n.source = 'report'
-            LEFT JOIN narrative s ON s.id = n.settled_by
-            WHERE v.verdict <> 'trustworthy'
-              AND (v.user_id = %(user)s OR v.user_id IN (SELECT id FROM install WHERE account_id = %(identity)s))
-            GROUP BY n.id, s.id
-            ORDER BY min(v.received_at) DESC
+            SELECT n.id, n.narrative_id, r.title, n.classification, n.body, n.status, n.moderation, n.created_at
+            FROM note n JOIN narrative r ON r.id = n.narrative_id
+            WHERE n.account_id = %s
+            ORDER BY n.created_at DESC
             """,
-            {"user": user_id, "identity": standing.identity},
+            (me.account_id,),
         ).fetchall()
     return {
         "userId": str(user_id),
-        "email": account[0] if account else None,
-        "reputation": standing.reputation,
-        "weight": standing.reputation,
-        "agreed": standing.agreed,
-        "disagreed": standing.disagreed,
-        "reports": [
+        "email": me.email,
+        "verified": me.account_id is not None,
+        "reputation": me.reputation,
+        "moderator": me.moderator,
+        "notes": [
             {
+                "id": str(id_),
                 "narrativeId": str(narrative_id),
                 "title": title,
-                "state": state,
-                "outcome": outcome(state, settled_by),
-                "settledBy": (
-                    {"source": source, "title": settled_title, "sourceUrl": source_url}
-                    if settled_by is not None
-                    else None
-                ),
-                "reportedAt": reported_at,
-                "settledAt": settled_at,
+                "classification": classification,
+                "body": body,
+                "status": status,
+                "moderation": moderation,
+                "createdAt": created.isoformat(),
             }
-            for narrative_id, title, state, settled_by, source, settled_title, source_url, reported_at, settled_at in reports
+            for id_, narrative_id, title, classification, body, status, moderation, created in notes
         ],
+        "ratings": {"count": me.ratings, "agreed": me.agreed},
     }
