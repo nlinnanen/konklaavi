@@ -6,10 +6,6 @@ from fastapi.testclient import TestClient
 from app.api.main import app
 
 
-def pytest_configure(config):
-    config.addinivalue_line("markers", "live: calls a paid external API; runs only when its key is set")
-
-
 @pytest.fixture
 def client(conn):
     with TestClient(app) as client:

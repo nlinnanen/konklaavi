@@ -1,5 +1,6 @@
 import dataclasses
 import os
+from types import SimpleNamespace
 
 import pytest
 
@@ -105,6 +106,57 @@ def test_analysis_fails_closed_without_a_key(conn, vote, monkeypatch):
         analyze.handle(conn, {"vote_id": vote_id(conn, "c1")})
     conn.rollback()
     assert conn.execute("SELECT count(*) FROM narrative").fetchone()[0] == 0
+
+
+class FakeAnthropic:
+    """Stands in for anthropic.Anthropic, answering every request with the given content blocks."""
+
+    def __init__(self, *content):
+        self.requests = []
+        self.content = content
+        self.messages = self
+
+    def __call__(self, **_client_options):
+        return self
+
+    def create(self, **request):
+        self.requests.append(request)
+        return SimpleNamespace(stop_reason="tool_use", content=list(self.content))
+
+
+@pytest.fixture
+def anthropic_answers(monkeypatch):
+    monkeypatch.setattr(analyze, "settings", dataclasses.replace(analyze.settings, anthropic_api_key="key"))
+
+    def answer(*content):
+        fake = FakeAnthropic(*content)
+        monkeypatch.setattr(analyze.anthropic, "Anthropic", fake)
+        return fake
+
+    return answer
+
+
+def tool_call(analysis):
+    return SimpleNamespace(type="tool_use", name="record_analysis", input=analysis)
+
+
+def test_claude_analysis_is_read_from_a_plain_messages_api_tool_call(anthropic_answers):
+    fake = anthropic_answers(SimpleNamespace(type="text", text="Here it is."), tool_call(ANALYSIS))
+    assert analyze.claude_analyze("Excerpt.", "misleading", None, "https://example.com") == ANALYSIS
+    [request] = fake.requests
+    assert set(request) == {"model", "max_tokens", "system", "messages", "tools"}
+
+
+def test_claude_analysis_outside_the_schema_is_rejected(anthropic_answers):
+    anthropic_answers(tool_call({**ANALYSIS, "techniques": ["mind_control"]}))
+    with pytest.raises(ValueError, match="techniques"):
+        analyze.claude_analyze("Excerpt.", "misleading", None, "https://example.com")
+
+
+def test_claude_answer_without_a_tool_call_is_an_error(anthropic_answers):
+    anthropic_answers(SimpleNamespace(type="text", text="I cannot help."))
+    with pytest.raises(RuntimeError, match="record_analysis"):
+        analyze.claude_analyze("Excerpt.", "misleading", None, "https://example.com")
 
 
 @pytest.mark.live
