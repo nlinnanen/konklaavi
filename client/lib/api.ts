@@ -10,6 +10,8 @@ import {
   type IndexSignature,
   type LookupBlock,
   type LookupResult,
+  type MagicLinkRequest,
+  type MeResponse,
   type NarrativeVectors,
   type Signature,
   type VoteRequest,
@@ -99,6 +101,14 @@ export class RemoteApi implements TrustApi {
 
   async submitHits(hits: Hit[]): Promise<void> {
     await this.request('/hits', { method: 'POST', body: JSON.stringify({ hits }) });
+  }
+
+  async requestMagicLink(req: MagicLinkRequest): Promise<void> {
+    await this.request('/auth/magic-link', { method: 'POST', body: JSON.stringify(req) });
+  }
+
+  me(userId: string): Promise<MeResponse> {
+    return this.request(`/me?userId=${encodeURIComponent(userId)}`);
   }
 }
 
