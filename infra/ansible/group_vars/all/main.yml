@@ -35,9 +35,9 @@ app_dir: /srv/junction26
 # Public hostname Caddy gets a certificate for and the app's links use. Its DNS A (and AAAA) records
 # must point at the VPS before Ansible applies it, or Caddy can't get a certificate.
 app_domain: konklaavi.tech
-# Further hostnames Caddy also serves the app on, space-separated: the VPS's own name keeps old links
-# and installed extensions working.
-app_alt_domains: "{{ ansible_host }}"
+# Further hostnames Caddy also serves the app on, space-separated: www, and the VPS's own name, which
+# keeps old links and installed extensions working.
+app_alt_domains: "www.{{ app_domain }} {{ ansible_host }}"
 compose_project_name: junction26
 image_prefix: ghcr.io/nlinnanen/junction26
 
