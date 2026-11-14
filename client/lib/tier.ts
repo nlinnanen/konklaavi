@@ -14,7 +14,7 @@ export const TIER_LABELS: Record<Tier, string> = {
 
 /** CSS declarations of a tier's highlight, also used for the popup legend. */
 export const TIER_STYLES: Record<Tier, string> = {
-  confirmed: 'background-color: rgba(220, 38, 38, 0.45);',
+  confirmed: 'background-color: #dc2626; color: #fff;',
   likely: 'background-color: rgba(249, 115, 22, 0.3);',
   related: 'text-decoration: underline dotted rgba(234, 179, 8, 0.9); text-decoration-thickness: 2px;',
   reported: 'background-color: rgba(168, 85, 247, 0.15);',

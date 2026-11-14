@@ -363,10 +363,11 @@ def fetch_blocks(url: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
-def units(block_text: str, sentences: list[dict]) -> list[str]:
-    """The text of a block's embedding units: each sentence, and each run of RUN_SENTENCES sentences."""
+def units(sentences: list[dict]) -> list[str]:
+    """The text of a block's embedding units: each sentence, and each run of RUN_SENTENCES sentences,
+    their texts joined by a space as embeddingUnits in client/lib/embed.ts joins them."""
     runs = [sentences[i : i + RUN_SENTENCES] for i in range(len(sentences) - RUN_SENTENCES + 1)]
-    return [block_text[unit[0]["start"] : unit[-1]["end"]] for unit in [[s] for s in sentences] + runs]
+    return [" ".join(s["text"] for s in unit) for unit in [[s] for s in sentences] + runs]
 
 
 @router.post("/check")
@@ -389,7 +390,7 @@ def post_check(request: CheckRequest) -> dict:
     with connection() as conn:
         results = lookup(conn, hashes, banded)
     unmatched = {
-        block["index"]: units(blocks[block["index"]], block["sentences"])
+        block["index"]: units(block["sentences"])
         for block in fingerprinted
         if block["contentHash"] not in results and not any(s["hash"] in results for s in block["sentences"])
     }

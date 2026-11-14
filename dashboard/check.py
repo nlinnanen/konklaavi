@@ -38,7 +38,7 @@ if submitted:
             reports = signature.get("reports") or {}
             rows.append(
                 {
-                    "tier": tier(signature),
+                    "tier": tier(result),
                     "sentence": match["text"],
                     "flagged": result["flagged"],
                     "verdict": result["topVerdict"],

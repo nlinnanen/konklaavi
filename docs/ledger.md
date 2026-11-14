@@ -200,6 +200,24 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: Deployment supersedes the hand-set-up VPS: GitHub Actions builds the app images and pushes them to GHCR as `sha-<commit>`; Ansible in `infra/ansible` hardens and configures the VPS; the release job deploys over SSH as an unprivileged `deploy` user whose key can only run `sudo /usr/local/sbin/junction26-release <sha>`. Every push to `main` releases. See [deployment.md](deployment.md).
 - integrator: Matching stays on the device; no page text goes to the server except an explicit report. Instead of server-side LLM verification, highlights carry confidence tiers (confirmed, likely, related, reported, disputed) with distinct colours, and users correct false matches with feedback votes that carry hashes and the narrative id, never page text.
 - integrator: Narrative-level matching embeds sentences of 5+ words and windows of 3 consecutive sentences, so short claims are compared too; the related tier starts at cosine 0.70.
+- integrator: An embedding unit's text is its sentences' text joined by one space in both the extension and `/check`; `/check` gets the unit's hash and embedding by sending that text to the fingerprint service, which equals `fingerprintSentences` over the unit's sentences when the splitter re-splits it the same way.
+- integrator: An exact or variant match to an active narrative that is not settled is likely; an under_review narrative that is not a report shows as reported only when votes flag the result; vote-only flagged content is reported. The dashboard's tiers follow `tierOf` and take the whole LookupResult.
+- integrator: The confirmed tier is a solid `#dc2626` background with white text in the extension and the dashboard; the dashboard copies `TIER_STYLES` from `client/lib/tier.ts`.
+- ext: tier order, strongest first, is confirmed > likely > reported > related > disputed; each sentence takes its strongest covering match, the smallest unit on a tie, and consecutive sentences with the same match become one range, so highlights never overlap. An exact sentence match and a confirmed block variant both show; the variant covers the other sentences.
+- ext: units are skipped when one of their sentences matched exactly or their block matched as a variant; at most 400 units per scan pass, embedded 32 per request.
+- ext: local results at the related level have flagged=false, so they send no detection hits; local lookups pick the candidate narrative with the strongest tier, then the most shared bands or the highest cosine.
+- ext: a stored local index without relatedThreshold is downloaded again in full.
+- ext: highlight names are tv-<tier>; the tier CSS is `TIER_STYLES` in `client/lib/tier.ts`, also used by the popup legend.
+- ext: a tooltip vote is about the matched content: the sentence hash for an exact match, the block hash for a variant match, the unit hash for a narrative-level or related match.
+- core: a related match never flags a LookupResult, even for an active narrative.
+- core: among several narratives close to one /check unit, the stronger level wins, then an active narrative, then the highest cosine. /check returns every matching unit; the consumer picks the strongest per range.
+- core: feedback votes run `update_states` inside the POST /votes request, so a dispute shows at once rather than at the next lifecycle run.
+- core: on a repeat vote, narrative_id becomes coalesce(new, old) and match_level takes the new value.
+- core: `settled` follows the contract (network included); reputation's SETTLED in trust.py still excludes network.
+- core: `reports.weight` is rounded to 3 decimals and `similarity` to 4.
+- data: the Feedback page counts each voter's latest feedback vote per (narrative, match_level), weighted by the voter's GET /me weight without burst division.
+- data: false-positive candidates are narrative or related match levels whose weighted Not misinformation share is above 0.5.
+- data: recent disputes are narratives in state disputed ordered by updated_at, since the schema has no disputed_at column.
 
 ## Deferred
 
@@ -261,7 +279,6 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - ext: the popup's flagged list does not distinguish narrative matches from exact ones.
 - ext: real paraphrases of a claim scored cosine 0.59 to 0.69 against its claim embedding in a probe, under the 0.85 default threshold.
 - ext: onnxruntime-web's location is resolved through Node's require in `wxt.config.ts`; a nested onnxruntime-web version in transformers would make the copied files mismatch.
-- core: /check embeds every block in one fingerprint call, matched or short.
 - data: the 313 negatives are recent RSS items from one day, heavy on Russia/Ukraine news.
 - data: commit 336fff6 says ten languages; the negatives cover nine.
 - integrator: `NARRATIVE_MATCH_THRESHOLD` stays at 0.85 until a full evaluation picks `best_threshold`.
@@ -279,3 +296,11 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - Allowlists that suppress a narrative on debunking sites.
 - A signed Bloom-filter signature index.
 - A posts-per-account continuous aggregate.
+- ext: units over the 400-per-pass cap are embedded only when a later pass rescans their block, so on a very long static page some units are never embedded.
+- ext: in local mode a tooltip vote does not change the highlight, because the index carries no votes.
+- core: report counts in the /index delta refresh only when a vote attaches to the report narrative; a reporter's reputation change leaves `reports.weight` stale.
+- core: a Misinformation feedback vote on a visible euvsdisinfo highlight earns an agreement, which makes reputation farming easier.
+- core: /check makes two fingerprint-service calls, one for the blocks and one to embed the units.
+- integrator: `RELATED_MATCH_THRESHOLD` is not in `infra/ansible/roles/app/templates/env.j2`; production uses the 0.70 default.
+- data: the Feedback page makes one GET /me call per distinct feedback voter; many voters need a batch weight endpoint.
+- data: recent disputes counts votes, not distinct voters.

@@ -4,38 +4,35 @@ import html
 
 import streamlit as st
 
-# Strongest first, the order the legend lists them in.
+# Strongest first, the order the legend lists them in. The styles are TIER_STYLES in client/lib/tier.ts.
 TIERS = {
-    "confirmed": ("Confirmed", "background:#dc2626;color:#fff;", "Known misinformation, settled"),
-    "likely": ("Likely", "background:rgba(249,115,22,0.35);", "Close in meaning to an active narrative"),
+    "confirmed": ("Confirmed", "background-color:#dc2626;color:#fff;", "Known misinformation, settled"),
+    "likely": ("Likely", "background-color:rgba(249,115,22,0.3);", "Close in meaning to an active narrative"),
+    "reported": ("Reported", "background-color:rgba(168,85,247,0.15);", "Flagged by users, not confirmed"),
     "related": (
         "Related",
-        "text-decoration:underline dotted #eab308 2px;",
+        "text-decoration:underline dotted rgba(234,179,8,0.9);text-decoration-thickness:2px;",
         "Touches the topic of an active narrative",
     ),
-    "reported": ("Reported", "background:rgba(168,85,247,0.18);", "Flagged by users, not confirmed"),
-    "disputed": ("Disputed", "background:rgba(156,163,175,0.35);", "Users dispute this narrative"),
+    "disputed": ("Disputed", "background-color:rgba(156,163,175,0.25);", "Users dispute this narrative"),
 }
 
 
-def tier(signature: dict | None) -> str | None:
-    """The signature's tier, or None for a match no tier covers."""
+def tier(result: dict) -> str | None:
+    """The tier of a LookupResult, or None when it is not shown; tierOf in client/lib/tier.ts."""
+    signature = result.get("signature")
     if not signature:
-        return None
+        return "reported" if result.get("flagged") else None
     state, level = signature.get("state"), signature.get("matchLevel")
     if state == "disputed":
         return "disputed"
-    if state == "under_review" and signature.get("source") == "report":
-        return "reported"
-    if state != "active":
-        return None
-    if level in ("exact", "variant"):
-        return "confirmed" if signature.get("settled") else None
-    if level == "narrative":
-        return "likely"
+    if state == "under_review":
+        return "reported" if signature.get("source") == "report" or result.get("flagged") else None
     if level == "related":
         return "related"
-    return None
+    if level == "narrative":
+        return "likely"
+    return "confirmed" if signature.get("settled") else "likely"
 
 
 def label(name: str | None) -> str:
