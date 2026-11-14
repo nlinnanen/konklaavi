@@ -51,9 +51,9 @@ UA = render.UA
 RENDER = os.environ.get("KONKLAAVI_RENDER", os.environ.get("HASHTRUST_RENDER", "1")) != "0"
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "").rstrip("/")
 # Where the extension's install instructions are.
-README_URL = os.environ.get("README_URL", "https://github.com/nlinnanen/junction26#try-it")
+README_URL = os.environ.get("README_URL", "https://github.com/nlinnanen/konklaavi#try-it")
 # The source code, linked from the home page.
-SOURCE_URL = os.environ.get("SOURCE_URL", "https://github.com/nlinnanen/junction26")
+SOURCE_URL = os.environ.get("SOURCE_URL", "https://github.com/nlinnanen/konklaavi")
 # GitHub's mark (the Octocat), drawn in the text colour.
 GITHUB_MARK = (
     "<svg viewBox='0 0 16 16' width=18 height=18 aria-hidden=true fill=currentColor><path d='M8 0c4.42 0 8 3.58 8 8a8.013 "
