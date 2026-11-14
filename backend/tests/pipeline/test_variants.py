@@ -119,3 +119,24 @@ def test_joining_a_narrative_updates_its_centroid(conn):
         "SELECT centroid::real[] FROM narrative WHERE id = %s", (narrative_id,)
     ).fetchone()[0]
     assert np.allclose(centroid, np.mean(embeddings, axis=0), atol=1e-6)
+
+
+def test_boilerplate_joins_no_variant_but_still_derives(conn):
+    _, variant_id = add_variant(conn)
+    original = add_fingerprint(conn, ORIGINAL, T0, variant_id)
+    copy = add_fingerprint(conn, CLOSE_COPY, T0 + timedelta(hours=1))
+    domain_id = conn.execute("INSERT INTO domain (name) VALUES ('example.org') RETURNING id").fetchone()[0]
+    for path in ("a", "b"):
+        page_id = conn.execute(
+            "INSERT INTO page (url, domain_id, status) VALUES (%s, %s, 'ok') RETURNING id",
+            (f"https://example.org/{path}", domain_id),
+        ).fetchone()[0]
+        conn.execute(
+            "INSERT INTO observation (seen_at, fingerprint_id, page_id, source) VALUES (%s, %s, %s, 'fetch')",
+            (T0, copy, page_id),
+        )
+
+    handle(conn, {"fingerprint_ids": [copy]})
+
+    assert variant_of(conn, copy) is None
+    assert [(src, dst) for src, dst, *_ in edges(conn)] == [(copy, original)]

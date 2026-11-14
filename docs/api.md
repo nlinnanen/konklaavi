@@ -8,9 +8,9 @@ FastAPI on `API_PORT`, CORS open to all origins.
 
 - `GET /health` returns `{ok: true}`.
 - `POST /votes` takes a `VoteRequest` and returns `{ok: true}`. A repeat vote by the same `userId` on the same `contentHash` replaces the earlier one. Each vote enqueues a `fetch` job for its URL and an `analyze` job; `analyze` does nothing for a `trustworthy` vote.
-- `POST /lookup` takes `{hashes: string[], blocks?: {hash: string, bands: string[]}[]}`, at most 500 hashes, and returns `{results: LookupResult[]}` for the hashes that have votes or a signature. `hashes` are sentence hashes and match at the exact level. `blocks` carry a block's content hash and its LSH bands and match at the variant level, with the result keyed by the block hash.
+- `POST /lookup` takes `{hashes: string[], blocks?: LookupBlock[]}`, at most 500 hashes and 500 blocks, and returns `{results: LookupResult[]}` for the hashes that have votes or a signature. `hashes` are sentence hashes and match at the exact level. `blocks` carry a block's content hash and its 32 LSH bands. A block matches at the variant level when it shares at least 2 bands, at the same band index, with a fingerprint in an `active` or `under_review` narrative; the result is keyed by the block hash, has `matchLevel: "variant"` and zero vote counts. When a hash is both a sentence hash and a block hash, the exact signature wins.
 - `GET /domains/{domain}` returns `DomainStats`.
-- `POST /check` takes `{text?: string, url?: string}`, fingerprints the text (or the fetched page) through the fingerprint service, and returns `{matches: {text: string, result: LookupResult}[]}`. The dashboard and judges use it without the extension.
+- `POST /check` takes `{text?: string, url?: string}`, fingerprints the text (or the fetched page) through the fingerprint service, and returns `{matches: {text: string, result: LookupResult}[]}`. A match is a sentence that matches exactly, or a whole block, with the block text as `text`, that matches only at the variant level. The dashboard and judges use it without the extension.
 - `GET /index?since={version}` returns the signature index, in full when `since` is missing or too old: `{version, full, signatures: Signature[], sentences: {hash, narrativeId}[], bands: {band, hash, narrativeId}[], removed: string[]}`.
 - `POST /hits` takes `{hits: {hash: string, narrativeId: string, url: string, seenAt: string}[]}` and returns `{ok: true}`. Each hit records a detection observation and enqueues a `fetch` job for the URL.
 
@@ -51,20 +51,24 @@ Node on `FP_PORT`. It runs the fingerprint code in `client/lib/`, so its output 
 }
 ```
 
-The embedding model is `Xenova/paraphrase-multilingual-MiniLM-L12-v2`, run with transformers.js in both Node and the browser.
+`minhash`, `bands` and `embedding` are computed over `normalizeText(block)` for blocks that have a `contentHash`. MinHash uses MurmurHash3 x86_32 with seeds 0..127 over word 5-grams (one shingle for a text under 5 words), takes the minimum over the unsigned hashes and stores it as a signed 32-bit integer. Band `i` is MurmurHash3 with seed 0 over 20 little-endian bytes, `i` as uint32 followed by the band's 4 values as int32, written as 8 lowercase hex characters. The extension must reproduce bands exactly for `/lookup`.
+
+The embedding model is `Xenova/paraphrase-multilingual-MiniLM-L12-v2` with q8 weights, run with transformers.js in both Node and the browser, mean-pooled and normalized.
 
 ## Jobs
 
-Rows in the `job` table, claimed with `SELECT ... FOR UPDATE SKIP LOCKED`. A handler is `def handle(conn, payload: dict) -> None`, registered with `@register("<kind>")` in `backend/app/jobs/`. An exception retries the job with backoff, up to 5 attempts, then marks it `failed` with the error.
+Rows in the `job` table, claimed with `SELECT ... FOR UPDATE SKIP LOCKED`. A handler is `def handle(conn, payload: dict) -> None`, registered with `@register("<kind>")` in `backend/app/jobs/`. An exception retries the job with backoff, up to 5 attempts, then marks it `failed` with the error. A job `running` for more than 10 minutes is claimed again and the reclaim counts as an attempt; one that has used all its attempts is marked `failed` with "lease expired".
 
-- `fetch` `{url, reason: "seed" | "vote" | "hit", narrative_id?: int, vote_id?: int}`: fetch the page anonymously, extract text, fingerprint it, store page, fingerprints, sentences, bands and observations, attach the fingerprints that carry the narrative to it, and enqueue `match_variants`. Owner: pipeline.
-- `match_variants` `{fingerprint_ids: int[]}`: assign variants through LSH bands and containment and write `DERIVED_FROM` edges. Owner: pipeline.
+- `fetch` `{url, reason: "seed" | "vote" | "hit" | "eval", narrative_id?: int, vote_id?: int}`: fetch the page anonymously, extract text, fingerprint and embed it, store page, fingerprints, sentences, bands and observations, attach the blocks relevant to the narrative (cosine >= 0.5 to its title and claim, and always the closest block) to it, detach boilerplate (a fingerprint on 2+ pages of one domain), and enqueue `match_variants` for the new fingerprints. Owner: pipeline.
+- `match_variants` `{fingerprint_ids: int[]}`: confirm candidates sharing at least 2 bands at estimated Jaccard >= 0.5, join a fingerprint that has no variant and is not boilerplate to the closest candidate's variant, and write a `DERIVED_FROM` edge `{jaccard, dt_seconds}` to the closest earlier-seen candidate. Owner: pipeline.
 - `analyze` `{vote_id}`: LLM analysis of a reported excerpt into claim, techniques and explanation, creating or extending a narrative. Owner: core.
-- `cluster` `{}`, periodic: cluster fingerprint embeddings into narratives and write `EVOLVED_INTO` edges. Owner: data.
+- `cluster` `{}`, every 5 minutes: cluster the embeddings of unassigned, non-boilerplate fingerprints into candidate narratives or new variants of existing ones, write `EVOLVED_INTO` edges, set every `narrative.centroid` to the mean embedding of its fingerprints, and record the run in a `cluster_run` row. Owner: data.
+
+`fetch` and `match_variants` also keep `narrative.centroid` current for the narratives they change.
 
 ## Configuration
 
-Environment variables, read in `backend/app/config.py`: `DATABASE_URL`, `FP_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANALYSIS_MODEL`. Compose reads `COMPOSE_PROJECT_NAME`, `DB_PORT`, `API_PORT`, `FP_PORT` and `DASH_PORT` from the worktree's `.env`.
+Environment variables, read in `backend/app/config.py`: `DATABASE_URL`, `FP_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANALYSIS_MODEL`. Compose reads `COMPOSE_PROJECT_NAME`, `DB_PORT`, `API_PORT`, `FP_PORT` and `DASH_PORT` from the worktree's `.env`. The fingerprint service caches the model in `MODEL_CACHE_DIR`. The dashboard reads `DATABASE_URL`, `API_URL` and `EVAL_RESULTS`. Production (`deploy/compose.prod.yaml`) also needs `DOMAIN` and `POSTGRES_PASSWORD` in the VPS `.env`.
 
 ## File ownership
 

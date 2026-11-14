@@ -39,7 +39,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - core: attaching a vote to an existing narrative never calls the LLM; a missing key fails only narrative creation.
 - core: concurrent narrative creation is serialised by a transaction-level advisory lock taken after the LLM call, with a recheck under the lock.
 - core: a new report narrative reuses an existing fingerprint with the vote's contentHash and its variant.
-- core: analysis uses `output_config` json_schema structured output with default model `claude-opus-5-5`, without the server-side fallbacks beta.
+- core: analysis uses plain tool use: one `record_analysis` tool with the schema as `input_schema`, `tool_choice` auto, and the tool input validated in code; forced `tool_choice` returns a 400 on the default model `claude-opus-5-5`, and the router may not pass `output_config` or `strict` through.
 - core: `/check` splits text input on blank lines and URL input into one block per trafilatura line; a failed fetch returns 502 and an empty request 422.
 - data: EUvsDisinfo cases come from the Hugging Face dataset `NLP-UniBW/eu_vs_disinfo` through the datasets-server rows API, since euvsdisinfo.eu blocks bots and the Zenodo CSV lacks case text.
 - data: the seed file `backend/app/seed/data/euvsdisinfo.jsonl` holds the 400 newest cases with a title, summary, disproof and an http(s) article URL.
@@ -58,30 +58,87 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: A fetched page joins a narrative only through blocks that are relevant to the claim by embedding similarity and that are not boilerplate (seen on 2+ pages of one domain).
 - integrator: Production runs behind Caddy on the VPS's free domain, with `/` routed to the dashboard and `/api/*` to the API, because the extension needs an HTTPS API URL.
 - integrator: The core workstream owns the job lease change in `backend/app/jobs/__init__.py`.
+- pipeline: the relevance threshold is cosine >= 0.5 between a block's embedding and the embedding of the narrative's title and claim joined by a newline; the closest block always attaches. On 54 pages from 60 seeded cases, blocks at or above 0.5 are the claim paragraphs, title and lead; 0.4-0.5 holds related context with URL and tag lines; sidebars, dates and image URLs are mostly below 0.45.
+- pipeline: variants are confirmed with estimated Jaccard >= 0.5 alone; containment needs shingle-set sizes, which are not stored.
+- pipeline: MinHash values are signed 32-bit integers stored in `fingerprint.minhash integer[]`; the minimum is taken over the unsigned hashes.
+- pipeline: MinHash seeds are 0..127; a band hash is MurmurHash3 (seed 0) over 20 little-endian bytes: the band index as uint32 followed by its 4 values as int32.
+- pipeline: the service computes minhash, bands and embeddings from `normalizeText(block)` only for blocks that have a contentHash.
+- pipeline: embeddings use q8 weights in Node as in the browser, so the service and the extension compute the same vectors; batches of 32.
+- pipeline: `client/lib/embed.ts` takes transformers.js's `pipeline` as a parameter, so `client/lib` has no dependency on `@huggingface/transformers`; the fingerprint service declares it, and its image resolves modules only from `fingerprint-service/node_modules`.
+- pipeline: the fingerprint image runs `npm ci --ignore-scripts`; onnxruntime-node and sharp ship their native binaries.
+- pipeline: `MODEL_CACHE_DIR` sets the model cache, `/models` in the image and the `models` volume in compose.
+- pipeline: a fingerprint is boilerplate when observations put it on 2+ distinct pages of one domain; every fetch detaches such fingerprints from their variants.
+- pipeline: the narrative's title and claim are embedded per fetch as an extra block in the same service call, not stored.
+- pipeline: a narrative whose title and claim have no 5-word sentence gets nothing attached, and a warning is logged.
+- pipeline: `match_variants` only joins existing variants and creates none.
+- pipeline: "earlier-seen" orders by (first_seen, id); `dt_seconds` is the difference of first_seen.
+- ext: a block with a variant result is highlighted as a whole only when none of its sentences matches exactly; the two highlights never overlap.
+- ext: a hash that is both a sentence and a block hash is treated by its signature's matchLevel: variant highlights the block, anything else the sentence.
+- ext: edited copies use the highlight names `tv-<verdict>-variant`, a dashed 2px underline in the verdict colour with no background, and the tooltip says "Edited copy of a known narrative".
+- ext: `RemoteApi.lookup` sends hashes and blocks in the same requests, each list cut at `MAX_LOOKUP_BATCH` (500).
+- ext: the scanner computes a block's content hash with `fingerprintSentences` and its bands with `bands(minhash(normalizeText(text)))`, as the fingerprint service does.
+- ext: `npm run test:e2e` builds in development mode (`dist/chrome-mv3-dev`, open shadow root).
+- core: a block matches at the variant level when it shares at least 2 LSH bands at the same index with a fingerprint whose narrative is active or under_review; an active narrative wins, then the most shared bands, then the most recently updated.
+- core: a variant-level LookupResult has zero vote counts; votes count only for sentence hashes.
+- core: when a hash is both a sentence hash and a block hash, the exact signature wins.
+- core: `/lookup` accepts at most 500 blocks.
+- core: `/check` reports a block, with its full text, only when none of its sentences matched exactly.
+- core: a job running past the 10-minute `LEASE` can be claimed again and the reclaim counts as an attempt; one out of attempts is marked failed with "lease expired". A handler that runs longer than the lease may run twice.
+- core: Caddy (caddy:2.11) runs as a compose service in `deploy/compose.prod.yaml` with a Let's Encrypt certificate for `DOMAIN`; the API and dashboard bind to 127.0.0.1 for SSH tunnels.
+- core: the production database password comes from `POSTGRES_PASSWORD` in the VPS `.env`, and `DATABASE_URL` is overridden for api, worker and dashboard.
+- core: the production db healthcheck has a 3-minute start_period, because a first database start outlasts the base healthcheck's 60 s.
+- data: the cluster job clusters at most the 2000 newest unassigned fingerprint embeddings with HDBSCAN (min_cluster_size 3) on unit-length embeddings; noise stays unassigned and is retried later.
+- data: each cluster run first sets every narrative's centroid to the mean embedding of its fingerprints, then refreshes the centroids of the narratives it extended.
+- data: a cluster with centroid cosine >= 0.9 to a narrative joins it as one new variant; otherwise it becomes a candidate `cluster` narrative titled by its most central member's first sentence (at most 200 chars).
+- data: `EVOLVED_INTO` goes from the nearest earlier narrative to a new cluster narrative when their centroid cosine is >= 0.75 and below 0.9; narratives created in the same run are excluded.
+- data: each cluster run writes a `cluster_run` row (migration 301).
+- data: the evaluation is page-level: a page is flagged when `/lookup` flags any of its sentence hashes or banded blocks; matches are reported once per flagged block and narrative, with the block text (at most 300 chars).
+- data: eval article URLs that a seed case also lists are left out of the positives and counted as seed_overlap; pages already fetched are not refetched.
+- data: eval lookups go to the API app in-process (TestClient) by default, or to `--api URL`.
+- data: the 51 negatives are articles from Yle, BBC, DW and ERR RSS feeds; Reuters and AP answer anonymous fetches with 401/403.
+- data: the dashboard is a multipage `st.navigation` app; the evaluation page reads `EVAL_RESULTS` and the check page uses `API_URL`.
+- integrator: `match_variants` and the cluster job leave boilerplate fingerprints out of variants, because a `match_variants` job queued behind later fetches would otherwise rejoin a fingerprint those fetches detached.
+- integrator: `LookupBlock` is defined in `client/lib/types.ts`; `client/lib/api.ts` re-exports it.
+- integrator: evaluation fetches carry reason `eval`.
+- integrator: in compose, the dashboard reaches the API at `http://api:8000` and reads eval results from `backend/app/eval/results`, mounted read-only.
 
 ## Deferred
 
-- A job left `running` by a crashed worker is never reclaimed; it needs a lease timeout.
 - The fingerprint service builds with TypeScript 7 while the client stays on 5.9.
-- pipeline: M2 decides which blocks are relevant before attaching them to a narrative; every main-text block is attached, so page boilerplate carries the narrative's signature.
-- pipeline: minhash and lsh_band rows and the `match_variants` enqueue wait for M2 bands.
 - pipeline: a fingerprint already in another narrative's variant is not attached to the payload's narrative.
 - pipeline: pages that fail to load are marked failed and never refetched.
 - pipeline: `vote_id` and `reason` in the fetch payload are unused.
 - core: `/check` has its own httpx and trafilatura extraction instead of the fetch job's.
-- core: whether the Hostinger AI Router passes `output_config` through is unverified; the fallback is strict tool use.
 - core: a report narrative gets no variant when the existing fingerprint's variant belongs to another narrative.
 - core: a vote edited to trustworthy keeps its `narrative_id`.
 - core: `/check` does not dedupe repeated sentences.
-- core: `backend/tests/core/conftest.py` still registers the `live` marker that `pyproject.toml` registers.
 - data: the Leite et al. trustworthy URLs, negatives for the M3 false-positive rate, are not imported.
 - data: disproof text keeps EUvsDisinfo's boilerplate closing paragraphs.
 - data: `narrative(source, source_url)` has no index; a partial unique index would let the importer use ON CONFLICT.
-- ext: the e2e test covers only highlighting; tooltip pinning and the popup were checked by hand.
-- ext: the production build closes the shadow root, so e2e cannot inspect the tooltip without a development build.
-- ext: `client/README.md` does not mention `npm run test:e2e` or the e2e Dockerfile.
 - ext: `npm install` drops optional peer entries (detect-libc, lightningcss) from `client/package-lock.json`.
 - ext: `sourceHref`, `SOURCE_LABELS` and `displayVerdict` sit in `client/lib/messages.ts`; a `client/lib/signature.ts` would fit them better.
 - pipeline: `splitSentences` treats a newline in DOM text as a sentence break, so a sentence wrapped in the HTML source never matches; replacing line breaks with spaces before segmenting keeps offsets but may change stored hashes.
 - integrator: `splitSentences` treats a newline as a sentence break; changing it changes stored hashes, so it waits for a parity check across the extension and the service.
 - integrator: The unique index on `narrative(source, source_url)` and moving signature helpers to `client/lib/signature.ts` wait until they are needed.
+- pipeline: the same article at two URLs on one domain makes its blocks look like boilerplate, so they are detached.
+- pipeline: near-duplicate boilerplate escapes the exact-hash rule, such as news-pravda sidebar teasers that glue a headline onto a lead, and `match_variants` can pull such a teaser into a narrative's variant.
+- pipeline: on a page whose article body trafilatura misses, the always-attach-the-closest-block rule attaches an unrelated sidebar item.
+- pipeline: when detachment removes a narrative's only attached block, nothing re-picks the earlier page's next best block.
+- pipeline: detaching leaves empty variant rows behind.
+- pipeline: `DERIVED_FROM` `dt_seconds` uses first_seen (fetch time), not the page's published_at.
+- pipeline: fingerprint-service tests use a fake embedder, so cross-runtime embedding parity is not tested.
+- pipeline: `client/package.json` needs `@huggingface/transformers` 4.3.2 when the extension embeds locally.
+- ext: the popup's flagged list does not distinguish edited-copy matches from exact matches.
+- ext: when a block exceeds the per-pass sentence budget, its content hash covers only the scanned sentences and differs from the service's block hash.
+- ext: the block fingerprint logic is duplicated in the scanner and in fingerprint-service's `fingerprintBlock`; a shared helper in `client/lib` would remove the copy.
+- ext: the e2e dev build writes to `dist/chrome-mv3-dev`, the directory `npm run dev` uses, so running both at once collides.
+- core: the Caddyfile is not validated, because this VM's Docker cannot extract the caddy image; run `docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile` on the VPS after the first start.
+- core: analysis through the Hostinger AI Router is untested without a key, including which model ids the router serves.
+- core: a long-running handler gets no lease heartbeat.
+- core: a variant-level result ignores votes on the block's content_hash.
+- data: eval recall counts pages matched through page chrome attached to seed narratives, such as dates and sidebar items.
+- data: eval pages enter the knowledge base, so `match_variants` or the cluster job can attach them to narratives and change later eval runs.
+- data: the cluster job extends active narratives automatically, so similar content, debunks of the same claim included, becomes flagged without review.
+- data: the cluster thresholds 0.9 and 0.75 are untuned.
+- data: `latest.json` is about 136 KB because true positives list every matched block.
+- integrator: the cluster job turns page chrome that is not boilerplate (dates, single-page sidebar teasers) into candidate narratives.

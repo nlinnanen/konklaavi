@@ -35,6 +35,12 @@ export interface VoteRequest {
 /** What the content script sends; background adds userId/createdAt. */
 export type VoteInput = Omit<VoteRequest, 'userId' | 'createdAt'>;
 
+/** One entry of the POST /lookup `blocks`: a text block's content hash and LSH bands, matched at the variant level. */
+export interface LookupBlock {
+  hash: string;
+  bands: string[];
+}
+
 /** One entry of the POST /lookup response. Only returned for hashes with votes. */
 export interface LookupResult {
   hash: string;

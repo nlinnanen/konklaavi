@@ -1,13 +1,16 @@
 import { emptyCounts, summarize } from './aggregate';
 import { hashNormalized } from './fingerprint';
 import { normalizeText } from './normalize';
-import { VERDICTS, type DomainStats, type LookupResult, type Signature, type VoteRequest } from './types';
+import {
+  VERDICTS,
+  type DomainStats,
+  type LookupBlock,
+  type LookupResult,
+  type Signature,
+  type VoteRequest,
+} from './types';
 
-/** A text block's content hash and LSH bands, matched at the variant level. */
-export interface LookupBlock {
-  hash: string;
-  bands: string[];
-}
+export type { LookupBlock };
 
 /** The backend contract. See docs/api.md. */
 export interface TrustApi {

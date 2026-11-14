@@ -64,7 +64,7 @@ def fetch_all(urls: list[str], timeout: float) -> None:
             )
         }
         job_ids = [
-            enqueue(conn, "fetch", {"url": url, "reason": "seed"}) for url in urls if url not in fetched
+            enqueue(conn, "fetch", {"url": url, "reason": "eval"}) for url in urls if url not in fetched
         ]
     log.info("%d pages already fetched, %d fetch jobs enqueued", len(fetched), len(job_ids))
     deadline = time.monotonic() + timeout

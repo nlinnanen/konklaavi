@@ -48,6 +48,22 @@ def confirmed_matches(conn: Connection, fingerprint_id: int, signature: list[int
     )
 
 
+def is_boilerplate(conn: Connection, fingerprint_id: int) -> bool:
+    """Whether the fingerprint was seen on at least two pages of one domain."""
+    return (
+        conn.execute(
+            """
+            SELECT 1 FROM observation o JOIN page p ON p.id = o.page_id
+            WHERE o.fingerprint_id = %s
+            GROUP BY p.domain_id HAVING count(DISTINCT o.page_id) >= 2
+            LIMIT 1
+            """,
+            (fingerprint_id,),
+        ).fetchone()
+        is not None
+    )
+
+
 def match(conn: Connection, fingerprint_id: int) -> int | None:
     """Join the closest matching variant and link to the closest earlier copy; return a narrative it joined."""
     row = conn.execute(
@@ -79,7 +95,8 @@ def match(conn: Connection, fingerprint_id: int) -> int | None:
         )
 
     target = next((c.variant_id for c in matches if c.variant_id is not None), None)
-    if variant_id is not None or target is None:
+    # A later fetch may have found this fingerprint to be boilerplate before this job ran.
+    if variant_id is not None or target is None or is_boilerplate(conn, fingerprint_id):
         return None
     conn.execute("UPDATE fingerprint SET variant_id = %s WHERE id = %s", (target, fingerprint_id))
     return conn.execute("SELECT narrative_id FROM variant WHERE id = %s", (target,)).fetchone()[0]

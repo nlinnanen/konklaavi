@@ -105,6 +105,30 @@ def test_cluster_resembling_an_earlier_one_evolves_from_it(conn):
     assert float(edges[0][4]) == pytest.approx(similarity, abs=0.02)
 
 
+def test_boilerplate_is_not_clustered(conn):
+    ids = add_group(conn, group(direction(0), 100), "Subscribe to our channel")
+    add_group(conn, group(direction(1), 110), "Beta claim")
+    add_group(conn, group(direction(2), 120), "Gamma claim")
+    domain_id = conn.execute("INSERT INTO domain (name) VALUES ('example.org') RETURNING id").fetchone()[0]
+    for path in ("a", "b"):
+        page_id = conn.execute(
+            "INSERT INTO page (url, domain_id, status) VALUES (%s, %s, 'ok') RETURNING id",
+            (f"https://example.org/{path}", domain_id),
+        ).fetchone()[0]
+        for fingerprint_id in ids:
+            conn.execute(
+                "INSERT INTO observation (seen_at, fingerprint_id, page_id, source) VALUES (now(), %s, %s, 'fetch')",
+                (fingerprint_id, page_id),
+            )
+
+    handle(conn, {})
+
+    assert [row[0] for row in conn.execute("SELECT title FROM narrative ORDER BY title")] == [
+        "Beta claim.",
+        "Gamma claim.",
+    ]
+
+
 def test_run_clusters_at_most_the_cap_and_records_it(conn, monkeypatch):
     monkeypatch.setattr(cluster, "MAX_EMBEDDINGS", 8)
     oldest = add_group(conn, group(direction(5), 140, size=2), "Old")

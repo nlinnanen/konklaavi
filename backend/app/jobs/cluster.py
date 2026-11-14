@@ -105,15 +105,22 @@ def create_narrative(conn: Connection, cluster: Cluster, title: str) -> int:
     ).fetchone()[0]
 
 
+# Unassigned embedded fingerprints, leaving out boilerplate: text seen on 2+ pages of one domain.
+CLUSTERABLE = """
+    variant_id IS NULL AND embedding IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM observation o JOIN page p ON p.id = o.page_id
+      WHERE o.fingerprint_id = fingerprint.id
+      GROUP BY p.domain_id HAVING count(DISTINCT o.page_id) >= 2
+    )
+"""
+
+
 @register("cluster")
 def handle(conn: Connection, payload: dict) -> None:
     refresh_centroids(conn)
-    unassigned = conn.execute(
-        "SELECT count(*) FROM fingerprint WHERE variant_id IS NULL AND embedding IS NOT NULL"
-    ).fetchone()[0]
+    unassigned = conn.execute(f"SELECT count(*) FROM fingerprint WHERE {CLUSTERABLE}").fetchone()[0]
     rows = conn.execute(
-        "SELECT id, content, embedding::real[] FROM fingerprint"
-        " WHERE variant_id IS NULL AND embedding IS NOT NULL"
+        f"SELECT id, content, embedding::real[] FROM fingerprint WHERE {CLUSTERABLE}"
         " ORDER BY first_seen DESC, id DESC LIMIT %s",
         (MAX_EMBEDDINGS,),
     ).fetchall()
