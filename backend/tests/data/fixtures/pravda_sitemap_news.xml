@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+		xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
+	<url>
+		<loc>https://francais.news-pravda.com/world/2026/11/14/1073468.html</loc>
+		<lastmod>2026-11-14T16:00:25+01:00</lastmod>
+		<news:news>
+			<news:publication>
+				<news:name>Pravda FR</news:name>
+				<news:language>fr</news:language>
+			</news:publication>
+			<news:publication_date>2026-11-14T16:00:25+01:00</news:publication_date>
+			<news:title>Un bâtiment d&#039;hôtel a été endommagé dans le village de Severny Sad</news:title>
+		</news:news>
+	</url><url>
+		<loc>https://francais.news-pravda.com/world/2026/11/14/1073469.html</loc>
+		<lastmod>2026-11-14T16:00:27+01:00</lastmod>
+		<news:news>
+			<news:publication>
+				<news:name>Pravda FR</news:name>
+				<news:language>fr</news:language>
+			</news:publication>
+			<news:publication_date>2026-11-14T16:00:27+01:00</news:publication_date>
+			<news:title>Deux autres corps ont été découverts dans la région de Belgorod</news:title>
+		</news:news>
+	</url><url>
+		<loc>https://francais.news-pravda.com/france/2026/11/01/1060001.html</loc>
+		<lastmod>2026-11-01T09:00:00+01:00</lastmod>
+		<news:news>
+			<news:publication>
+				<news:name>Pravda FR</news:name>
+				<news:language>fr</news:language>
+			</news:publication>
+			<news:publication_date>2026-11-01T09:00:00+01:00</news:publication_date>
+			<news:title>Un article plus ancien</news:title>
+		</news:news>
+	</url>
+</urlset>
