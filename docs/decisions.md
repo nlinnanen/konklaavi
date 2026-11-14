@@ -10,7 +10,7 @@ Each chunk gets three fingerprints, one per level of the [data model](data-model
 
 Shingles decide the variant level, because shared phrasing is evidence of copying and timestamps give the direction. Embeddings decide the narrative level, because they group rewrites of the same claim.
 
-The extension and the backend must produce identical fingerprints. The backend runs the same ONNX embedding model file as transformers.js through onnxruntime, and a shared JSON file of test vectors checks both MinHash implementations.
+The extension and the backend must produce identical fingerprints, so the TypeScript fingerprint code in `client/lib/` is the only implementation. The backend runs it in a Node fingerprint service that the Python worker calls over HTTP, and transformers.js runs the same embedding model in Node as in the browser.
 
 ## Matching runs on the client
 
@@ -35,7 +35,7 @@ Postgres is the only datastore, run from the `timescale/timescaledb-ha` image, w
 - The job queue is a table, and workers claim jobs with `SELECT ... FOR UPDATE SKIP LOCKED`.
 - Graph queries use recursive CTEs, and the worker loads subgraphs into networkx for clustering and lineage.
 
-Migrations are plain SQL files run by the container's init scripts.
+Migrations are plain SQL files applied in filename order by a Python runner at API and worker startup.
 
 ## Backend
 
@@ -47,7 +47,7 @@ The analysis job calls Claude through Hostinger's AI Router, using the Anthropic
 
 ## Deployment
 
-The whole stack runs with Docker Compose on the team's Hostinger VPS (KVM 2, 2 vCPU, 8 GB RAM), behind its free domain: Postgres, the API, the worker with the embedding model on CPU, and the dashboard served by the API. The same compose file runs locally and on the VPS.
+The whole stack runs with Docker Compose on the team's Hostinger VPS (KVM 2, 2 vCPU, 8 GB RAM), behind its free domain: Postgres, the fingerprint service with the embedding model on CPU, the API, the worker, and the Streamlit dashboard reading Postgres directly. The same compose file runs locally and on the VPS.
 
 ## Extension
 

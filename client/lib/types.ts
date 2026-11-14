@@ -35,14 +35,70 @@ export interface VoteRequest {
 /** What the content script sends; background adds userId/createdAt. */
 export type VoteInput = Omit<VoteRequest, 'userId' | 'createdAt'>;
 
+/** One entry of the POST /lookup `blocks`: a text block's content hash and LSH bands, matched at the variant level. */
+export interface LookupBlock {
+  hash: string;
+  bands: string[];
+}
+
 /** One entry of the POST /lookup response. Only returned for hashes with votes. */
 export interface LookupResult {
   hash: string;
   counts: VerdictCounts;
   total: number;
   flagged: boolean;
-  /** When flagged: most-voted negative verdict. Otherwise: most-voted verdict overall. */
+  /**
+   * When votes flag it: most-voted negative verdict. When only a narrative flags it: the narrative's
+   * verdict. Otherwise: most-voted verdict overall.
+   */
   topVerdict: Verdict;
+  /** Present when the hash belongs to a narrative in state `under_review` or `active`. */
+  signature?: Signature;
+}
+
+/** The shipped form of a narrative. */
+export interface Signature {
+  narrativeId: string;
+  title: string;
+  verdict: NegativeVerdict;
+  techniques: string[];
+  explanation: string | null;
+  source: 'euvsdisinfo' | 'report' | 'cluster';
+  sourceUrl: string | null;
+  state: 'under_review' | 'active';
+  matchLevel: 'exact' | 'variant';
+}
+
+/** A signature as GET /index ships it; the match level is the client's to set. */
+export type IndexSignature = Omit<Signature, 'matchLevel'>;
+
+/** One fingerprint of GET /index: `bands[i]` is LSH band i, null where the block has none. */
+export interface IndexFingerprint {
+  narrativeId: string;
+  bands: (string | null)[];
+}
+
+/**
+ * Body of GET /index. A full index replaces the client's. In a delta, each narrative in `signatures`
+ * comes with all its sentences and fingerprints and replaces the client's entries for it, and
+ * `removed` lists the narrativeIds no longer shipped.
+ */
+export interface IndexResponse {
+  /** Opaque and increasing; sent back as `since`. */
+  version: number;
+  full: boolean;
+  signatures: IndexSignature[];
+  sentences: { hash: string; narrativeId: string }[];
+  fingerprints: IndexFingerprint[];
+  removed: string[];
+}
+
+/** One entry of the POST /hits body. */
+export interface Hit {
+  hash: string;
+  narrativeId: string;
+  url: string;
+  seenAt: string;
 }
 
 /** Response of GET /domains/:domain. */
@@ -56,10 +112,13 @@ export interface DomainStats {
 }
 
 export interface Settings {
-  backendMode: 'mock' | 'remote';
+  /** `local` matches against a downloaded GET /index, so page hashes stay in the browser. */
+  backendMode: 'mock' | 'remote' | 'local';
   backendUrl: string;
   sendExcerpt: boolean;
   highlight: boolean;
+  /** Send detection hits to the backend in local index mode. */
+  sendHits: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -67,4 +126,5 @@ export const DEFAULT_SETTINGS: Settings = {
   backendUrl: 'http://localhost:8000',
   sendExcerpt: true,
   highlight: true,
+  sendHits: true,
 };

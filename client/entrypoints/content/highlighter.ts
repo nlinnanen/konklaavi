@@ -1,3 +1,4 @@
+import { displayVerdict } from '@/lib/messages';
 import { NEGATIVE_VERDICTS, type LookupResult, type NegativeVerdict } from '@/lib/types';
 
 export interface FlaggedRange {
@@ -15,18 +16,35 @@ const COLORS: Record<NegativeVerdict, [string, string]> = {
   misleading: ['rgba(245, 158, 11, 0.25)', '#d97706'],
 };
 
+/** Registered highlight name: exact matches as `tv-<verdict>`, edited copies as `tv-<verdict>-variant`. */
+function highlightName(result: LookupResult): string {
+  const verdict = displayVerdict(result) as NegativeVerdict;
+  return result.signature?.matchLevel === 'variant' ? `tv-${verdict}-variant` : `tv-${verdict}`;
+}
+
+const STYLES = NEGATIVE_VERDICTS.flatMap((v) => {
+  const [bg, line] = COLORS[v];
+  return [
+    `::highlight(tv-${v}) { background-color: ${bg}; text-decoration: underline wavy ${line}; text-decoration-thickness: 1px; }`,
+    `::highlight(tv-${v}-variant) { text-decoration: underline dashed ${line}; text-decoration-thickness: 2px; }`,
+  ];
+});
+
 /**
  * Highlights flagged text with the CSS Custom Highlight API, which paints
  * ranges without touching the page DOM, so it can't break site scripts.
  */
 export class Highlighter {
-  private highlights = new Map<NegativeVerdict, Highlight>();
+  private highlights = new Map<string, Highlight>();
   private byBlock = new Map<Element, FlaggedRange[]>();
   private enabled = true;
 
   constructor() {
     if (!highlightSupported) return;
-    for (const v of NEGATIVE_VERDICTS) this.highlights.set(v, new Highlight());
+    for (const v of NEGATIVE_VERDICTS) {
+      this.highlights.set(`tv-${v}`, new Highlight());
+      this.highlights.set(`tv-${v}-variant`, new Highlight());
+    }
     this.injectStyle();
     this.register();
   }
@@ -35,22 +53,19 @@ export class Highlighter {
     if (document.getElementById(STYLE_ID)) return;
     const style = document.createElement('style');
     style.id = STYLE_ID;
-    style.textContent = NEGATIVE_VERDICTS.map((v) => {
-      const [bg, line] = COLORS[v];
-      return `::highlight(tv-${v}) { background-color: ${bg}; text-decoration: underline wavy ${line}; text-decoration-thickness: 1px; }`;
-    }).join('\n');
+    style.textContent = STYLES.join('\n');
     (document.head ?? document.documentElement).append(style);
   }
 
   private register() {
-    for (const [v, h] of this.highlights) CSS.highlights.set(`tv-${v}`, h);
+    for (const [name, h] of this.highlights) CSS.highlights.set(name, h);
   }
 
   setEnabled(enabled: boolean) {
     if (!highlightSupported || enabled === this.enabled) return;
     this.enabled = enabled;
     if (enabled) this.register();
-    else for (const v of NEGATIVE_VERDICTS) CSS.highlights.delete(`tv-${v}`);
+    else for (const name of this.highlights.keys()) CSS.highlights.delete(name);
   }
 
   setBlock(block: Element, items: FlaggedRange[]) {
@@ -61,9 +76,8 @@ export class Highlighter {
   }
 
   private highlightFor(item: FlaggedRange): Highlight | undefined {
-    return this.highlights.get(item.result.topVerdict as NegativeVerdict);
+    return this.highlights.get(highlightName(item.result));
   }
-
   /** Drop blocks that were removed from the page. */
   prune() {
     for (const block of this.byBlock.keys()) if (!block.isConnected) this.setBlock(block, []);

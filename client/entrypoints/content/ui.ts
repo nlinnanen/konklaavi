@@ -1,4 +1,5 @@
-import { VERDICTS, VERDICT_LABELS, type LookupResult, type Verdict } from '@/lib/types';
+import { displayVerdict, sourceHref, SOURCE_LABELS } from '@/lib/messages';
+import { VERDICTS, VERDICT_LABELS, type LookupResult, type Signature, type Verdict } from '@/lib/types';
 import { UI_HOST_TAG } from './textModel';
 
 const CSS_TEXT = `
@@ -46,8 +47,19 @@ textarea {
   max-width: 280px; background: #111827; color: #f9fafb; border-radius: 8px; padding: 8px 10px;
   font-size: 12px; pointer-events: none; box-shadow: 0 6px 20px rgba(0,0,0,.3);
 }
+.tooltip.pinned { pointer-events: auto; }
 .tooltip strong { display: block; margin-bottom: 4px; font-size: 13px; }
 .tooltip .row { display: flex; justify-content: space-between; gap: 12px; color: #d1d5db; }
+.tooltip .match { color: #fbbf24; font-size: 11px; margin-bottom: 4px; }
+.tooltip .narrative { margin-bottom: 6px; }
+.tooltip .title { font-weight: 600; color: #fff; }
+.tooltip .tag { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #fbbf24; margin-left: 4px; }
+.tooltip .techniques { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.tooltip .technique { background: #374151; border-radius: 4px; padding: 1px 6px; font-size: 11px; }
+.tooltip .explanation { color: #d1d5db; margin: 4px 0; }
+.tooltip .source { color: #9ca3af; }
+.tooltip a { color: #93c5fd; }
+.tooltip .hint { color: #9ca3af; font-size: 11px; margin-top: 4px; }
 
 .toast {
   bottom: 20px; right: 20px; background: #111827; color: #fff; border-radius: 8px; padding: 10px 14px;
@@ -171,25 +183,61 @@ export class OverlayUi {
     this.panel.replaceChildren();
   }
 
-  showTooltip(x: number, y: number, text: string, result: LookupResult) {
+  /** A pinned tooltip takes pointer events, so its source link can be clicked. */
+  showTooltip(x: number, y: number, text: string, result: LookupResult, pinned: boolean) {
     this.tooltip.replaceChildren();
-    const share = Math.round((result.counts[result.topVerdict] / result.total) * 100);
-    this.tooltip.append(el('strong', undefined, `⚠ Flagged as ${VERDICT_LABELS[result.topVerdict].toLowerCase()}`));
-    this.tooltip.append(el('div', undefined, `${share}% of ${result.total} vote${result.total === 1 ? '' : 's'}`));
-    for (const v of VERDICTS) {
-      if (!result.counts[v]) continue;
-      const row = el('div', 'row');
-      row.append(el('span', undefined, VERDICT_LABELS[v]), el('span', undefined, String(result.counts[v])));
-      this.tooltip.append(row);
+    const verdict = displayVerdict(result);
+    this.tooltip.append(el('strong', undefined, `⚠ Flagged as ${VERDICT_LABELS[verdict].toLowerCase()}`));
+    if (result.signature?.matchLevel === 'variant') this.tooltip.append(el('div', 'match', 'Edited copy of a known narrative'));
+    if (result.signature) this.tooltip.append(this.narrative(result.signature, pinned));
+    if (result.total > 0) {
+      const share = Math.round((result.counts[result.topVerdict] / result.total) * 100);
+      this.tooltip.append(el('div', undefined, `${share}% of ${result.total} vote${result.total === 1 ? '' : 's'}`));
+      for (const v of VERDICTS) {
+        if (!result.counts[v]) continue;
+        const row = el('div', 'row');
+        row.append(el('span', undefined, VERDICT_LABELS[v]), el('span', undefined, String(result.counts[v])));
+        this.tooltip.append(row);
+      }
     }
-    this.tooltip.title = text;
+    this.tooltip.title = pinned ? '' : text;
+    this.tooltip.classList.toggle('pinned', pinned);
     this.tooltip.classList.remove('hidden');
     const { width, height } = this.tooltip.getBoundingClientRect();
     this.place(this.tooltip, x + 12, y + 16, width, height, y - height - 12);
   }
 
+  private narrative(signature: Signature, pinned: boolean): HTMLElement {
+    const box = el('div', 'narrative');
+    const title = el('div', 'title', signature.title);
+    if (signature.state === 'under_review') title.append(el('span', 'tag', 'under review'));
+    box.append(title);
+    if (signature.techniques.length) {
+      const list = el('div', 'techniques');
+      for (const t of signature.techniques) list.append(el('span', 'technique', t));
+      box.append(list);
+    }
+    if (signature.explanation) {
+      const ex = signature.explanation;
+      box.append(el('div', 'explanation', ex.length > 240 ? ex.slice(0, 240).trimEnd() + '…' : ex));
+    }
+    const source = el('div', 'source', 'Source: ');
+    const href = sourceHref(signature);
+    if (href) {
+      const link = el('a', undefined, SOURCE_LABELS[signature.source]);
+      link.href = href;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      source.append(link);
+    } else source.append(SOURCE_LABELS[signature.source]);
+    box.append(source);
+    if (href && !pinned) box.append(el('div', 'hint', 'Click to pin, then open the source'));
+    return box;
+  }
+
   hideTooltip() {
     this.tooltip.classList.add('hidden');
+    this.tooltip.classList.remove('pinned');
   }
 
   toast(message: string, kind: 'info' | 'error' = 'info') {

@@ -1,0 +1,19 @@
+{
+  "name": "fingerprint-service",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "test": "node --import tsx --test src/*.test.ts",
+    "compile": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "4.3.2",
+    "tsx": "4.23.15"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  }
+}
