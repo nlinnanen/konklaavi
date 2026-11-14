@@ -12,7 +12,7 @@ import { OverlayUi, type CardActions } from '@/entrypoints/content/ui';
 import { fingerprintSentences, splitSentences, type Sentence } from '@/lib/fingerprint';
 import { HIGHLIGHT_STYLES, highlightStyle, matchRank, STATE_LABELS, STATES } from '@/lib/state';
 import type { Helpfulness, LookupResult, Narrative, NarrativeState } from '@/lib/types';
-import { guideCss, panelCss } from './panel';
+import { barCss, guideCss } from './panel';
 
 interface Config {
   url: string;
@@ -88,50 +88,37 @@ const userId: string = (() => {
 // Notes and ratings need no account, as in the extension; this browser's install id writes them.
 let myRatings = store.get<Record<string, Helpfulness>>('hashtrust.myRatings', {});
 
-// ---- The side panel, beside the frame in the /view shell (same origin), else on the page itself.
+// ---- The top bar: the demo badge, the address bar and the page's status, over the frame in the /view
+// shell (same origin), else on the page itself. It replaces the shell's banner. Like the extension, the
+// page itself shows only highlights and cards.
 
 const shell = window !== window.top ? window.top!.document : null;
 const doc = shell ?? document;
 doc.getElementById('ht-host')?.remove();
 doc.getElementById('ht-loading')?.remove();
+doc.getElementById('ht-banner')?.remove();
 if (shell) shell.title = `${document.title || cfg.host} · HashTrust`;
-const panelHost = doc.createElement('div');
-panelHost.id = 'ht-host';
-panelHost.style.cssText = 'all:initial;position:fixed;top:0;right:0;bottom:0;width:340px;z-index:2147483647;';
-doc.body.append(panelHost);
-const root = panelHost.attachShadow({ mode: 'open' });
-root.innerHTML = `<style>${panelCss}</style>
-<div class="panel">
-  <header>
-    <div class="brand"><b>HashTrust</b><span>demo</span><button class="toggle" title="Collapse panel">»</button></div>
-    <form target="_top"><input name="url" type="url" required aria-label="Article URL"><button class="btn primary">Scan</button></form>
-    <div class="status"></div>
-  </header>
-  <div class="list"></div>
-  <footer>
-    <p class="demo-note">A demo: this page was rendered again on our server, so it may not look or work exactly like the
-    original, and some sites don't work. The real product is the browser extension.
-    <a class="readme" target="_blank" rel="noopener">How to install it</a></p>
-    <p>Select a passage on the page to add a note. Click a highlight to rate its notes.
-    <button class="link" data-act="guide">How it works</button></p>
-  </footer>
+const barHost = doc.createElement('div');
+barHost.id = 'ht-host';
+barHost.style.cssText = 'all:initial;position:fixed;top:0;left:0;right:0;height:48px;z-index:2147483647;';
+doc.body.append(barHost);
+const root = barHost.attachShadow({ mode: 'open' });
+root.innerHTML = `<style>${barCss}</style>
+<div class="bar" role="banner">
+  <span class="badge" title="A copy of the page rendered by HashTrust; links, videos and logins on it may not work">DEMO</span>
+  <form target="_top"><input name="url" type="url" required aria-label="Article address"><button class="btn primary">Open</button></form>
+  <div class="status" role="status"></div>
+  <button class="btn quiet" data-act="guide">How it works</button>
+  <a class="readme" target="_blank" rel="noopener">Get the extension →</a>
 </div>`;
 const $ = <T extends Element>(s: string) => root.querySelector(s) as T;
 $<HTMLInputElement>('input').value = cfg.url;
 $<HTMLFormElement>('form').action = cfg.proxy + 'view';
 $<HTMLAnchorElement>('.readme').href = cfg.readme;
 $<HTMLButtonElement>('[data-act=guide]').addEventListener('click', () => showGuide());
-$<HTMLButtonElement>('.toggle').addEventListener('click', () => {
-  const collapsed = panelHost.classList.toggle('collapsed');
-  panelHost.style.width = collapsed ? '44px' : '340px';
-  doc.body.classList.toggle('ht-collapsed', collapsed);
-  $<HTMLButtonElement>('.toggle').textContent = collapsed ? '«' : '»';
-});
 const statusEl = $<HTMLDivElement>('.status');
-const listEl = $<HTMLDivElement>('.list');
 const esc = (s: unknown) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-const clip = (t: string, max: number) => (t.length > max ? t.slice(0, max) + '…' : t);
 const spinner = '<span class="spinner" aria-hidden="true"></span>';
 
 // ---- Locating matches: whitespace is ignored, since extracted text adds spaces at line breaks and
@@ -217,51 +204,6 @@ function place(matches: CheckMatch[]) {
     byBlock.set(block, [...(byBlock.get(block) ?? []), item]);
   }
   for (const [block, items] of byBlock) highlighter.setBlock(block, items);
-}
-
-function renderList() {
-  const list = [...groups.values()].sort(
-    (a, b) => STATES.indexOf(a.narrative.state) - STATES.indexOf(b.narrative.state),
-  );
-  if (!list.length) {
-    listEl.innerHTML = '<p class="empty">Nothing on this page matches a tracked narrative.</p>';
-    return;
-  }
-  listEl.innerHTML = list
-    .map((g, i) => {
-      const n = g.narrative;
-      const count = g.items.length;
-      return `<button class="item" data-group="${i}" data-state="${n.state}">
-        <span class="chip">${esc(STATE_LABELS[n.state as NarrativeState] ?? n.state)}</span>
-        <span class="title">${esc(clip(n.title, 140))}</span>
-        <span class="meta">${count ? `${count} passage${count === 1 ? '' : 's'} highlighted` : 'Not located in the page'}${
-          n.notes.length ? ` · ${n.notes.length} note${n.notes.length === 1 ? '' : 's'}` : ' · no notes yet'
-        }</span>
-      </button>`;
-    })
-    .join('');
-  listEl.querySelectorAll<HTMLElement>('.item').forEach((el) =>
-    el.addEventListener('click', () => {
-      const g = list[+el.dataset.group!];
-      const first = g.items[0];
-      if (!first) return;
-      first.range.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      flash(g.items.map((x) => x.range));
-    }),
-  );
-}
-
-/** Outlines ranges for a moment, after the panel scrolled to them. */
-function flash(ranges: Range[]) {
-  if (!('highlights' in CSS)) return;
-  if (!document.getElementById('ht-flash-style')) {
-    const s = document.createElement('style');
-    s.id = 'ht-flash-style';
-    s.textContent = '::highlight(ht-flash) { background-color: oklch(0.7 0.15 255 / 0.45); }';
-    document.head.append(s);
-  }
-  CSS.highlights.set('ht-flash', new Highlight(...ranges));
-  setTimeout(() => CSS.highlights.delete('ht-flash'), 1400);
 }
 
 // ---- Notes: sign-in first, then the form, then the posted note (as NoteFlow in the extension).
@@ -457,76 +399,220 @@ function testMatches(): CheckMatch[] {
   });
 }
 
-// ---- The guide: how to use the demo, over the page on the first visit and from the panel's "How it works".
+// ---- The guide: a tour of the features over the page, on the first visit and from the panel's
+// "How it works". Each step spotlights what it explains: the banner, a highlight, a paragraph, the panel.
 
 const GUIDE_KEY = 'hashtrust.guideSeen';
 
-function showGuide() {
-  doc.getElementById('ht-guide')?.remove();
-  const host = doc.createElement('div');
-  host.id = 'ht-guide';
-  const panelWidth = panelHost.classList.contains('collapsed') ? 44 : 340;
-  host.style.cssText = `all:initial;position:fixed;top:${shell ? 36 : 0}px;left:0;right:${panelWidth}px;bottom:0;z-index:2147483646;`;
-  const guide = host.attachShadow({ mode: 'open' });
+interface Step {
+  title: string;
+  body: string;
+  /** What the step points at, in the shell's viewport; none centres the card. */
+  target?: () => DOMRect | null;
+}
+
+const frameEl = shell?.getElementById('ht-frame') as HTMLIFrameElement | null;
+
+/** A rectangle in the frame, moved into the shell's viewport. */
+function fromFrame(r: DOMRect): DOMRect {
+  const f = frameEl?.getBoundingClientRect();
+  return new DOMRect(r.left + (f?.left ?? 0), r.top + (f?.top ?? 0), r.width, r.height);
+}
+
+/** Scrolls an element of the page to the middle of the frame, at once so the spotlight can measure it. */
+function bringIntoView(el: Element | null) {
+  el?.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior });
+}
+
+function steps(): Step[] {
+  const first = flagged[0];
   const swatch = (state: NarrativeState) =>
     `<span class="swatch" style="${HIGHLIGHT_STYLES[state]}">${esc(STATE_LABELS[state])}</span>`;
+  const paragraph = [...document.querySelectorAll('p')].find(
+    (p) => (p.textContent ?? '').trim().length > 140 && !p.closest('hashtrust-ui') && p.getClientRects().length,
+  );
+  const highlightRect = () => {
+    if (!first) return null;
+    bringIntoView(first.range.startContainer.parentElement);
+    return fromFrame(first.range.getBoundingClientRect());
+  };
+  return [
+    {
+      title: 'Welcome to the HashTrust demo',
+      body: `HashTrust shows you, as you read, which passages belong to a narrative that readers are tracking and
+        what their notes say about it. This short tour shows how. It takes a minute.`,
+    },
+    {
+      title: 'This is a demo copy',
+      body: `The page is a copy of ${esc(cfg.host)} that our server rendered, so its links, videos and logins may not work,
+        and some sites don't work at all. The real product is the browser extension, which does this on the pages you read.`,
+      target: () => barHost.getBoundingClientRect(),
+    },
+    {
+      title: 'Highlights',
+      body: `${first ? 'Like this one, a highlight' : 'A highlight'} marks a passage that belongs to a tracked narrative.
+        The colour is what readers' notes say:
+        <span class="swatches">${swatch('misleading')}${swatch('context')}${swatch('controversial')}${swatch('needs_ratings')}</span>
+        A lighter highlight matched by meaning rather than by wording.${first ? '' : ' This page has no highlights yet.'}`,
+      target: highlightRect,
+    },
+    {
+      title: 'Read and rate the notes',
+      body: `<b>Hover</b> a highlight to preview its note. <b>Click</b> it to open every note on the narrative, rate each
+        one Helpful, Somewhat or Not helpful, or report it. A note is shown once readers who usually disagree both find it helpful.`,
+      target: highlightRect,
+    },
+    {
+      title: 'Add context',
+      body: `<b>Select a sentence</b> anywhere on the page and click <b>Add context</b>. Say whether the passage is misleading,
+        write what readers should know and add sources. No account needed. The note is reviewed, then rated by readers.`,
+      target: () => {
+        if (!paragraph) return null;
+        bringIntoView(paragraph);
+        return fromFrame(paragraph.getBoundingClientRect());
+      },
+    },
+    {
+      title: 'Open another article',
+      body: `Paste an article's address in the bar and click <b>Open</b>. The bar also shows how many narratives were found
+        on the page, and <b>How it works</b> brings this tour back.`,
+      target: () => root.querySelector('form')?.getBoundingClientRect() ?? null,
+    },
+    {
+      title: "That's it",
+      body: `Try it on this page, or open another article. To have HashTrust on the pages you read, install the browser extension.
+        <a href="${esc(cfg.readme)}" target="_blank" rel="noopener">How to install it</a>`,
+    },
+  ];
+}
+
+function showGuide() {
+  doc.getElementById('ht-guide')?.remove();
+  ui.hideCard();
+  const host = doc.createElement('div');
+  host.id = 'ht-guide';
+  host.style.cssText = 'all:initial;position:fixed;inset:0;z-index:2147483647;';
+  const guide = host.attachShadow({ mode: 'open' });
   guide.innerHTML = `<style>${guideCss}</style>
-  <div class="backdrop">
-    <section class="card" role="dialog" aria-modal="true" aria-labelledby="guide-title">
-      <p class="eyebrow">HashTrust demo</p>
-      <h2 id="guide-title">How to use it</h2>
-      <ol>
-        <li><b>Highlights</b> mark passages that belong to a narrative readers are tracking. The colour is what their notes say:
-          <span class="swatches">${swatch('misleading')}${swatch('context')}${swatch('controversial')}${swatch('needs_ratings')}</span>
-          A lighter highlight matched by meaning, not by wording.</li>
-        <li><b>Hover</b> a highlight to see its note. <b>Click</b> it to read every note and rate them.</li>
-        <li><b>Select a sentence</b> and click <b>Add context</b> to write your own note. No account needed.</li>
-        <li>The <b>panel on the right</b> lists every narrative found on this page; click one to jump to it.</li>
-      </ol>
-      <p class="demo">This is a demo: a copy of ${esc(cfg.host)} rendered on our server, so some things on the page may not
-        work. The real product is the browser extension, which does this on the pages you read.
-        <a href="${esc(cfg.readme)}" target="_blank" rel="noopener">How to install it</a></p>
-      <div class="actions"><button class="btn primary" autofocus>Got it</button></div>
-    </section>
-  </div>`;
+  <div class="dim"></div><div class="hole hidden"></div>
+  <section class="card" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <p class="eyebrow"></p>
+    <h2 id="guide-title"></h2>
+    <div class="body"></div>
+    <div class="actions">
+      <button class="btn quiet skip">Skip tour</button>
+      <span class="dots"></span>
+      <button class="btn back">Back</button>
+      <button class="btn primary next">Next</button>
+    </div>
+  </section>`;
+  const q = <T extends Element>(sel: string) => guide.querySelector(sel) as T;
+  const list = steps();
+  let at = 0;
+
+  const place = () => {
+    const step = list[at];
+    q('.eyebrow').textContent = `Step ${at + 1} of ${list.length}`;
+    q('h2').textContent = step.title;
+    q('.body').innerHTML = step.body;
+    q('.dots').innerHTML = list.map((_, i) => `<i class="${i === at ? 'on' : ''}"></i>`).join('');
+    q<HTMLButtonElement>('.back').hidden = at === 0;
+    q<HTMLButtonElement>('.next').textContent = at === list.length - 1 ? 'Done' : 'Next';
+    const card = q<HTMLElement>('.card');
+    const hole = q<HTMLElement>('.hole');
+    const rect = step.target?.() ?? null;
+    const vw = innerWidth;
+    const vh = innerHeight;
+    if (!rect || !rect.width || rect.bottom < 0 || rect.top > vh) {
+      hole.classList.add('hidden');
+      q('.dim').classList.remove('hidden');
+      card.style.left = `${Math.max(16, (vw - card.offsetWidth) / 2)}px`;
+      card.style.top = `${Math.max(16, (vh - card.offsetHeight) / 2)}px`;
+      return;
+    }
+    const pad = 6;
+    const box = {
+      left: Math.max(4, rect.left - pad),
+      top: Math.max(4, rect.top - pad),
+      right: Math.min(vw - 4, rect.right + pad),
+      bottom: Math.min(vh - 4, rect.bottom + pad),
+    };
+    hole.classList.remove('hidden');
+    q('.dim').classList.add('hidden');
+    Object.assign(hole.style, {
+      left: `${box.left}px`,
+      top: `${box.top}px`,
+      width: `${box.right - box.left}px`,
+      height: `${box.bottom - box.top}px`,
+    });
+    // Beside the target where there is room: below, above, else to its left.
+    const w = card.offsetWidth;
+    const h = card.offsetHeight;
+    let left = Math.min(Math.max(16, box.left), vw - w - 16);
+    let top: number;
+    if (box.bottom + 14 + h < vh) top = box.bottom + 14;
+    else if (box.top - 14 - h > 0) top = box.top - 14 - h;
+    else {
+      top = Math.max(16, Math.min(box.top, vh - h - 16));
+      left = Math.max(16, box.left - w - 16);
+    }
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
+  };
+
   const close = () => {
     store.set(GUIDE_KEY, true);
     host.remove();
     doc.removeEventListener('keydown', onKey);
+    removeEventListener('resize', place);
   };
-  const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
-  guide.querySelector('.btn')!.addEventListener('click', close);
-  guide.querySelector('.backdrop')!.addEventListener('click', (e) => e.target === e.currentTarget && close());
+  const go = (to: number) => {
+    if (to >= list.length) return close();
+    at = Math.max(0, to);
+    place();
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowRight') go(at + 1);
+    else if (e.key === 'ArrowLeft') go(at - 1);
+  };
+  q('.next').addEventListener('click', () => go(at + 1));
+  q('.back').addEventListener('click', () => go(at - 1));
+  q('.skip').addEventListener('click', close);
   doc.addEventListener('keydown', onKey);
+  addEventListener('resize', place);
   doc.body.append(host);
-  (guide.querySelector('.btn') as HTMLButtonElement).focus();
+  place();
+  q<HTMLButtonElement>('.next').focus();
 }
 
 // ---- Run.
 
 setupSelection();
 setupCards();
-if (!store.get(GUIDE_KEY, false)) showGuide();
+// The tour starts once the page is checked, so it can point at a real highlight.
+const firstVisit = !store.get(GUIDE_KEY, false);
 
 if (!cfg.blocks.length) {
-  statusEl.innerHTML = `<span class="err">No text extracted from ${esc(cfg.host)}.</span>`;
+  statusEl.innerHTML = `<span class="err">No text could be read from ${esc(cfg.host)}.</span>`;
+  if (firstVisit) showGuide();
 } else {
-  statusEl.innerHTML = `${spinner} Checking <b>${cfg.blocks.length}</b> text blocks from <b>${esc(cfg.host)}</b>…`;
-  listEl.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+  statusEl.innerHTML = `${spinner} Checking the page…`;
   const t0 = performance.now();
   api<{ matches: CheckMatch[] }>('check', { text: cfg.blocks.join('\n\n') })
     .then(({ matches }) => {
       if (cfg.test) matches = matches.concat(testMatches());
       place(matches);
       const secs = ((performance.now() - t0) / 1000).toFixed(1);
-      const passages = flagged.length;
-      statusEl.innerHTML =
-        `<b>${cfg.blocks.length}</b> blocks (${esc(cfg.mode)}) checked in ${secs}s · ` +
-        `<b>${groups.size}</b> narrative${groups.size === 1 ? '' : 's'}, <b>${passages}</b> passage${passages === 1 ? '' : 's'}`;
-      renderList();
+      const shown = new Set(flagged.map((f) => f.result.narrative.narrativeId)).size;
+      statusEl.innerHTML = shown
+        ? `<b>${shown}</b> narrative${shown === 1 ? '' : 's'} on this page, <b>${flagged.length}</b> passage${flagged.length === 1 ? '' : 's'} highlighted`
+        : 'No tracked narratives on this page';
+      statusEl.title = `${cfg.blocks.length} text blocks (${cfg.mode}) checked in ${secs}s`;
+      if (firstVisit) showGuide();
     })
     .catch((e) => {
       statusEl.innerHTML = `<span class="err">Check failed: ${esc(message(e))}</span>`;
-      listEl.innerHTML = '';
+      if (firstVisit) showGuide();
     });
 }
