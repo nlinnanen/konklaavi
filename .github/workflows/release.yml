@@ -5,8 +5,8 @@ name: release
 # run `sudo /usr/local/sbin/junction26-release <sha>` (infra/ansible, role app). It then waits until
 # the public API reports the new commit.
 #
-# After a deploy, the extension zip CI built for that commit replaces the assets of the latest-demo
-# pre-release, whose tag moves to the commit.
+# After a deploy, the Chrome and Firefox extension zips CI built for that commit replace the assets of
+# the latest-demo pre-release, whose tag moves to the commit.
 #
 # Rollback or redeploy: run this workflow by hand with the sha of an earlier main commit. That skips
 # the build and releases the images already in GHCR for it.
@@ -154,10 +154,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: extension-chrome
-          path: dist
+          path: dist/chrome
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-firefox
+          path: dist/firefox
       - name: Publish the latest-demo release
         run: |
+          cp dist/chrome/*.zip hashtrust-chrome.zip
+          cp dist/firefox/*.zip hashtrust-firefox.zip
           gh release delete latest-demo --cleanup-tag --yes || true
-          gh release create latest-demo dist/*.zip --target "$SHA" --prerelease \
+          gh release create latest-demo hashtrust-chrome.zip hashtrust-firefox.zip --target "$SHA" --prerelease \
             --title "Demo extension (${SHA:0:7})" \
-            --notes "Chrome extension built from $SHA. Unzip it and load the folder at chrome://extensions with Developer mode on."
+            --notes "Chrome and Firefox extension built from $SHA. Chrome: unzip hashtrust-chrome.zip and load the folder at chrome://extensions with Developer mode on. Firefox 140 or later: open about:debugging, This Firefox, Load Temporary Add-on, and pick hashtrust-firefox.zip."

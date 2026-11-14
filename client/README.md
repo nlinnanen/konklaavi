@@ -34,6 +34,8 @@ npm run compile        # typecheck
 
 To load the build manually, go to `chrome://extensions`, turn on Developer mode, click "Load unpacked" and choose `dist/chrome-mv3`.
 
+`npm run zip:firefox` packages the Firefox build (Firefox 140 or later) as `dist/hashtrust-extension-<version>-firefox.zip`; the latest-demo release has it as `hashtrust-firefox.zip`. To install it, open `about:debugging`, choose "This Firefox", click "Load Temporary Add-on" and pick the zip or `dist/firefox-mv2/manifest.json`; Firefox removes it on restart.
+
 ## End-to-end test
 
 `npm run test:e2e` builds the extension in development mode (`dist/chrome-mv3-dev`, whose UI shadow root is open) and runs `e2e/smoke.spec.ts` with Playwright. The test loads the extension into Chromium, serves `e2e/fixture.html` and a stub backend (`/lookup`, `/index`, `/narratives`, `/notes`, `/me`, `/hits`) from a local server, and checks in remote mode the exact and edited-copy highlights, the pinned card with its note, source and rating, and a note added to a selected passage; in local index mode, the highlights and the posted detection hit.
