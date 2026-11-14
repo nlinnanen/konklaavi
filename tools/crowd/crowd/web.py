@@ -59,12 +59,13 @@ class Robots:
 
 
 def clean(url: str) -> str:
-    """The URL without the tracking parameters feeds add (utm_*, BBC's at_*, Yle's origin)."""
+    """The URL without the tracking parameters feeds add (utm_*, BBC's at_*, Yle's origin, Al Jazeera's
+    traffic_source, which its robots.txt disallows)."""
     parts = urlsplit(url)
     query = [
         (k, v)
         for k, v in parse_qsl(parts.query, keep_blank_values=True)
-        if not k.startswith(("utm_", "at_")) and k != "origin"
+        if not k.startswith(("utm_", "at_")) and k not in ("origin", "traffic_source")
     ]
     return urlunsplit(parts._replace(query=urlencode(query)))
 
