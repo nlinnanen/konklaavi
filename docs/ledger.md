@@ -107,6 +107,37 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: Workstreams start in parallel against contracts and mocks; nothing waits on another workstream's branch. Stacks start with `docker compose up --wait` instead of polling loops.
 - integrator: No build or merge step runs a full-scale import or evaluation. Full-scale runs happen only as separate background jobs that nothing waits on, and their results are read when they finish.
 - integrator: Deployment is one Hostinger VPS set up once by hand, plus GitHub Actions that deploy every push to the `deploy` branch over SSH with a pinned host key; releasing is fast-forwarding `deploy` to a merged `integration` commit. No IaC.
+- pipeline: a fingerprint is boilerplate when it is not prose, or when it and its near-duplicates appear on 2+ pages of a domain where it appears. Near-duplicates are confirmed LSH candidates (2+ shared bands, estimated Jaccard >= 0.5) or fingerprints with the same `dateless` text.
+- pipeline: `dateless(content)` (migration 200) lowercases text and strips digits, English month and weekday names, and punctuation. `fingerprint.dateless_hash` and `fingerprint.prose` are stored generated columns.
+- pipeline: prose means at least 8 words besides digits and dates, making up at least half of all words. A block that is not prose is never attached or joined to a variant.
+- pipeline: a fetch detaches boilerplate among its own blocks and their near-duplicates on other pages.
+- pipeline: `narrative_page` (migration 201) records the pages fetched for a narrative; a narrative left without fingerprints re-embeds its title and claim and attaches the most relevant non-boilerplate block of those pages.
+- pipeline: a hit fetch is skipped when the page was fetched in the last 24 hours, whatever its status; otherwise it is an ordinary fetch with the hit's narrative_id. A narrative_id with no narrative logs a warning and the fetch runs without one.
+- pipeline: `update_centroids` lives in variants.py.
+- core: the /index version is `pg_snapshot_xmin` of the reading transaction, read at REPEATABLE READ; a delta sends the narratives whose `index_change` rows have xid >= since. `index_change` is never pruned.
+- core: triggers on narrative (shipped columns only), variant, fingerprint, sentence and lsh_band write `index_change`; centroid and updated_at writes don't change the index.
+- core: a hit records a detection observation of the lowest-id fingerprint in its narrative whose content hash or sentence equals the hash; an unresolved hash records nothing but still fetches. Hit fetches are serialised per URL by an advisory lock.
+- core: reputation is (a + 1) / (a + d + 4) over the settled narratives a user's votes agree or disagree with; a new account weighs 0.25. A burst is 3+ accounts whose first votes fall within 10 minutes and vote the same side of the same content; each member weighs reputation / k.
+- core: votes flag content when at least 2 users voted, the weighted total is at least 0.5 and the weighted negative share is at least 0.5.
+- core: lifecycle rules for reports (activate, dispute, retire) are in `backend/app/trust.py`; euvsdisinfo cases stay active.
+- core: continuous aggregates `narrative_hits_hourly` and `narrative_domain_daily` use real-time aggregation; `narrative_new_domains_daily` is a view. observation compresses after 30 days, segmented by fingerprint_id.
+- core: the production stack and Caddyfile are validated locally with DOMAIN=localhost.
+- ext: the local index refreshes on lookup: an index 5 minutes old answers while a `?since` delta downloads in the background, so nothing polls while the browser is idle.
+- ext: LocalIndexApi waits for the first full download; a failed first download fails the lookup.
+- ext: the index is stored in IndexedDB (`trust-verifier`, store `kv`, key `index`) with its baseUrl and last check time; an index for another backend URL is ignored.
+- ext: local lookup results have zero vote counts, are flagged only when the narrative is active, and carry the narrative's verdict.
+- ext: detection hits go out after each local lookup as one POST /hits batch of the flagged results with a signature, each hash once per page (URL without fragment, last 500 pages remembered), for http(s) pages only, when `sendHits` is on; failures are logged and dropped.
+- ext: a build with `WXT_API_URL` set defaults to Local index with that URL.
+- data: a seed case with two or more article URLs holds a third of them out of the import for the evaluation; the evaluation measures known narratives on held-out URLs and their mirrors, reports held-out test cases apart, and gives each false negative its reason.
+- data: blocks under 8 words or at least half numeric are left out of clustering.
+- data: a cluster joins a narrative by its members' mean cosine to the narrative's centroid, so a loose cluster whose centroid lies near a narrative stays apart.
+- data: the simulation models honest, lazy, partisan and brigade voters, with established accounts casting the honest votes a brigade has to outweigh.
+- data: the spread page reads an `observation_daily` continuous aggregate when it exists and buckets the observation table otherwise.
+- data: an in-process eval lookup holds no pooled connection.
+- integrator: GET /index ships fingerprints as `{narrativeId, bands: (string | null)[32]}`, so the extension applies the /lookup variant rule per fingerprint; `IndexResponse`, `IndexSignature` and `Hit` are in `client/lib/types.ts`.
+- integrator: `Settings` carries `backendMode: 'local'` and `sendHits`.
+- integrator: a periodic `lifecycle` job re-evaluates every shipped narrative every 10 minutes.
+- integrator: the cluster job leaves out fingerprints that are not prose or that `variants.boilerplate` marks.
 
 ## Deferred
 
@@ -127,9 +158,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: `splitSentences` treats a newline as a sentence break; changing it changes stored hashes, so it waits for a parity check across the extension and the service.
 - integrator: The unique index on `narrative(source, source_url)` and moving signature helpers to `client/lib/signature.ts` wait until they are needed.
 - pipeline: the same article at two URLs on one domain makes its blocks look like boilerplate, so they are detached.
-- pipeline: near-duplicate boilerplate escapes the exact-hash rule, such as news-pravda sidebar teasers that glue a headline onto a lead, and `match_variants` can pull such a teaser into a narrative's variant.
 - pipeline: on a page whose article body trafilatura misses, the always-attach-the-closest-block rule attaches an unrelated sidebar item.
-- pipeline: when detachment removes a narrative's only attached block, nothing re-picks the earlier page's next best block.
 - pipeline: detaching leaves empty variant rows behind.
 - pipeline: `DERIVED_FROM` `dt_seconds` uses first_seen (fetch time), not the page's published_at.
 - pipeline: fingerprint-service tests use a fake embedder, so cross-runtime embedding parity is not tested.
@@ -138,7 +167,6 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - ext: when a block exceeds the per-pass sentence budget, its content hash covers only the scanned sentences and differs from the service's block hash.
 - ext: the block fingerprint logic is duplicated in the scanner and in fingerprint-service's `fingerprintBlock`; a shared helper in `client/lib` would remove the copy.
 - ext: the e2e dev build writes to `dist/chrome-mv3-dev`, the directory `npm run dev` uses, so running both at once collides.
-- core: the Caddyfile is not validated, because this VM's Docker cannot extract the caddy image; run `docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile` on the VPS after the first start.
 - core: analysis through the Hostinger AI Router is untested without a key, including which model ids the router serves.
 - core: a long-running handler gets no lease heartbeat.
 - core: a variant-level result ignores votes on the block's content_hash.
@@ -148,3 +176,20 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - data: the cluster thresholds 0.9 and 0.75 are untuned.
 - data: `latest.json` is about 136 KB because true positives list every matched block.
 - integrator: the cluster job turns page chrome that is not boilerplate (dates, single-page sidebar teasers) into candidate narratives.
+- pipeline: a hit for a page fetched in the last 24 hours is dropped even when that fetch was for another narrative, so the hit's narrative never gets the page.
+- pipeline: by the near-duplicate rule, an article's lead becomes boilerplate when sidebar teasers on other pages of its domain copy it closely.
+- pipeline: the dateless rule knows only English month and weekday names.
+- pipeline: `boilerplate()` runs the near-duplicate SQL twice per fetch, and the Jaccard confirmation exists in Python (`confirmed_matches`) and in SQL (`NEAR_DUPLICATES`).
+- core: reputation can be farmed by voting negative on visible euvsdisinfo highlights.
+- core: euvsdisinfo cases can never be disputed or retired by votes.
+- core: a database reset whose xids later pass a client's old `since` gives that client a wrong delta; the version carries no database identity.
+- core: the aggregates keep a fingerprint under the narrative it had when its bucket was materialised.
+- core: /hits is unauthenticated, so anyone can inflate detection counts and trigger one fetch per URL per day.
+- core: the fetch job's boilerplate rule counts detection observations, so exact hits on two pages of one domain detach the fingerprint.
+- core: on this VM a fresh timescaledb-ha volume crashes timescaledb-tune, so the first `docker compose up` reports db unhealthy and a second succeeds.
+- ext: in local index mode votes never flag content, because the index carries no vote data.
+- ext: open pages are not rescanned when a delta arrives.
+- ext: the whole index record is rewritten to IndexedDB on every refresh, empty deltas included.
+- ext: `client/lib/extensionSettings.ts` duplicates `client/lib/settings.ts`; with `Settings` widened, the two fold into one.
+- data: the spread page reads per-page `observation_daily`, which no migration creates; core's aggregates are per narrative and domain, so the page always buckets the raw table.
+- integrator: the cluster job runs `variants.boilerplate` over every unassigned prose fingerprint; its cost at full scale is unmeasured.

@@ -181,3 +181,15 @@ def handle(conn: Connection, payload: dict) -> None:
     """Analyse the vote, then move the narratives it counts towards to the state their votes call for."""
     analyze_vote(conn, payload["vote_id"], claude_analyze)
     trust.update_states(conn, trust.vote_narratives(conn, payload["vote_id"]))
+
+
+@register("lifecycle")
+def lifecycle(conn: Connection, payload: dict) -> None:
+    """Re-evaluate every shipped narrative, so reputation changes reach narratives no new vote touches."""
+    ids = [
+        row[0]
+        for row in conn.execute(
+            "SELECT id FROM narrative WHERE state = ANY(%s)", (list(trust.SHIPPED_STATES),)
+        )
+    ]
+    trust.update_states(conn, ids)

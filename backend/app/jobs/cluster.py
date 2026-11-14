@@ -1,7 +1,7 @@
 """Periodic narrative discovery: HDBSCAN over the embeddings of fingerprints that have no variant.
 
-Page chrome is left out: boilerplate seen on 2+ pages of a domain, and blocks too short or too numeric to
-carry a claim.
+Page chrome is left out: boilerplate (see app.jobs.variants.boilerplate), and blocks too short or too numeric
+to carry a claim.
 """
 
 import logging
@@ -14,6 +14,7 @@ from psycopg.types.json import Jsonb
 from sklearn.cluster import HDBSCAN
 
 from app.jobs import register
+from app.jobs.variants import boilerplate
 
 # Bounds the run's cost; the newest unassigned embeddings are clustered first.
 MAX_EMBEDDINGS = 2000
@@ -125,13 +126,7 @@ def create_narrative(conn: Connection, cluster: Cluster, title: str) -> int:
 
 
 # Unassigned embedded fingerprints, leaving out boilerplate: text seen on 2+ pages of one domain.
-CLUSTERABLE = """
-    variant_id IS NULL AND embedding IS NOT NULL AND NOT EXISTS (
-      SELECT 1 FROM observation o JOIN page p ON p.id = o.page_id
-      WHERE o.fingerprint_id = fingerprint.id
-      GROUP BY p.domain_id HAVING count(DISTINCT o.page_id) >= 2
-    )
-"""
+CLUSTERABLE = "variant_id IS NULL AND embedding IS NOT NULL AND prose"
 
 
 @register("cluster")
@@ -144,6 +139,8 @@ def handle(conn: Connection, payload: dict) -> None:
         )
         if not is_chrome(text)
     ]
+    chrome = boilerplate(conn, [id for id, _ in candidates])
+    candidates = [(id, text) for id, text in candidates if id not in chrome]
     unassigned = len(candidates)
     content = dict(candidates[:MAX_EMBEDDINGS])
     rows = conn.execute(

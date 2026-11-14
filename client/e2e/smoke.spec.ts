@@ -63,7 +63,7 @@ async function startStub(sentenceHash: string, block: LookupBlock): Promise<Serv
     full: true,
     signatures: [SIGNATURE],
     sentences: [{ hash: sentenceHash, narrativeId: SIGNATURE.narrativeId }],
-    bands: block.bands.map((hash, band) => ({ band, hash, narrativeId: SIGNATURE.narrativeId })),
+    fingerprints: [{ narrativeId: SIGNATURE.narrativeId, bands: block.bands }],
     removed: [],
   };
   const server = createServer(async (req, res) => {

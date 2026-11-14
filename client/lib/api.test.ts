@@ -140,7 +140,12 @@ function signature(narrativeId: string, state: Signature['state'] = 'active'): S
 }
 
 function index(over: Partial<IndexResponse> = {}): IndexResponse {
-  return { version: 1, full: true, signatures: [], sentences: [], bands: [], removed: [], ...over };
+  return { version: 1, full: true, signatures: [], sentences: [], fingerprints: [], removed: [], ...over };
+}
+
+/** An index fingerprint of `narrativeId` with only the bands in `set`. */
+function fingerprint(narrativeId: string, set: Record<number, string>) {
+  return { narrativeId, bands: Array.from({ length: 32 }, (_, i) => set[i] ?? null) };
 }
 
 /** 32 bands that share nothing with the index, with `set` overriding some indexes. */
@@ -157,11 +162,7 @@ describe('SignatureIndex', () => {
       { hash: 'shared', narrativeId: 'n2' },
       { hash: 'shared', narrativeId: 'n1' },
     ],
-    bands: [
-      { band: 0, hash: 'a', narrativeId: 'n1' },
-      { band: 5, hash: 'b', narrativeId: 'n1' },
-      { band: 7, hash: 'c', narrativeId: 'n2' },
-    ],
+    fingerprints: [fingerprint('n1', { 0: 'a', 5: 'b' }), fingerprint('n1', { 9: 'd' }), fingerprint('n2', { 7: 'c' })],
   });
   const lookup = (hashes: string[], blocks: { hash: string; bands: string[] }[] = []) =>
     Object.fromEntries(new SignatureIndex(snapshot).lookup(hashes, blocks).map((r) => [r.hash, r]));
@@ -178,13 +179,14 @@ describe('SignatureIndex', () => {
     expect(lookup(['shared']).shared?.signature?.narrativeId).toBe('n1');
   });
 
-  it('matches a block as a variant when 2 bands at the same index belong to one narrative', () => {
+  it('matches a block as a variant when it shares 2 bands at the same index with one fingerprint', () => {
     const r = lookup(
       [],
       [
         { hash: 'variant', bands: blockBands({ 0: 'a', 5: 'b' }) },
         { hash: 'one-each', bands: blockBands({ 0: 'a', 7: 'c' }) },
         { hash: 'wrong-index', bands: blockBands({ 1: 'a', 5: 'b' }) },
+        { hash: 'two-fingerprints', bands: blockBands({ 0: 'a', 9: 'd' }) },
       ],
     );
     expect(Object.keys(r)).toEqual(['variant']);
@@ -206,14 +208,11 @@ describe('applyIndexUpdate', () => {
         { hash: 's1', narrativeId: 'n1' },
         { hash: 's2', narrativeId: 'n2' },
       ],
-      bands: [
-        { band: 0, hash: 'a', narrativeId: 'n1' },
-        { band: 0, hash: 'b', narrativeId: 'n2' },
-      ],
+      fingerprints: [fingerprint('n1', { 0: 'a' }), fingerprint('n2', { 0: 'b' })],
     }),
   );
 
-  it('drops removed narratives and merges changed ones from a delta', () => {
+  it('drops removed narratives and replaces the entries of changed ones from a delta', () => {
     const next = applyIndexUpdate(
       base,
       index({
@@ -221,11 +220,10 @@ describe('applyIndexUpdate', () => {
         full: false,
         signatures: [signature('n2'), signature('n3')],
         sentences: [
-          { hash: 's2', narrativeId: 'n2' },
           { hash: 's3', narrativeId: 'n2' },
           { hash: 's4', narrativeId: 'n3' },
         ],
-        bands: [{ band: 1, hash: 'c', narrativeId: 'n3' }],
+        fingerprints: [fingerprint('n3', { 1: 'c' })],
         removed: ['n1'],
       }),
     );
@@ -234,13 +232,13 @@ describe('applyIndexUpdate', () => {
       ['n2', 'active'],
       ['n3', 'active'],
     ]);
-    expect(next.sentences.map((s) => s.hash).sort()).toEqual(['s2', 's3', 's4']);
-    expect(next.bands.map((b) => b.hash).sort()).toEqual(['b', 'c']);
+    expect(next.sentences.map((s) => s.hash).sort()).toEqual(['s3', 's4']);
+    expect(next.fingerprints.map((f) => f.narrativeId)).toEqual(['n3']);
   });
 
   it('replaces everything with a full index', () => {
     const next = applyIndexUpdate(base, index({ version: 9, signatures: [signature('n3')] }));
-    expect(next).toEqual({ version: 9, signatures: [signature('n3')], sentences: [], bands: [] });
+    expect(next).toEqual({ version: 9, signatures: [signature('n3')], sentences: [], fingerprints: [] });
   });
 });
 
@@ -258,8 +256,8 @@ describe('LocalIndexApi', () => {
 
   it('answers lookups from the downloaded index and applies deltas once it is stale', async () => {
     const requests = backend([
-      index({ version: 'v1', signatures: [signature('n1')], sentences: [{ hash: 's1', narrativeId: 'n1' }] }),
-      index({ version: 'v2', full: false, signatures: [signature('n2')], sentences: [{ hash: 's2', narrativeId: 'n2' }] }),
+      index({ version: 1, signatures: [signature('n1')], sentences: [{ hash: 's1', narrativeId: 'n1' }] }),
+      index({ version: 2, full: false, signatures: [signature('n2')], sentences: [{ hash: 's2', narrativeId: 'n2' }] }),
     ]);
     let now = 0;
     const api = new LocalIndexApi('http://backend', memoryStore(), () => now);
@@ -269,7 +267,7 @@ describe('LocalIndexApi', () => {
     await api.lookup([]);
     await api.refresh();
     expect((await api.lookup(['s1', 's2'])).map((r) => r.hash)).toEqual(['s1', 's2']);
-    expect(requests).toEqual(['GET http://backend/index', 'GET http://backend/index?since=v1']);
+    expect(requests).toEqual(['GET http://backend/index', 'GET http://backend/index?since=1']);
   });
 
   it('keeps the index across restarts of the background worker', async () => {

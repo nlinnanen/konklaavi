@@ -4,13 +4,16 @@ import { normalizeText } from './normalize';
 import {
   VERDICTS,
   type DomainStats,
+  type Hit,
+  type IndexResponse,
+  type IndexSignature,
   type LookupBlock,
   type LookupResult,
   type Signature,
   type VoteRequest,
 } from './types';
 
-export type { LookupBlock };
+export type { Hit, LookupBlock };
 
 /** The backend contract. See docs/api.md. */
 export interface TrustApi {
@@ -72,7 +75,7 @@ export class RemoteApi implements TrustApi {
   }
 
   /** The signature index, as a delta from `since` when the backend still has it. */
-  index(since?: IndexVersion): Promise<IndexResponse> {
+  index(since?: number): Promise<IndexResponse> {
     const query = since === undefined ? '' : `?since=${encodeURIComponent(String(since))}`;
     return this.request(`/index${query}`, { signal: AbortSignal.timeout(60_000) });
   }
@@ -86,42 +89,27 @@ export class RemoteApi implements TrustApi {
 // Local index (matches in the extension; page hashes stay in the browser)
 // ---------------------------------------------------------------------------
 
-export type IndexVersion = string | number;
-
-/** Body of GET /index. `removed` lists the narrativeIds that left the index. */
-export interface IndexResponse {
-  version: IndexVersion;
-  full: boolean;
-  signatures: Signature[];
-  sentences: { hash: string; narrativeId: string }[];
-  bands: { band: number; hash: string; narrativeId: string }[];
-  removed: string[];
-}
+export type { IndexResponse };
 
 export type IndexSnapshot = Omit<IndexResponse, 'full' | 'removed'>;
 
-/** The snapshot after `update`: a full index replaces it, a delta drops removed narratives and merges the rest. */
+/** The snapshot after `update`: a full index replaces it, a delta replaces the entries of the narratives it names. */
 export function applyIndexUpdate(snapshot: IndexSnapshot | undefined, update: IndexResponse): IndexSnapshot {
-  if (update.full || !snapshot) {
-    return { version: update.version, signatures: update.signatures, sentences: update.sentences, bands: update.bands };
-  }
-  const changed = new Set([...update.removed, ...update.signatures.map((s) => s.narrativeId)]);
-  const removed = new Set(update.removed);
-  const kept = <T extends { narrativeId: string }>(list: T[]) => list.filter((e) => !removed.has(e.narrativeId));
-  const union = <T extends { narrativeId: string }>(old: T[], added: T[], key: (e: T) => string) => [
-    ...new Map([...kept(old), ...added].map((e) => [key(e), e])).values(),
-  ];
+  const { version, signatures, sentences, fingerprints } = update;
+  if (update.full || !snapshot) return { version, signatures, sentences, fingerprints };
+  const changed = new Set([...update.removed, ...signatures.map((s) => s.narrativeId)]);
+  const kept = <T extends { narrativeId: string }>(list: T[]) => list.filter((e) => !changed.has(e.narrativeId));
   return {
-    version: update.version,
-    signatures: [...snapshot.signatures.filter((s) => !changed.has(s.narrativeId)), ...update.signatures],
-    sentences: union(snapshot.sentences, update.sentences, (e) => `${e.hash}|${e.narrativeId}`),
-    bands: union(snapshot.bands, update.bands, (e) => `${e.band}|${e.hash}|${e.narrativeId}`),
+    version,
+    signatures: [...kept(snapshot.signatures), ...signatures],
+    sentences: [...kept(snapshot.sentences), ...sentences],
+    fingerprints: [...kept(snapshot.fingerprints), ...fingerprints],
   };
 }
 
 /** The signature a match is reported with: an active narrative first, then the one with the most shared bands. */
-function pick(candidates: Map<string, number>, signatures: Map<string, Signature>): Signature | undefined {
-  let best: { signature: Signature; rank: number } | undefined;
+function pick(candidates: Map<string, number>, signatures: Map<string, IndexSignature>): IndexSignature | undefined {
+  let best: { signature: IndexSignature; rank: number } | undefined;
   for (const [id, shared] of candidates) {
     const signature = signatures.get(id);
     if (!signature) continue;
@@ -131,7 +119,7 @@ function pick(candidates: Map<string, number>, signatures: Map<string, Signature
   return best?.signature;
 }
 
-function indexResult(hash: string, signature: Signature, matchLevel: Signature['matchLevel']): LookupResult {
+function indexResult(hash: string, signature: IndexSignature, matchLevel: Signature['matchLevel']): LookupResult {
   return {
     hash,
     counts: emptyCounts(),
@@ -144,20 +132,27 @@ function indexResult(hash: string, signature: Signature, matchLevel: Signature['
 
 /** Answers lookups from an index snapshot by the rules of POST /lookup, without vote counts. */
 export class SignatureIndex {
-  private signatures: Map<string, Signature>;
+  private signatures: Map<string, IndexSignature>;
   private sentences = new Map<string, string[]>();
-  private bands = new Map<string, string[]>();
+  /** `${band index}:${hash}` to the positions in `fingerprints` that carry it. */
+  private bands = new Map<string, number[]>();
+  private fingerprints: IndexSnapshot['fingerprints'];
 
   constructor(snapshot: IndexSnapshot) {
     this.signatures = new Map(snapshot.signatures.map((s) => [s.narrativeId, s]));
-    const add = (m: Map<string, string[]>, key: string, id: string) => m.set(key, [...(m.get(key) ?? []), id]);
+    this.fingerprints = snapshot.fingerprints;
+    const add = <T>(m: Map<string, T[]>, key: string, value: T) => m.set(key, [...(m.get(key) ?? []), value]);
     for (const s of snapshot.sentences) add(this.sentences, s.hash, s.narrativeId);
-    for (const b of snapshot.bands) add(this.bands, `${b.band}:${b.hash}`, b.narrativeId);
+    snapshot.fingerprints.forEach((f, position) =>
+      f.bands.forEach((band, i) => {
+        if (band !== null) add(this.bands, `${i}:${band}`, position);
+      }),
+    );
   }
 
   /**
    * Sentence hashes match exactly. A block matches at the variant level when
-   * at least 2 of its bands, at the same index, belong to one narrative.
+   * it shares at least 2 bands, at the same index, with one fingerprint.
    */
   lookup(hashes: string[], blocks: LookupBlock[] = []): LookupResult[] {
     const out = new Map<string, LookupResult>();
@@ -168,11 +163,17 @@ export class SignatureIndex {
     }
     for (const block of blocks) {
       if (out.has(block.hash)) continue;
-      const shared = new Map<string, number>();
+      const perFingerprint = new Map<number, number>();
       block.bands.forEach((band, i) => {
-        for (const id of new Set(this.bands.get(`${i}:${band}`))) shared.set(id, (shared.get(id) ?? 0) + 1);
+        for (const position of this.bands.get(`${i}:${band}`) ?? []) {
+          perFingerprint.set(position, (perFingerprint.get(position) ?? 0) + 1);
+        }
       });
-      for (const [id, n] of shared) if (n < 2) shared.delete(id);
+      const shared = new Map<string, number>();
+      for (const [position, n] of perFingerprint) {
+        const id = this.fingerprints[position]!.narrativeId;
+        if (n >= 2) shared.set(id, Math.max(shared.get(id) ?? 0, n));
+      }
       const signature = pick(shared, this.signatures);
       if (signature) out.set(block.hash, indexResult(block.hash, signature, 'variant'));
     }
@@ -220,7 +221,7 @@ export class LocalIndexApi implements TrustApi {
   async lookup(hashes: string[], blocks: LookupBlock[] = []): Promise<LookupResult[]> {
     if (!this.stored) {
       const stored = await this.store.get<StoredIndex>(INDEX_KEY);
-      if (stored?.baseUrl === this.baseUrl) this.stored = stored;
+      if (stored?.baseUrl === this.baseUrl && stored.snapshot.fingerprints) this.stored = stored;
     }
     if (!this.stored) await this.refresh();
     else if (this.now() - this.stored.checkedAt >= INDEX_REFRESH_MS) {
@@ -251,14 +252,6 @@ export class LocalIndexApi implements TrustApi {
 // ---------------------------------------------------------------------------
 // Detection hits
 // ---------------------------------------------------------------------------
-
-/** One entry of POST /hits. */
-export interface Hit {
-  hash: string;
-  narrativeId: string;
-  url: string;
-  seenAt: string;
-}
 
 /** Pages whose reported hashes are remembered, so a long session doesn't grow without bound. */
 const MAX_REPORTED_PAGES = 500;

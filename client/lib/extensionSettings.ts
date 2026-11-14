@@ -1,14 +1,9 @@
 import { browser } from 'wxt/browser';
 import { DEFAULT_SETTINGS, type Settings } from './types';
 
-export type BackendMode = Settings['backendMode'] | 'local';
+export type BackendMode = Settings['backendMode'];
 
-/** The settings with the local index mode and detection reports, stored under the same key as `Settings`. */
-export interface ExtensionSettings extends Omit<Settings, 'backendMode'> {
-  backendMode: BackendMode;
-  /** Send detection hits to the backend in local index mode. */
-  sendHits: boolean;
-}
+export type ExtensionSettings = Settings;
 
 const KEY = 'settings';
 
@@ -19,7 +14,6 @@ export const EXTENSION_DEFAULTS: ExtensionSettings = {
   ...DEFAULT_SETTINGS,
   backendMode: BUILD_API_URL ? 'local' : DEFAULT_SETTINGS.backendMode,
   backendUrl: BUILD_API_URL ?? DEFAULT_SETTINGS.backendUrl,
-  sendHits: true,
 };
 
 export async function getExtensionSettings(): Promise<ExtensionSettings> {
