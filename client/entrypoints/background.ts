@@ -139,6 +139,8 @@ async function handle(msg: BackgroundRequest, sender: Browser.runtime.MessageSen
     case 'clearMock':
       await mockApi.clear();
       return null;
+    default:
+      throw new Error(`Unknown request ${(msg as { type?: unknown }).type}`);
   }
 }
 

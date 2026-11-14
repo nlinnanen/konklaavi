@@ -13,6 +13,8 @@ export default defineContentScript({
   runAt: 'document_idle',
   async main() {
     if (!document.body) return;
+    // Fingerprints are SHA-256 from crypto.subtle, which only secure contexts (https, localhost) have.
+    if (!globalThis.crypto?.subtle) return;
 
     const ui = new OverlayUi();
     const highlighter = new Highlighter();
@@ -93,7 +95,9 @@ function setupSelectionVoting(ui: OverlayUi, scanner: PageScanner) {
       pending = sel.getRangeAt(0).cloneRange();
       const rects = pending.getClientRects();
       const rect = rects[rects.length - 1] ?? pending.getBoundingClientRect();
-      ui.showRateButton(rect, () => void openPicker());
+      ui.showRateButton(rect, () => {
+        openPicker().catch((e) => console.warn('[hashtrust] opening the rating picker failed', e));
+      });
     }, 0);
   };
 
