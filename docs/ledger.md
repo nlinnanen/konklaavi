@@ -218,6 +218,10 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - data: the Feedback page counts each voter's latest feedback vote per (narrative, match_level), weighted by the voter's GET /me weight without burst division.
 - data: false-positive candidates are narrative or related match levels whose weighted Not misinformation share is above 0.5.
 - data: recent disputes are narratives in state disputed ordered by updated_at, since the schema has no disputed_at column.
+- team: HashTrust has two halves: fingerprint tracking of narratives (no verdicts of its own) and crowdsourced context notes on narratives. All labels come from the crowd.
+- team: No seed content and no source-based labels: the EUvsDisinfo, ClaimReview and Pravda-network seeds and their verdicts, and LLM-generated labels, leave the product. The product isn't framed around Kremlin propaganda.
+- team: Note consensus uses the open-source Community Notes bridging algorithm: a note is shown when raters who usually disagree both rate it helpful. Writing notes and counting ratings need a verified (signed-in) account; reputation follows a user's track record.
+- team: Moderation is reputation gating, LLM review of submitted notes, and a volunteer human review queue, and the pitch states it openly.
 
 ## Deferred
 
