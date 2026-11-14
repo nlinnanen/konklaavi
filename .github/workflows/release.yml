@@ -1,0 +1,138 @@
+name: release
+
+# Every push to main: test, build the app images and push them to GHCR as sha-<commit>, then release
+# that commit on the VPS. The deploy job logs in as the unprivileged `deploy` user, whose key can only
+# run `sudo /usr/local/sbin/junction26-release <sha>` (infra/ansible, role app). It then waits until
+# the public API reports the new commit.
+#
+# Rollback or redeploy: run this workflow by hand with the sha of an earlier main commit. That skips
+# the build and releases the images already in GHCR for it.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full sha of an already-built commit to deploy (empty = build and deploy the selected branch)
+        required: false
+        default: ""
+
+# A release runs to the end; a push during it waits, and only the newest waiting push runs next.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  ci:
+    if: inputs.sha == ''
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  images:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: backend
+            context: backend
+            file: backend/Dockerfile
+          - image: fingerprint
+            context: .
+            file: fingerprint-service/Dockerfile
+          - image: dashboard
+            context: dashboard
+            file: dashboard/Dockerfile
+            build-contexts: eval=backend/app/eval/results
+    steps:
+      - uses: actions/checkout@v5
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.image }}" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          build-contexts: ${{ matrix.build-contexts }}
+          build-args: APP_VERSION=${{ github.sha }}
+          push: true
+          tags: ${{ env.IMAGE }}:sha-${{ github.sha }}
+          # The source label links the package to this repository, so it inherits the repository's access.
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  deploy:
+    needs: images
+    # Runs after a build, or on its own for a manual redeploy of an existing sha (when ci and images are skipped).
+    if: ${{ !cancelled() && (needs.images.result == 'success' || (inputs.sha != '' && needs.images.result == 'skipped')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ vars.PUBLIC_URL }}
+    permissions: {}
+    env:
+      SHA: ${{ inputs.sha || github.sha }}
+      PUBLIC_URL: ${{ vars.PUBLIC_URL }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+    steps:
+      - name: Check configuration
+        run: |
+          missing=()
+          for name in PUBLIC_URL VPS_HOST VPS_SSH_KEY VPS_KNOWN_HOSTS; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing secrets or variables: ${missing[*]}. infra/ansible/README.md lists the gh commands that set them."
+            exit 1
+          fi
+          [[ $SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha must be a full 40-character commit sha, got '$SHA'."; exit 1; }
+
+      - name: Configure SSH
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      # The key's authorized_keys entry forces the release script; the sha arrives as SSH_ORIGINAL_COMMAND.
+      - name: Release on the VPS
+        run: >-
+          ssh -i ~/.ssh/deploy_key
+          -o IdentitiesOnly=yes
+          -o StrictHostKeyChecking=yes
+          -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          -o ServerAliveInterval=30
+          "deploy@$VPS_HOST" "$SHA"
+
+      - name: Check the public API runs it
+        run: |
+          url="${PUBLIC_URL%/}/api/health"
+          for _ in $(seq 20); do
+            version=$(curl --fail --silent --max-time 10 "$url" | jq -r '.version // empty' || true)
+            if [ "$version" = "$SHA" ]; then
+              echo "$url reports $SHA"
+              exit 0
+            fi
+            sleep 6
+          done
+          echo "::error::$url reports '${version:-nothing}', expected $SHA."
+          exit 1
