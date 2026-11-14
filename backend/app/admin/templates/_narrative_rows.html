@@ -1,0 +1,32 @@
+{% from "_macros.html" import state_badge, when %}
+<div id="narrative-rows" class="table-wrap">
+{% if rows %}
+<table class="data">
+  <thead><tr>
+    <th>State</th><th>Narrative</th><th class="num">Blocks</th><th class="num">Sites</th><th class="num">Pages</th><th class="num">Notes</th><th>Last seen</th>
+  </tr></thead>
+  <tbody>
+  {% for n in rows %}
+  <tr>
+    <td>{{ state_badge(n.state) }}</td>
+    <td class="title-cell">
+      <a href="narratives/{{ n.id }}">{{ n.title }}</a>
+      <span class="sub">#{{ n.id }}{% if n.source == 'cluster' %} · cluster candidate{% endif %}{% if n.variants > 1 %} · {{ n.variants }} variants{% endif %}{% if n.detections %} · {{ n.detections }} detections{% endif %}</span>
+    </td>
+    <td class="num">{{ n.members }}</td>
+    <td class="num">{{ n.sites }}</td>
+    <td class="num">{{ n.pages }}</td>
+    <td class="num">{{ n.notes }}{% if n.pending %} <span class="tag" data-moderation="pending_review" title="held for review">{{ n.pending }} held</span>{% endif %}</td>
+    <td>{{ when(n.last_seen) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">
+  {% if q or state %}<p>No narrative matches these filters.</p>
+  {% elif source == 'cluster' %}<p>The cluster job has found no candidate yet. It groups blocks that carry no note every 5 minutes.</p>
+  {% else %}<p>No narratives yet. A narrative starts when a reader writes a note on a passage in the extension.</p>{% endif %}
+</div>
+{% endif %}
+</div>

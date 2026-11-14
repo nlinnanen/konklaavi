@@ -239,12 +239,17 @@ def post_moderation(note_id: int, request: ModerationRequest) -> dict:
     """Approve a note (visible) or hide it, whatever its moderation state."""
     with connection() as conn:
         require_moderator(conn, request.user_id)
-        note_author(conn, note_id)
-        if request.action == "approve":
-            conn.execute(
-                "UPDATE note SET moderation = 'visible', moderation_reason = NULL WHERE id = %s", (note_id,)
-            )
-        else:
-            conn.execute("UPDATE note SET moderation = 'hidden' WHERE id = %s", (note_id,))
-        enqueue_unless_queued(conn, "score_notes")
+        moderate(conn, note_id, request.action)
     return {"ok": True}
+
+
+def moderate(conn: Connection, note_id: int, action: Literal["approve", "hide"]) -> None:
+    """Make the note visible or hide it, and have scoring rerun; 404 for an unknown note."""
+    note_author(conn, note_id)
+    if action == "approve":
+        conn.execute(
+            "UPDATE note SET moderation = 'visible', moderation_reason = NULL WHERE id = %s", (note_id,)
+        )
+    else:
+        conn.execute("UPDATE note SET moderation = 'hidden' WHERE id = %s", (note_id,))
+    enqueue_unless_queued(conn, "score_notes")

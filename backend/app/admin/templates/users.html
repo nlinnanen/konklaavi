@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import when %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Users</h1>
+  <p class="muted">Accounts by activity. Reputation is (good + 1) / (good + bad + 4): helpful notes and early ratings that agreed with the outcome add to good. Above {{ settings.moderator_reputation }} an account moderates.</p>
+</div>
+{% if users %}
+<div class="table-wrap">
+<table class="data">
+  <thead><tr><th>Account</th><th>Reputation</th><th class="num">Notes</th><th class="num">Helpful</th><th class="num">Not helpful</th><th class="num">Ratings</th><th class="num">Agreed</th><th class="num">Disagreed</th><th class="num">Installs</th><th>Joined</th></tr></thead>
+  <tbody>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.email }}{% if u.moderator %} <span class="tag" title="{{ 'listed in MODERATOR_EMAILS' if u.listed else 'by reputation' }}">moderator</span>{% endif %}</td>
+    <td><span class="meter" aria-hidden="true"><span style="width: {{ (u.reputation * 100)|round(1) }}%"></span></span> <span class="mono">{{ '%.2f'|format(u.reputation) }}</span></td>
+    <td class="num">{{ u.notes }}</td><td class="num">{{ u.helpful_notes }}</td><td class="num">{{ u.unhelpful_notes }}</td>
+    <td class="num">{{ u.ratings }}</td><td class="num">{{ u.agreed }}</td><td class="num">{{ u.disagreed }}</td><td class="num">{{ u.installs }}</td>
+    <td>{{ when(u.created_at) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}<div class="empty"><p>No accounts yet.</p></div>{% endif %}
+{% endblock %}

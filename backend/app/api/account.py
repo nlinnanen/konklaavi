@@ -37,18 +37,21 @@ class Install(Body):
     user_id: UUID
 
 
-def attempt(conn: Connection, request: Credentials) -> str:
-    """Record a sign-in attempt and return the lowercased email; 429 past the rate limit."""
-    email = request.email.strip().lower()
+def attempt(conn: Connection, email: str, install_id: UUID | None) -> str:
+    """Record a sign-in attempt and return the lowercased email; 429 past the rate limit.
+
+    Without an install, as for the admin panel, only the email's attempts count.
+    """
+    email = email.strip().lower()
     per_email, per_install = conn.execute(
         "SELECT count(*) FILTER (WHERE email = %(email)s), count(*) FILTER (WHERE install_id = %(install)s)"
         " FROM auth_attempt WHERE (email = %(email)s OR install_id = %(install)s)"
         " AND created_at > now() - %(window)s",
-        {"email": email, "install": request.user_id, "window": RATE_WINDOW},
+        {"email": email, "install": install_id, "window": RATE_WINDOW},
     ).fetchone()
     if max(per_email, per_install) >= RATE_LIMIT:
         raise HTTPException(429, "too many sign-in attempts, try again later")
-    conn.execute("INSERT INTO auth_attempt (email, install_id) VALUES (%s, %s)", (email, request.user_id))
+    conn.execute("INSERT INTO auth_attempt (email, install_id) VALUES (%s, %s)", (email, install_id))
     # The attempt counts even when the request fails.
     conn.commit()
     return email
@@ -62,6 +65,23 @@ def link(conn: Connection, install_id: UUID, account_id: UUID, email: str) -> No
     )
 
 
+def check_password(conn: Connection, email: str, password: str) -> UUID:
+    """The account of the lowercased email when the password is its own; 401 otherwise."""
+    row = conn.execute("SELECT id, password_hash FROM user_account WHERE email = %s", (email,)).fetchone()
+    try:
+        if row is None or row[1] is None:
+            raise VerificationError
+        hasher.verify(row[1], password)
+    except VerificationError as error:
+        raise HTTPException(401, "wrong email or password") from error
+    account_id, password_hash = row
+    if hasher.check_needs_rehash(password_hash):
+        conn.execute(
+            "UPDATE user_account SET password_hash = %s WHERE id = %s", (hasher.hash(password), account_id)
+        )
+    return account_id
+
+
 @router.post("/auth/register")
 def post_register(request: Credentials) -> dict:
     """Create the account for the email and sign the install in; 409 when the email has a password.
@@ -69,7 +89,7 @@ def post_register(request: Credentials) -> dict:
     An account without a password, made before sign-in had passwords, takes the new one.
     """
     with connection() as conn:
-        email = attempt(conn, request)
+        email = attempt(conn, request.email, request.user_id)
         row = conn.execute(
             "INSERT INTO user_account (email, password_hash) VALUES (%s, %s)"
             " ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash"
@@ -86,21 +106,8 @@ def post_register(request: Credentials) -> dict:
 def post_login(request: Credentials) -> dict:
     """Sign the install in to the account; 401 for an unknown email or a wrong password."""
     with connection() as conn:
-        email = attempt(conn, request)
-        row = conn.execute("SELECT id, password_hash FROM user_account WHERE email = %s", (email,)).fetchone()
-        try:
-            if row is None or row[1] is None:
-                raise VerificationError
-            hasher.verify(row[1], request.password)
-        except VerificationError as error:
-            raise HTTPException(401, "wrong email or password") from error
-        account_id, password_hash = row
-        if hasher.check_needs_rehash(password_hash):
-            conn.execute(
-                "UPDATE user_account SET password_hash = %s WHERE id = %s",
-                (hasher.hash(request.password), account_id),
-            )
-        link(conn, request.user_id, account_id, email)
+        email = attempt(conn, request.email, request.user_id)
+        link(conn, request.user_id, check_password(conn, email, request.password), email)
     return get_me(request.user_id)
 
 

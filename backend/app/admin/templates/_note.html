@@ -1,0 +1,15 @@
+{% from "_macros.html" import status_badge, moderation_tag, when, ratings, score, host %}
+<article class="note{% if action %} moderated{% endif %}" id="note-{{ note.id }}">
+  <div class="note-meta">
+    {{ status_badge(note) }} {{ moderation_tag(note.moderation) }}
+    <span>{{ 'Misleading' if note.classification == 'misleading' else 'Not misleading' }}</span>
+    <span class="muted">by {{ note.author }} · {{ when(note.created_at) }} · #{{ note.id }}</span>
+  </div>
+  <p class="body">{{ note.body }}</p>
+  {% if note.sources %}<p class="sources">{% for s in note.sources %}<a href="{{ s }}" target="_blank" rel="noopener noreferrer">{{ host(s) }}</a>{% endfor %}</p>{% endif %}
+  {% if note.moderation_reason %}<p class="reason"><b>Review:</b> {{ note.moderation_reason }}</p>{% endif %}
+  <div class="note-foot">
+    {{ ratings(note) }} {{ score(note) }}
+    {% if admin.moderator %}{% include "_moderate_buttons.html" %}{% endif %}
+  </div>
+</article>
