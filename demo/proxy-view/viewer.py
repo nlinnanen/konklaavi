@@ -1,18 +1,21 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["fastapi", "uvicorn", "httpx", "trafilatura"]
+# dependencies = ["fastapi", "uvicorn", "httpx", "trafilatura", "playwright"]
 # ///
 """HashTrust proxy view: shows a page with what the extension would flag, without the extension.
 
-The server fetches the page, strips its scripts, keeps its CSS and images through <base href>,
-and injects a scanner. The scanner sends the page's main text (extracted by trafilatura, as
-/check does for a URL) to the HashTrust API's /check and highlights the matches in place.
+The server renders the page in headless Chromium (render.py), so comments and other content its
+JavaScript loads are there, freezes it into static HTML without scripts, keeps its CSS and images
+through <base href>, and injects a scanner. The scanner sends the visible text, block by block, to
+the HashTrust API's /check and highlights the matches in place. Without a browser it falls back to
+a plain fetch and the main text that trafilatura extracts. The first run downloads Chromium.
 
     uv run demo/proxy-view/viewer.py                       # uses the deployed API
     HASHTRUST_API=http://localhost:8000 uv run demo/proxy-view/viewer.py
     open http://localhost:8787
 """
 
+import asyncio
 import html
 import json
 import os
@@ -21,6 +24,7 @@ from urllib.parse import quote, urljoin, urlparse
 
 import httpx
 import lxml.html
+import render
 import trafilatura
 import uvicorn
 from fastapi import FastAPI, Request
@@ -29,10 +33,9 @@ from fastapi.responses import HTMLResponse, JSONResponse
 API = os.environ.get("HASHTRUST_API", "https://srv2160986.hstgr.cloud/api").rstrip("/")
 PORT = int(os.environ.get("PORT", "8787"))
 HERE = Path(__file__).parent
-UA = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-)
+UA = render.UA
+# Set to 0 to skip the browser and use the plain fetch.
+RENDER = os.environ.get("HASHTRUST_RENDER", "1") != "0"
 
 app = FastAPI(title="HashTrust proxy view")
 
@@ -104,8 +107,12 @@ SHELL = """<!doctype html><meta charset=utf-8><meta name=viewport content="width
 <title>HashTrust proxy view</title>
 <style>html,body{{margin:0;height:100%;overflow:hidden;background:#0f172a}}
 iframe{{position:fixed;top:0;left:0;width:calc(100vw - 340px);height:100%;border:0;background:#fff}}
-body.ht-collapsed iframe{{width:calc(100vw - 44px)}}</style>
-<iframe id=ht-frame src="{src}"></iframe>"""
+body.ht-collapsed iframe{{width:calc(100vw - 44px)}}
+#ht-loading{{position:fixed;top:0;right:0;bottom:0;width:340px;box-sizing:border-box;padding:16px;
+background:#0f172a;color:#94a3b8;font:14px/1.5 system-ui,sans-serif;border-left:1px solid #1e293b}}
+#ht-loading b{{color:#e2e8f0;font-weight:650}}</style>
+<iframe id=ht-frame src="{src}"></iframe>
+<div id=ht-loading><b>HashTrust</b> proxy view<p>Rendering the page and loading its comments…</p></div>"""
 
 
 @app.get("/view", response_class=HTMLResponse)
@@ -115,10 +122,8 @@ def view(url: str, test: bool = False):
     return SHELL.format(src=html.escape(src, quote=True))
 
 
-@app.get("/frame")
-def frame(request: Request, url: str, test: bool = False):
-    if not url.startswith(("http://", "https://")):
-        url = "https://" + url
+def fetch(url: str) -> render.Rendered | HTMLResponse:
+    """The page as served, without running its JavaScript, and its main text."""
     try:
         response = httpx.get(
             url,
@@ -132,12 +137,35 @@ def frame(request: Request, url: str, test: bool = False):
         return error(url, f"The site answered HTTP {response.status_code} (often bot protection).")
     if "html" not in response.headers.get("content-type", "html"):
         return error(url, f"Not an HTML page ({response.headers.get('content-type')}).", 415)
-
     final = str(response.url)
     text = trafilatura.extract(response.text, url=final, favor_recall=True) or ""
     blocks = [line.strip() for line in text.splitlines() if line.strip()]
+    return render.Rendered(url=final, status=response.status_code, html=response.text, blocks=blocks)
 
-    doc = lxml.html.document_fromstring(response.text)
+
+@app.get("/frame")
+async def frame(request: Request, url: str, test: bool = False):
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    result = None
+    mode = "plain fetch"
+    if RENDER:
+        try:
+            result = await render.render(url)
+            mode = "rendered"
+        except Exception as e:  # noqa: BLE001 - any browser failure falls back to the plain fetch
+            print(f"render failed for {url}: {e!r}; falling back to a plain fetch", flush=True)
+    if result is None or result.status >= 400:
+        if result is not None:
+            print(f"render got HTTP {result.status} for {url}; trying a plain fetch", flush=True)
+        fetched = await asyncio.to_thread(fetch, url)
+        if isinstance(fetched, HTMLResponse):
+            return fetched
+        result, mode = fetched, "plain fetch"
+    final = result.url
+    blocks = result.blocks
+
+    doc = lxml.html.document_fromstring(result.html)
     rewrite(doc, final, str(request.base_url))
     head = doc.find("head")
     if head is None:
@@ -152,7 +180,8 @@ def frame(request: Request, url: str, test: bool = False):
         "url": final,
         "host": urlparse(final).hostname,
         "blocks": blocks,
-        "status": response.status_code,
+        "status": result.status,
+        "mode": mode,
         "test": test,
         "proxy": str(request.base_url),
     }
