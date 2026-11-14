@@ -1,11 +1,12 @@
 import re
 from datetime import datetime, timedelta
+from typing import Annotated
 
 import httpx
 import trafilatura
 from fastapi import APIRouter, HTTPException
 from psycopg import Connection
-from pydantic import Field
+from pydantic import AfterValidator, Field
 
 from app import fpclient
 from app.api import narratives, notes
@@ -13,7 +14,7 @@ from app.api.narratives import SHIPPED, STATES, Body, payloads
 from app.config import settings
 from app.db import connection
 from app.jobs import enqueue
-from app.jobs.fetch import domain_of
+from app.jobs.fetch import canonical_page_url, domain_of, own_page
 from app.vectors import quantize
 
 router = APIRouter()
@@ -44,7 +45,7 @@ class LookupRequest(Body):
 class Hit(Body):
     hash: str = Field(min_length=1)
     narrative_id: int
-    url: str = Field(pattern=r"^https?://")
+    url: Annotated[str, Field(pattern=r"^https?://"), AfterValidator(canonical_page_url)]
     seen_at: datetime
 
 
@@ -54,7 +55,7 @@ class HitsRequest(Body):
 
 class CheckRequest(Body):
     text: str | None = None
-    url: str | None = None
+    url: Annotated[str, AfterValidator(canonical_page_url)] | None = None
 
 
 LEVELS = ("exact", "variant", "narrative", "related")
@@ -370,7 +371,8 @@ def enqueue_hit_fetch(conn: Connection, url: str, narrative_id: int) -> None:
 
 @router.post("/hits")
 def post_hits(request: HitsRequest) -> dict:
-    """Record detections by the extension and fetch each page once a day; hits on unknown narratives are dropped."""
+    """Record detections by the extension and fetch each page once a day; hits on unknown narratives or on
+    HashTrust's own hosts are dropped."""
     with connection() as conn:
         known = {
             row[0]
@@ -380,7 +382,7 @@ def post_hits(request: HitsRequest) -> dict:
         }
         fetches: dict[str, int] = {}
         for hit in request.hits:
-            if hit.narrative_id in known:
+            if hit.narrative_id in known and not own_page(hit.url):
                 record_hit(conn, hit)
                 fetches.setdefault(hit.url, hit.narrative_id)
         for url in sorted(fetches):

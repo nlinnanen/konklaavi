@@ -1,8 +1,9 @@
 import logging
+import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 from http.cookiejar import CookieJar, DefaultCookiePolicy
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import trafilatura
@@ -45,6 +46,28 @@ def domain_of(url: str) -> str:
     """The domain as the extension stores it: lowercase hostname without a leading www."""
     host = (urlsplit(url).hostname or "").lower()
     return host.removeprefix("www.")
+
+
+# Pages of the demo proxy (demo/proxy-view), such as /demo/view or /frame, carry the page they show in ?url=.
+PROXY_PATH = re.compile(r".*/(view|frame)")
+
+
+def canonical_page_url(url: str, own_hosts: frozenset[str] | None = None) -> str:
+    """The page a URL shows: the original target of a page the demo proxy on one of the own hosts renders,
+    the URL unchanged otherwise. canonicalPageUrl in client/lib/domain.ts has the same rule."""
+    own_hosts = settings.own_hosts if own_hosts is None else own_hosts
+    parts = urlsplit(url)
+    target = parse_qs(parts.query).get("url", [""])[0].strip()
+    if (parts.hostname or "").lower() not in own_hosts or not PROXY_PATH.fullmatch(parts.path) or not target:
+        return url
+    # The proxy opens a URL without a scheme over https.
+    target = target if re.match(r"https?://", target, re.IGNORECASE) else "https://" + target
+    return target if urlsplit(target).hostname else url
+
+
+def own_page(url: str) -> bool:
+    """Whether the URL is on one of HashTrust's own hosts, which are never tracked."""
+    return (urlsplit(url).hostname or "").lower() in settings.own_hosts
 
 
 def download(url: str) -> tuple[str, bytes | None]:
@@ -306,7 +329,9 @@ def ingest(
 def handle(conn: Connection, payload: dict) -> None:
     """Fetch a public page: a note's page (reason 'note'), a page an extension user matched (reason 'hit'),
     or any other page; with a narrative_id, attach the page's blocks that carry that narrative."""
-    url = payload["url"]
+    url = canonical_page_url(payload["url"])
+    if own_page(url):
+        return
     if payload.get("reason") == "hit" and fetched_recently(conn, url):
         return
     narrative_id = payload.get("narrative_id")

@@ -246,6 +246,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - ext: On-device embedding tries WebGPU (fp16 with `shader-f16`, else fp32), then WASM q8 with up to 4 threads in the cross-origin isolated Chrome extension pages, else single-threaded; Firefox stays on WASM. The popup's "Benchmark embeddings" checks that order on real hardware.
 - team: Notes whose raters have little history are decided by plain agreement; bridging decides once raters have history. Demo rater history is seeded by app.demo.seed_raters and removable.
 - team: Sign-in is optional: anonymous installs write and rate notes with reputation fixed at the default; signing in lets reputation grow.
+- team: HashTrust never tracks its own domain; pages shown through its proxy are recorded under their original URL.
 
 ## Deferred
 

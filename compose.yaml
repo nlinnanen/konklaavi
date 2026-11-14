@@ -16,6 +16,8 @@ x-backend: &backend
     AGREEMENT_NOT_HELPFUL:
     NARRATIVE_MATCH_THRESHOLD:
     RELATED_MATCH_THRESHOLD:
+    # Hosts HashTrust serves from, comma-separated; the production DOMAIN unless set.
+    OWN_HOSTS: ${OWN_HOSTS:-${DOMAIN:-}}
   depends_on:
     db:
       condition: service_healthy

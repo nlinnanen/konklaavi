@@ -10,6 +10,7 @@ import {
   type KeyValueStore,
   type TrustApi,
 } from '@/lib/api';
+import { canonicalPageUrl } from '@/lib/domain';
 import type { Embedder } from '@/lib/embed';
 import type { BackgroundRequest, ContentRequest, EmbedRequest, Envelope } from '@/lib/messages';
 import { getSettings, onSettingsChanged } from '@/lib/settings';
@@ -130,6 +131,7 @@ const hitReporters = new Map<string, HitReporter>();
 /** Reports a local lookup's narrative matches on the sender's page, unless detection reports are off. */
 function reportHits(settings: Settings, pageUrl: string | undefined, results: LookupResult[]): void {
   if (settings.backendMode !== 'local' || !settings.sendHits || !pageUrl) return;
+  pageUrl = pageOf(settings, pageUrl);
   let reporter = hitReporters.get(settings.backendUrl);
   if (!reporter) {
     const remote = new RemoteApi(settings.backendUrl);
@@ -137,6 +139,17 @@ function reportHits(settings: Settings, pageUrl: string | undefined, results: Lo
     hitReporters.set(settings.backendUrl, reporter);
   }
   reporter.report(pageUrl, results).catch((e) => console.warn('[hashtrust] sending detection hits failed', e));
+}
+
+/** The page a URL shows, the original for a page the demo proxy on the backend's host renders. */
+function pageOf(settings: Settings, url: string): string {
+  let backendHost: string;
+  try {
+    backendHost = new URL(settings.backendUrl).hostname;
+  } catch {
+    return url;
+  }
+  return canonicalPageUrl(url, [backendHost]);
 }
 
 async function getUserId(): Promise<string> {
@@ -170,7 +183,8 @@ async function handle(msg: BackgroundRequest, sender: Browser.runtime.MessageSen
     case 'narrative':
       return api.narrative(msg.payload);
     case 'addNote': {
-      const res = await api.addNote({ ...msg.payload, userId: await getUserId() });
+      const passage = { ...msg.payload.passage, url: pageOf(settings, msg.payload.passage.url) };
+      const res = await api.addNote({ ...msg.payload, passage, userId: await getUserId() });
       // The new narrative or note is in the index from now on.
       if (api instanceof LocalIndexApi) await api.refresh().catch((e) => console.warn('[hashtrust] index refresh failed', e));
       return res;

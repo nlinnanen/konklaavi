@@ -1,9 +1,12 @@
 import base64
+from dataclasses import replace
+from urllib.parse import quote
 
 import psycopg
 import pytest
 
 from app.config import settings
+from app.jobs import fetch
 
 BANDS = [f"b{i:02}" for i in range(32)]
 UNIT = [1.0] + [0.0] * 383
@@ -175,6 +178,26 @@ def test_a_hit_on_an_edited_copy_fetches_the_page_without_an_observation(client,
     post_hits(client, ("edited-block", narrative_id, "https://copy.example/a"))
     assert conn.execute("SELECT count(*) FROM observation").fetchone()[0] == 0
     assert conn.execute("SELECT count(*) FROM job WHERE kind = 'fetch'").fetchone()[0] == 1
+
+
+def test_a_hit_through_the_demo_proxy_counts_for_the_original_page_and_own_pages_are_ignored(
+    client, conn, narrative, monkeypatch
+):
+    monkeypatch.setattr(
+        fetch, "settings", replace(fetch.settings, own_hosts=frozenset({"hashtrust.example"}))
+    )
+    narrative_id = narrative(["s1"])
+    proxied = (
+        "https://hashtrust.example/demo/frame?url="
+        + quote("https://news.example/a?id=1", safe="")
+        + "&test=1"
+    )
+    post_hits(client, ("s1", narrative_id, proxied), ("s1", narrative_id, "https://hashtrust.example/admin"))
+
+    assert conn.execute("SELECT url FROM page").fetchall() == [("https://news.example/a?id=1",)]
+    assert conn.execute("SELECT payload->>'url' FROM job WHERE kind = 'fetch'").fetchall() == [
+        ("https://news.example/a?id=1",)
+    ]
 
 
 def test_a_hit_on_an_unknown_narrative_is_dropped(client, conn):

@@ -10,12 +10,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
 from psycopg import Connection
-from pydantic import Field
+from pydantic import AfterValidator, Field
 
 from app import trust
 from app.api.narratives import Body
 from app.db import connection
 from app.jobs import enqueue, enqueue_unless_queued
+from app.jobs.fetch import canonical_page_url, own_page
 
 router = APIRouter()
 
@@ -25,11 +26,13 @@ MAX_SOURCES = 10
 TITLE_LENGTH = 200
 
 Url = Annotated[str, Field(max_length=2000, pattern=r"^https?://\S+$")]
+# A page a reader is on, under its original URL when HashTrust's demo proxy shows it.
+PageUrl = Annotated[Url, AfterValidator(canonical_page_url)]
 
 
 class Passage(Body):
     text: str = Field(min_length=1, max_length=5000)
-    url: Url
+    url: PageUrl
     content_hash: str = Field(min_length=1)
     sentence_hashes: list[str] = Field(min_length=1, max_length=200)
 
@@ -118,7 +121,8 @@ def create_narrative(conn: Connection, passage: Passage) -> int:
         "INSERT INTO sentence (hash, fingerprint_id) SELECT unnest(%s::text[]), %s ON CONFLICT DO NOTHING",
         (passage.sentence_hashes, fingerprint_id),
     )
-    enqueue(conn, "fetch", {"url": passage.url, "reason": "note", "narrative_id": narrative_id})
+    if not own_page(passage.url):
+        enqueue(conn, "fetch", {"url": passage.url, "reason": "note", "narrative_id": narrative_id})
     enqueue(conn, "narrative_vectors", {"narrative_ids": [narrative_id]})
     return narrative_id
 
