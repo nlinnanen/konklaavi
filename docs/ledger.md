@@ -196,6 +196,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - data: the spread page reads `narrative_domain_daily`, `narrative_new_domains_daily` and `narrative_hits_hourly` and shows no per-page counts.
 - integrator: Simulation belongs to another team member (built with Bevy); the build workflows write no simulation code and run no simulations.
 - integrator: Local development sends magic-link email to Mailpit (`axllent/mailpit`, compose profile `dev`, enabled by `COMPOSE_PROFILES=dev` in the worktree `.env`); production needs `SMTP_URL` and `MAIL_FROM` in the VPS `.env`, and without them sending fails.
+- integrator: Paraphrase anchors stay shipped (6 per narrative) until the background evaluation shows whether they raise recall or false positives; on two headline tests they scored below the claim vectors.
 
 ## Deferred
 
