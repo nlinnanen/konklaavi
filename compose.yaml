@@ -20,6 +20,8 @@ services:
     image: timescale/timescaledb-ha:pg17
     environment:
       POSTGRES_PASSWORD: postgres
+      # timescaledb-tune panics where the container has no cgroup memory.max, aborting initdb.
+      NO_TS_TUNE: "true"
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:

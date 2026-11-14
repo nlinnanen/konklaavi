@@ -106,6 +106,8 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: Testing is the minimum necessary: tests only for logic that would fail silently or that the demo depends on, and agents run only the test file they touch while iterating, with one full run before a commit.
 - integrator: Workstreams start in parallel against contracts and mocks; nothing waits on another workstream's branch. Stacks start with `docker compose up --wait` instead of polling loops.
 - integrator: No build or merge step runs a full-scale import or evaluation. Full-scale runs happen only as separate background jobs that nothing waits on, and their results are read when they finish.
+- core: the database runs without timescaledb-tune (`NO_TS_TUNE`), since the tune script panics where the container has no cgroup `memory.max` and aborts initdb before the toolkit extension is installed.
+- core: the `deploy` branch is what runs on the VPS; a push to it runs `.github/workflows/deploy.yml`, whose SSH key may only run `deploy/release.sh` with a commit on `origin/deploy`.
 
 ## Deferred
 
