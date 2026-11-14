@@ -71,7 +71,7 @@ def insert(conn, sql, *params):
 
 @pytest.fixture
 def fetched_page(conn):
-    """A fetched page with one block whose sentence belongs to an active narrative and one that is clean."""
+    """A fetched page with a block of two sentences in an active narrative and a clean block."""
     narrative = insert(
         conn,
         "INSERT INTO narrative (title, source, state) VALUES ('Sanctions backfire', 'euvsdisinfo', 'active')",
@@ -92,9 +92,11 @@ def fetched_page(conn):
             content,
             variant_id,
         )
-        conn.execute(
-            "INSERT INTO sentence (hash, fingerprint_id) VALUES (%s, %s)", (f"s-{content_hash}", fingerprint)
-        )
+        for n in range(2):
+            conn.execute(
+                "INSERT INTO sentence (hash, fingerprint_id) VALUES (%s, %s)",
+                (f"s{n}-{content_hash}", fingerprint),
+            )
         conn.execute(
             "INSERT INTO observation (seen_at, fingerprint_id, page_id, source) VALUES (now(), %s, %s, 'fetch')",
             (fingerprint, page),
@@ -103,7 +105,7 @@ def fetched_page(conn):
     return narrative
 
 
-def test_fetched_page_is_flagged_with_the_narrative_lookup_returns(conn, fetched_page):
+def test_fetched_page_gets_one_match_per_flagged_block_with_its_narrative(conn, fetched_page):
     blocks = run.page_blocks(conn, "https://news.example/a")
 
     with TestClient(app) as client:

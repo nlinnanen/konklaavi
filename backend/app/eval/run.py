@@ -129,7 +129,7 @@ def lookup_requests(blocks: list[dict]) -> Iterator[dict]:
 
 
 def page_matches(client: httpx.Client, blocks: list[dict]) -> list[Match]:
-    """One match per flagged result, carrying the text of the block it belongs to."""
+    """One match per flagged block and narrative, carrying the block's text."""
     content = {block["hash"]: block["content"] for block in blocks}
     content.update({h: block["content"] for block in blocks for h in block["sentences"]})
     matches = []
@@ -147,7 +147,7 @@ def page_matches(client: httpx.Client, blocks: list[dict]) -> list[Match]:
                     narrative=signature.get("title"),
                 )
             )
-    return matches
+    return list(dict.fromkeys(matches))
 
 
 def evaluate(client: httpx.Client, timeout: float) -> dict:
@@ -218,8 +218,8 @@ def main() -> None:
     parser.add_argument("--timeout", type=float, default=1800, help="seconds to wait for fetch jobs")
     parser.add_argument("--out", type=Path, default=RESULTS_FILE, help="where to write the JSON results")
     args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    log.setLevel(logging.INFO)
     if args.api:
         client = httpx.Client(base_url=args.api, timeout=60)
     else:
