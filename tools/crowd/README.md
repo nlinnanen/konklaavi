@@ -26,7 +26,7 @@ The overnight run, ten hours at about 100 credits an hour:
 set -a; . ../../.env; set +a; uv run python -m crowd run --config crowd-overnight.yaml --api https://konklaavi.tech/api --minutes 600 --budget-credits 1000
 ```
 
-Due actions run on a pool of `--workers` threads (default 16). A persona has at most one action in flight, so its hourly caps hold, while different personas act at once. `--llm-concurrency` (default 16) caps the model calls in flight; a call the router turns away as rate-limited or overloaded is retried a few times with jittered backoff. The 3-second interval per news host holds across all workers.
+Due actions run on a pool of `--workers` threads (default 16). A persona has at most one action in flight, so its hourly caps hold, while different personas act at once. `--llm-concurrency` (default 16) caps the model calls in flight; a call the router turns away (rate limit, overload, server error) or drops is retried a few times with jittered backoff. The 3-second interval per news host holds across all workers.
 
 Ctrl-C stops scheduling, lets the actions in flight finish and saves the state; a second Ctrl-C saves and quits at once. The run also stops scheduling when the credits the router reports reach the budget, so the actions in flight can overshoot it by up to one call each.
 

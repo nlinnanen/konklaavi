@@ -21,7 +21,8 @@ MODEL = "claude-sonnet-5.5"
 CREDITS_PER_INPUT_TOKEN = 0.00023
 CREDITS_PER_OUTPUT_TOKEN = 0.00117
 RETRIES = 4
-BUSY = (anthropic.RateLimitError, anthropic.OverloadedError, anthropic.ServiceUnavailableError)
+# Rate limits, overload and other server errors, and dropped connections.
+BUSY = (anthropic.RateLimitError, anthropic.InternalServerError, anthropic.APIConnectionError)
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class Llm:
 
     def call(self, system: str, user: dict, tool: dict, max_tokens: int = 1200) -> Call:
         """Ask for one call of the tool; the tool input is None when the model answered without it.
-        At most `concurrency` calls run at once, and one the router turns away as busy is retried with
+        At most `concurrency` calls run at once, and one the router turns away or drops is retried with
         jittered exponential backoff."""
         for attempt in range(RETRIES + 1):
             try:
@@ -56,7 +57,7 @@ class Llm:
                 if attempt == RETRIES:
                     raise
                 delay = 2 ** (attempt + 1) * random.uniform(0.5, 1.5)
-                log.warning("router busy (%s); retrying in %.0f s", err.status_code, delay)
+                log.warning("router: %s; retrying in %.0f s", type(err).__name__, delay)
                 time.sleep(delay)
         raise AssertionError("unreachable")
 
