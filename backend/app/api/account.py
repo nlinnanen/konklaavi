@@ -21,7 +21,8 @@ from app.trust import standing
 router = APIRouter()
 hasher = PasswordHasher()
 
-# Sign-in and registration attempts allowed per email, and per install, within RATE_WINDOW.
+# Failed sign-in and registration attempts allowed per email, and per install, within RATE_WINDOW.
+# A successful sign-in clears them, so only guessing is limited.
 RATE_LIMIT = 10
 RATE_WINDOW = timedelta(hours=1)
 
@@ -56,7 +57,8 @@ def attempt(conn: Connection, email: str, install_id: UUID | None) -> str:
     return email
 
 
-def link(conn: Connection, install_id: UUID, account_id: UUID) -> None:
+def link(conn: Connection, install_id: UUID, account_id: UUID, email: str) -> None:
+    conn.execute("DELETE FROM auth_attempt WHERE email = %s OR install_id = %s", (email, install_id))
     conn.execute(
         "INSERT INTO install (id, account_id) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET account_id = %s",
         (install_id, account_id, account_id),
@@ -96,7 +98,7 @@ def post_register(request: Credentials) -> dict:
         ).fetchone()
         if row is None:
             raise HTTPException(409, "an account with this email exists, sign in instead")
-        link(conn, request.user_id, row[0])
+        link(conn, request.user_id, row[0], email)
     return get_me(request.user_id)
 
 
@@ -105,7 +107,7 @@ def post_login(request: Credentials) -> dict:
     """Sign the install in to the account; 401 for an unknown email or a wrong password."""
     with connection() as conn:
         email = attempt(conn, request.email, request.user_id)
-        link(conn, request.user_id, check_password(conn, email, request.password))
+        link(conn, request.user_id, check_password(conn, email, request.password), email)
     return get_me(request.user_id)
 
 

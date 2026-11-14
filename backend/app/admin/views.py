@@ -63,7 +63,9 @@ def login_form(request: Request):
 def login(request: Request, email: Annotated[str, Form()], password: Annotated[str, Form()]):
     try:
         with connection() as conn:
-            account_id = check_password(conn, attempt(conn, email, None), password)
+            address = attempt(conn, email, None)
+            account_id = check_password(conn, address, password)
+            conn.execute("DELETE FROM auth_attempt WHERE email = %s", (address,))
             token = open_session(conn, account_id)
     except HTTPException as error:
         return render(request, "login.html", error=error.detail, email=email, code=error.status_code)

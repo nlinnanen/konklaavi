@@ -55,7 +55,7 @@ jobs:
             context: dashboard
             file: dashboard/Dockerfile
           - image: proxy-view
-            context: demo/proxy-view
+            context: .
             file: demo/proxy-view/Dockerfile
     steps:
       - uses: actions/checkout@v5

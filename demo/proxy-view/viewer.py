@@ -6,8 +6,10 @@
 
 The server renders the page in headless Chromium (render.py), so comments and other content its
 JavaScript loads are there, freezes it into static HTML without scripts, keeps its CSS and images
-through <base href>, and injects a scanner. The scanner sends the visible text, block by block, to
-the HashTrust API's /check and highlights the matches in place. Without a browser it falls back to
+through <base href>, and injects overlay.bundle.js: the browser extension's highlights, cards, note form and sign-in
+(src/overlay.ts with the extension's modules, built by build.mjs, which needs `npm install` in
+client/). It sends the visible text, block by block, to the HashTrust API's /check, highlights the
+matches in place, and forwards the extension's other API calls through /api/. Without a browser it falls back to
 a plain fetch and the main text that trafilatura extracts. The first run downloads Chromium.
 
     uv run demo/proxy-view/viewer.py                       # uses the deployed API
@@ -15,7 +17,7 @@ a plain fetch and the main text that trafilatura extracts. The first run downloa
     open http://localhost:8787
 
 Behind a reverse proxy under a path, set PUBLIC_BASE to the public address of that path
-(https://example.org/proxy/): links in proxied pages must be absolute, since each page's
+(https://example.org/demo/): links in proxied pages must be absolute, since each page's
 <base href> points at the original site.
 """
 
@@ -24,7 +26,9 @@ import html
 import ipaddress
 import json
 import os
+import re
 import socket
+import subprocess
 from pathlib import Path
 from urllib.parse import quote, urljoin, urlparse
 
@@ -43,6 +47,17 @@ UA = render.UA
 # Set to 0 to skip the browser and use the plain fetch.
 RENDER = os.environ.get("HASHTRUST_RENDER", "1") != "0"
 PUBLIC_BASE = os.environ.get("PUBLIC_BASE", "").rstrip("/")
+# Where the extension's install instructions are.
+README_URL = os.environ.get("README_URL", "https://github.com/nlinnanen/junction26#try-it")
+NOTICE = (
+    "This demo renders the page again on our server, without its scripts, and shows what the HashTrust "
+    "browser extension would highlight on it. It may not work on every site: some block automated "
+    "browsers or need their scripts to show their content."
+)
+PRODUCT = (
+    f"The real product is the <b>browser extension</b>, which checks pages as you read them, on your own "
+    f"device. <a href='{html.escape(README_URL, quote=True)}' target=_blank rel=noopener>How to install it</a>."
+)
 # Sites the proxy opens, with their subdomains. ALLOWED_DOMAINS (comma-separated) replaces the
 # list, and "*" allows any public site, for local testing.
 DEFAULT_DOMAINS = [
@@ -106,10 +121,11 @@ def form(url: str = "") -> str:
 @app.get("/", response_class=HTMLResponse)
 def home():
     return page(
-        "HashTrust proxy view",
-        f"<main><h1>HashTrust <span>proxy view</span></h1><p>Open an article and see what the "
-        f"extension would flag in it and its comments.</p>{form()}"
-        + (f"<p class=meta>Opens {html.escape(', '.join(ALLOWED))}.</p>" if ALLOWED else "")
+        "HashTrust demo",
+        "<main><h1>HashTrust <span>demo</span></h1><p class=lede>Open an article and see which passages "
+        f"in it and its comments belong to a tracked narrative, and what readers' notes say.</p>{form()}"
+        + (f"<p class=meta>Works with {html.escape(', '.join(ALLOWED))}.</p>" if ALLOWED else "")
+        + f"<div class=notice><p>{html.escape(NOTICE)}</p><p>{PRODUCT}</p></div>"
         + f"<p class=meta>API: <code>{html.escape(API)}</code></p></main>",
     )
 
@@ -160,22 +176,77 @@ def rewrite(doc: lxml.html.HtmlElement, base: str, proxy: str) -> None:
 
 
 SHELL = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
-<title>HashTrust proxy view</title>
-<style>html,body{{margin:0;height:100%;overflow:hidden;background:#0f172a}}
-iframe{{position:fixed;top:0;left:0;width:calc(100vw - 340px);height:100%;border:0;background:#fff}}
+<title>HashTrust demo</title>
+<style>
+:root{{--ink:oklch(.24 .012 70);--ink-2:oklch(.43 .012 70);--ink-3:oklch(.55 .01 70);--paper:oklch(.992 .003 85);
+--paper-2:oklch(.966 .006 85);--paper-3:oklch(.935 .008 85);--line:oklch(.9 .008 85)}}
+@media (prefers-color-scheme:dark){{:root{{--ink:oklch(.94 .006 85);--ink-2:oklch(.79 .01 85);--ink-3:oklch(.66 .01 85);
+--paper:oklch(.235 .008 70);--paper-2:oklch(.275 .009 70);--paper-3:oklch(.31 .01 70);--line:oklch(.36 .01 70)}}}}
+html,body{{margin:0;height:100%;overflow:hidden;background:var(--paper)}}
+iframe{{position:fixed;top:0;left:0;width:calc(100vw - 340px);height:100%;border:0;background:#fff;opacity:0;transition:opacity .3s}}
+iframe.ready{{opacity:1}}
 body.ht-collapsed iframe{{width:calc(100vw - 44px)}}
-#ht-loading{{position:fixed;top:0;right:0;bottom:0;width:340px;box-sizing:border-box;padding:16px;
-background:#0f172a;color:#94a3b8;font:14px/1.5 system-ui,sans-serif;border-left:1px solid #1e293b}}
-#ht-loading b{{color:#e2e8f0;font-weight:650}}</style>
+#ht-loading{{position:fixed;inset:0;display:grid;place-items:center;background:var(--paper);color:var(--ink);
+font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}}
+.box{{width:min(420px,calc(100vw - 32px));text-align:center}}
+.ring{{width:44px;height:44px;margin:0 auto 18px;border-radius:50%;border:3px solid var(--line);
+border-top-color:var(--ink-2);animation:spin .9s linear infinite}}
+h1{{margin:0;font-size:17px;font-weight:650}} h1 span{{color:var(--ink-3);font-weight:400}}
+.host{{margin:6px 0 18px;color:var(--ink-2);font-size:13px;overflow-wrap:anywhere}}
+ol{{list-style:none;margin:0 auto;padding:0;display:grid;gap:8px;width:fit-content;text-align:left;font-size:13px;color:var(--ink-3)}}
+li{{display:flex;align-items:center;gap:10px;transition:color .3s}}
+li::before{{content:"";width:8px;height:8px;border-radius:50%;background:var(--line);transition:background .3s}}
+li.on{{color:var(--ink)}} li.on::before{{background:var(--ink-2);animation:pulse 1s ease-in-out infinite}}
+li.done{{color:var(--ink-2)}} li.done::before{{background:var(--ink-3);animation:none}}
+.note{{margin:22px auto 0;max-width:380px;font-size:12px;line-height:1.5;color:var(--ink-3)}}
+.note a{{color:inherit}}
+.time{{margin-top:18px;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}}
+@keyframes spin{{to{{transform:rotate(360deg)}}}}
+@keyframes pulse{{50%{{opacity:.35}}}}
+@media (prefers-reduced-motion:reduce){{.ring,li.on::before{{animation:none}}}}
+</style>
 <iframe id=ht-frame src="{src}"></iframe>
-<div id=ht-loading><b>HashTrust</b> proxy view<p>Rendering the page and loading its comments…</p></div>"""
+<div id=ht-loading role=status aria-live=polite><div class=box>
+<div class=ring></div>
+<h1>HashTrust <span>demo</span></h1>
+<p class=host>{host}</p>
+<ol><li>Opening the page</li><li>Accepting cookies</li><li>Loading comments and replies</li>
+<li>Reading the text</li><li>Matching against tracked narratives</li></ol>
+<p class=time>0 s</p>
+<p class=note>{notice}</p>
+</div></div>
+<script>
+// Rendering happens on the server in one request; the steps advance on a typical schedule, not on progress.
+const items = [...document.querySelectorAll('#ht-loading li')], at = [0, 3, 7, 16, 22];
+const t0 = Date.now(), time = document.querySelector('#ht-loading .time');
+const tick = () => {{
+  const s = (Date.now() - t0) / 1000;
+  if (time) time.textContent = Math.floor(s) + ' s';
+  items.forEach((li, i) => {{
+    const next = at[i + 1] ?? Infinity;
+    li.className = s >= next ? 'done' : s >= at[i] ? 'on' : '';
+  }});
+  if (document.getElementById('ht-loading')) setTimeout(tick, 250);
+}};
+tick();
+// The overlay removes the loading screen; an error page has no overlay, so the frame's load does too.
+document.getElementById('ht-frame').addEventListener('load', (e) => {{
+  e.target.classList.add('ready');
+  document.getElementById('ht-loading')?.remove();
+}});
+</script>"""
 
 
 @app.get("/view", response_class=HTMLResponse)
 def view(url: str, test: bool = False):
     """The shell: the page in a same-origin frame left of the panel, so its layout gets the real width."""
     src = "frame?url=" + quote(url, safe="") + ("&test=1" if test else "")
-    return SHELL.format(src=html.escape(src, quote=True))
+    return SHELL.format(
+        src=html.escape(src, quote=True),
+        host=html.escape(urlparse(url).hostname or url),
+        notice="It may not work on every site. The real product is the browser extension: "
+        f"<a href='{html.escape(README_URL, quote=True)}' target=_blank rel=noopener>how to install it</a>.",
+    )
 
 
 def fetch(url: str) -> render.Rendered | HTMLResponse:
@@ -247,6 +318,7 @@ async def frame_page(request: Request, url: str, test: bool):
         "mode": mode,
         "test": test,
         "proxy": proxy_base(request),
+        "readme": README_URL,
     }
     data = lxml.html.fragment_fromstring(
         "<script id=hashtrust-data type=application/json></script>", create_parent=False
@@ -254,7 +326,7 @@ async def frame_page(request: Request, url: str, test: bool):
     # </script> inside the JSON would end the element early.
     data.text = json.dumps(config).replace("</", "<\\/")
     script = lxml.html.Element("script")
-    script.text = (HERE / "overlay.js").read_text()
+    script.text = overlay_script()
     body = doc.find("body")
     if body is None:
         body = doc
@@ -263,19 +335,56 @@ async def frame_page(request: Request, url: str, test: bool):
     return HTMLResponse("<!doctype html>\n" + lxml.html.tostring(doc, encoding="unicode"))
 
 
-@app.post("/check")
-async def check(request: Request):
-    """Same-origin forward to the API's /check, so the page's CSP or CORS never gets in the way."""
-    body = await request.body()
+# The API calls the overlay makes, as the extension's background worker would: path pattern and method.
+API_ROUTES = [
+    (re.compile(r"check"), "POST"),
+    (re.compile(r"narratives/\d+"), "GET"),
+    (re.compile(r"me"), "GET"),
+    (re.compile(r"notes"), "POST"),
+    (re.compile(r"notes/\d+/(ratings|report)"), "POST"),
+    (re.compile(r"auth/(login|register|logout)"), "POST"),
+]
+
+
+@app.api_route("/api/{path:path}", methods=["GET", "POST"])
+async def api(request: Request, path: str):
+    """Same-origin forward to the API, so the page's CSP or CORS never gets in the way."""
+    if not any(pattern.fullmatch(path) and method == request.method for pattern, method in API_ROUTES):
+        return JSONResponse({"error": f"{request.method} /{path} is not forwarded"}, status_code=404)
     async with httpx.AsyncClient(timeout=180) as client:
         try:
-            r = await client.post(f"{API}/check", content=body, headers={"content-type": "application/json"})
+            r = await client.request(
+                request.method,
+                f"{API}/{path}",
+                params=request.query_params,
+                content=await request.body(),
+                headers={"content-type": "application/json"},
+            )
         except httpx.HTTPError as e:
             return JSONResponse({"error": f"API unreachable: {e}"}, status_code=502)
-    return JSONResponse(r.json() if r.headers.get("content-type", "").startswith("application/json")
-                        else {"error": r.text[:500]}, status_code=r.status_code)
+    if r.headers.get("content-type", "").startswith("application/json"):
+        return JSONResponse(r.json(), status_code=r.status_code)
+    return JSONResponse({"error": r.text[:500]}, status_code=r.status_code)
+
+
+def overlay_script() -> str:
+    """overlay.bundle.js, built from src/ with the extension's modules when it is missing or older."""
+    bundle = HERE / "overlay.bundle.js"
+    sources = [*(HERE / "src").glob("*.ts"), *(HERE.parent.parent / "client" / "entrypoints" / "content").glob("*.ts")]
+    newest = max((p.stat().st_mtime for p in sources), default=0)
+    if not bundle.exists() or bundle.stat().st_mtime < newest:
+        try:
+            subprocess.run(["node", str(HERE / "build.mjs")], check=True, cwd=HERE.parent.parent / "client")
+        except (OSError, subprocess.CalledProcessError) as e:
+            if not bundle.exists():
+                raise RuntimeError(
+                    "overlay.bundle.js is missing and could not be built: run `npm install` in client/ "
+                    "and `node demo/proxy-view/build.mjs` from client/"
+                ) from e
+    return bundle.read_text()
 
 
 if __name__ == "__main__":
+    overlay_script()
     print(f"HashTrust proxy view on http://localhost:{PORT}  (API {API})")
     uvicorn.run(app, host="0.0.0.0", port=PORT)
