@@ -20,13 +20,18 @@
     <section id="account-section">
       <h2>Account</h2>
       <div id="account"><p class="muted">Loading…</p></div>
+      <button type="button" id="sign-out" hidden>Sign out</button>
       <form id="sign-in" hidden>
-        <p class="muted">Sign in to write notes and make your ratings count. We email you a link; no password.</p>
-        <div class="inline">
+        <p class="muted">Sign in to write notes and make your ratings count.</p>
+        <div class="fields">
           <input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email" required />
-          <button type="submit" class="primary">Send link</button>
+          <input type="password" name="password" placeholder="Password, 8 characters or more" autocomplete="current-password" aria-label="Password" minlength="8" required />
         </div>
-        <p id="sign-in-status" class="muted" role="status"></p>
+        <div class="inline">
+          <button type="submit" name="action" value="login" class="primary">Sign in</button>
+          <button type="submit" name="action" value="register">Create account</button>
+        </div>
+        <p id="sign-in-status" class="error" role="alert"></p>
       </form>
     </section>
 

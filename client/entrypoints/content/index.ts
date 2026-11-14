@@ -105,7 +105,10 @@ class NoteFlow {
       return;
     }
     if (!verified) {
-      this.ui.openSignIn(anchor, (email) => callBackground('requestMagicLink', email));
+      this.ui.openSignIn(anchor, async (action, credentials) => {
+        await callBackground(action, credentials);
+        await this.open(range);
+      });
       return;
     }
     const text = sentences.map((s) => s.text).join(' ');

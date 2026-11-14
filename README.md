@@ -26,14 +26,14 @@ Built for Junction 2026, on the "Trust the source" challenge direction.
 
 ## Running locally
 
-The stack runs with Docker Compose: Postgres with TimescaleDB and pgvector, the fingerprint service, the API, the worker, the dashboard and, under the `dev` profile, Mailpit to catch sign-in emails.
+The stack runs with Docker Compose: Postgres with TimescaleDB and pgvector, the fingerprint service, the API, the worker and the dashboard.
 
 ```sh
 cp .env.example .env
 docker compose up -d --build
 ```
 
-The API is on `http://localhost:8000`, the dashboard on `http://localhost:8501` and Mailpit on `http://localhost:8025`. The first start downloads the embedding model into the `models` volume. LLM moderation of notes needs `ANTHROPIC_API_KEY` in `.env`; without it new notes wait in the moderation queue.
+The API is on `http://localhost:8000` and the dashboard on `http://localhost:8501`. The first start downloads the embedding model into the `models` volume. LLM moderation of notes needs `ANTHROPIC_API_KEY` in `.env`; without it new notes wait in the moderation queue.
 
 To load the extension against the local backend, build it from `client/` and load `client/dist/chrome-mv3` as an unpacked extension in `chrome://extensions`:
 

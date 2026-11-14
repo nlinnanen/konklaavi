@@ -1,6 +1,6 @@
 """Context notes: writing, rating, reporting and moderating them.
 
-Writing and reporting a note need an install linked to a verified account. Ratings are stored for any
+Writing and reporting a note need an install signed in to an account. Ratings are stored for any
 install; scoring counts only those of installs linked to an account (app/jobs/score.py).
 """
 
@@ -61,7 +61,7 @@ def verified_account(conn: Connection, user_id: UUID) -> UUID:
     """The account the install is linked to; 403 for an install without one."""
     row = conn.execute("SELECT account_id FROM install WHERE id = %s", (user_id,)).fetchone()
     if row is None or row[0] is None:
-        raise HTTPException(403, "sign in with your email first")
+        raise HTTPException(403, "sign in first")
     return row[0]
 
 

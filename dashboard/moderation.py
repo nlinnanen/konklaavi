@@ -27,7 +27,7 @@ st.caption(
     " Moderators are accounts listed in MODERATOR_EMAILS or with enough reputation."
 )
 
-# The dashboard signs in like an extension install: a random install id linked to an account by magic link.
+# The dashboard signs in like an extension install: a random install id linked to an account by email and password.
 if "install" not in st.session_state:
     st.session_state.install = str(uuid.uuid4())
 user_id = st.text_input(
@@ -44,15 +44,20 @@ except httpx.HTTPError as error:
 
 if not profile.get("verified"):
     with st.form("sign-in"):
-        st.write("Sign in with a moderator account. The API emails a link; open it, then reload this page.")
+        st.write("Sign in with a moderator account.")
         email = st.text_input("Email")
-        if st.form_submit_button("Send sign-in link") and email.strip():
+        password = st.text_input("Password", type="password")
+        if st.form_submit_button("Sign in") and email.strip():
             response = httpx.post(
-                f"{API_URL}/auth/magic-link", json={"userId": user_id, "email": email.strip()}, timeout=30
+                f"{API_URL}/auth/login",
+                json={"userId": user_id, "email": email.strip(), "password": password},
+                timeout=30,
             )
             if response.status_code == 200:
-                st.success(f"Link sent to {email.strip()}. After opening it, reload to refresh.")
                 me.clear()
+                st.rerun()
+            elif response.status_code == 401:
+                st.error("Wrong email or password.")
             else:
                 st.error(f"The API answered {response.status_code}: {response.text}")
     st.stop()

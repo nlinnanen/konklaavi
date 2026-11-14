@@ -2,6 +2,7 @@ import { MAX_NOTE_LENGTH, noteProblem, safeHref } from '@/lib/api';
 import { leadNote, spreadLine, STATE_LABELS } from '@/lib/state';
 import type {
   Classification,
+  Credentials,
   Helpfulness,
   MatchLevel,
   Narrative,
@@ -9,6 +10,7 @@ import type {
   Note,
   NoteStatus,
 } from '@/lib/types';
+import { MIN_PASSWORD_LENGTH } from '@/lib/types';
 import { UI_HOST_TAG } from './textModel';
 
 /**
@@ -206,7 +208,7 @@ a { color: inherit; }
 .choice span { display: block; margin-top: 3px; font-size: 11.5px; line-height: 1.4; color: var(--ink-2); }
 .choice:has(input:checked) { border-color: var(--c); background: var(--c-soft); }
 .choice:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
-textarea, input[type="email"], input[type="text"] {
+textarea, input[type="email"], input[type="password"], input[type="text"] {
   width: 100%; font: 13px/1.45 var(--font); color: var(--ink); background: var(--paper);
   border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; transition: border-color 150ms;
 }
@@ -467,44 +469,52 @@ export class OverlayUi {
     this.openPanel(anchor, 'Add context', head, quote, form);
   }
 
-  /** Asks the reader to sign in by email before writing; `onSend` resolves once the link is sent. */
-  /** `onSend` resolves to true when the server signed in without email. */
-  openSignIn(anchor: DOMRect, onSend: (email: string) => Promise<boolean>) {
+  /** Asks the reader to sign in before writing; `onSubmit` rejects with the reason sign-in failed. */
+  openSignIn(anchor: DOMRect, onSubmit: (action: 'login' | 'register', credentials: Credentials) => Promise<void>) {
     const head = el('div', 'panel-head', el('h2', undefined, 'Sign in to add context'), closeButton(() => this.closePanel()));
-    const lede = el(
-      'p',
-      'lede',
-      'Notes come from verified readers. Enter your email and open the link we send; no password needed. Then select the passage again.',
-    );
+    const lede = el('p', 'lede', 'Notes come from signed-in readers. Sign in, or create an account with your email and a password.');
     const email = el('input');
     email.type = 'email';
     email.required = true;
     email.autocomplete = 'email';
     email.placeholder = 'you@example.com';
     email.setAttribute('aria-label', 'Email');
-    const send = el('button', 'btn primary', 'Send link');
-    send.type = 'submit';
-    const status = el('p', 'status-line');
-    status.setAttribute('role', 'status');
-    const form = el('form', 'inline', email, send);
+    const password = el('input');
+    password.type = 'password';
+    password.required = true;
+    password.minLength = MIN_PASSWORD_LENGTH;
+    password.autocomplete = 'current-password';
+    password.placeholder = `Password, ${MIN_PASSWORD_LENGTH} characters or more`;
+    password.setAttribute('aria-label', 'Password');
+    const signIn = el('button', 'btn primary', 'Sign in');
+    signIn.type = 'submit';
+    signIn.value = 'login';
+    const register = el('button', 'btn', 'Create account');
+    register.type = 'submit';
+    register.value = 'register';
+    const error = el('p', 'error hidden');
+    error.setAttribute('role', 'alert');
+    const form = el('form', undefined, el('div', 'field', email), el('div', 'field', password), error, el('div', 'actions', register, signIn));
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const fail = (message: string) => {
+        error.textContent = message;
+        error.classList.remove('hidden');
+      };
       const value = email.value.trim();
-      if (!email.checkValidity() || !value) {
-        status.textContent = 'Enter a valid email address.';
-        return;
-      }
-      send.disabled = true;
+      if (!email.checkValidity() || !value) return fail('Enter a valid email address.');
+      if (password.value.length < MIN_PASSWORD_LENGTH) return fail(`Use a password of ${MIN_PASSWORD_LENGTH} characters or more.`);
+      error.classList.add('hidden');
+      const action = (e as SubmitEvent).submitter === register ? 'register' : 'login';
+      signIn.disabled = register.disabled = true;
       try {
-        status.textContent = (await onSend(value))
-          ? `Signed in as ${value}. Select the passage again.`
-          : `Check ${value} for your sign-in link.`;
+        await onSubmit(action, { email: value, password: password.value });
       } catch (err) {
-        status.textContent = `Could not send the link: ${err instanceof Error ? err.message : err}`;
-        send.disabled = false;
+        fail(err instanceof Error ? err.message : String(err));
+        signIn.disabled = register.disabled = false;
       }
     });
-    this.openPanel(anchor, 'Sign in', head, lede, form, status);
+    this.openPanel(anchor, 'Sign in', head, lede, form);
   }
 
   get cardPinned(): boolean {

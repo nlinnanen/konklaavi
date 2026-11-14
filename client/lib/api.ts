@@ -1,13 +1,13 @@
 import { EMBEDDING_DIM, type Embedder } from './embed';
 import { displayState, matchRank } from './state';
 import type {
+  AuthRequest,
+  Credentials,
   Helpfulness,
   Hit,
   IndexResponse,
   LookupBlock,
   LookupResult,
-  MagicLinkRequest,
-  MagicLinkResponse,
   MatchLevel,
   MeResponse,
   Narrative,
@@ -33,6 +33,11 @@ export interface TrustApi {
   rateNote(noteId: string, userId: string, helpfulness: Helpfulness): Promise<void>;
   reportNote(noteId: string, userId: string, reason: string): Promise<void>;
   me(userId: string): Promise<MeResponse>;
+  /** Creates the account and signs the install in; 409 when the email has an account. */
+  register(req: AuthRequest): Promise<MeResponse>;
+  /** Signs the install in; 401 for a wrong email or password. */
+  login(req: AuthRequest): Promise<MeResponse>;
+  logout(userId: string): Promise<MeResponse>;
 }
 
 export const MAX_LOOKUP_BATCH = 500;
@@ -151,10 +156,16 @@ export class RemoteApi implements TrustApi {
     await this.post('/hits', { hits });
   }
 
-  /** True when the server signed the install in without email. */
-  async requestMagicLink(req: MagicLinkRequest): Promise<boolean> {
-    const res = await this.post<MagicLinkResponse>('/auth/magic-link', req);
-    return res?.signedIn === true;
+  register(req: AuthRequest): Promise<MeResponse> {
+    return this.post('/auth/register', req);
+  }
+
+  login(req: AuthRequest): Promise<MeResponse> {
+    return this.post('/auth/login', req);
+  }
+
+  logout(userId: string): Promise<MeResponse> {
+    return this.post('/auth/logout', { userId });
   }
 }
 
@@ -387,6 +398,15 @@ export class LocalIndexApi implements TrustApi {
   me(userId: string) {
     return this.remote.me(userId);
   }
+  register(req: AuthRequest) {
+    return this.remote.register(req);
+  }
+  login(req: AuthRequest) {
+    return this.remote.login(req);
+  }
+  logout(userId: string) {
+    return this.remote.logout(userId);
+  }
 
   async lookup(hashes: string[], blocks: LookupBlock[] = []): Promise<LookupResult[]> {
     return (await this.ready()).lookup(hashes, blocks);
@@ -505,7 +525,12 @@ interface MockState {
   narratives: { narrativeId: string; title: string; hashes: string[]; urls: string[]; firstSeen: string }[];
   notes: (Omit<Note, 'status' | 'ratings'> & { narrativeId: string; author: string })[];
   ratings: { noteId: string; userId: string; helpfulness: Helpfulness }[];
+  accounts?: Credentials[];
+  /** The signed-in email; a fresh mock is signed in as MOCK_EMAIL. */
+  signedInAs?: string | null;
 }
+
+const MOCK_EMAIL = 'you@mock.invalid';
 
 const HELPFULNESS_SCORE: Record<Helpfulness, number> = { helpful: 1, somewhat: 0.5, not_helpful: 0 };
 
@@ -613,11 +638,12 @@ export class MockApi implements TrustApi {
       const { status } = this.statusOf(state, r.noteId);
       return status === 'helpful' ? r.helpfulness !== 'not_helpful' : status === 'not_helpful' && r.helpfulness === 'not_helpful';
     }).length;
+    const email = state.signedInAs === undefined ? MOCK_EMAIL : state.signedInAs;
     return {
       userId,
-      email: 'you@mock.invalid',
-      verified: true,
-      reputation: 0.5,
+      email,
+      verified: email !== null,
+      reputation: email === null ? null : 0.5,
       moderator: false,
       notes: state.notes
         .filter((n) => n.author === userId)
@@ -633,6 +659,32 @@ export class MockApi implements TrustApi {
         })),
       ratings: { count: ratings.length, agreed },
     };
+  }
+
+  async register(req: AuthRequest): Promise<MeResponse> {
+    const state = await this.state();
+    const email = req.email.trim().toLowerCase();
+    const accounts = state.accounts ?? [];
+    if (email === MOCK_EMAIL || accounts.some((a) => a.email === email)) {
+      throw new ApiError(409, 'an account with this email exists, sign in instead');
+    }
+    await this.store.set(MOCK_KEY, { ...state, accounts: [...accounts, { email, password: req.password }], signedInAs: email });
+    return this.me(req.userId);
+  }
+
+  async login(req: AuthRequest): Promise<MeResponse> {
+    const state = await this.state();
+    const email = req.email.trim().toLowerCase();
+    if (!(state.accounts ?? []).some((a) => a.email === email && a.password === req.password)) {
+      throw new ApiError(401, 'wrong email or password');
+    }
+    await this.store.set(MOCK_KEY, { ...state, signedInAs: email });
+    return this.me(req.userId);
+  }
+
+  async logout(userId: string): Promise<MeResponse> {
+    await this.store.set(MOCK_KEY, { ...(await this.state()), signedInAs: null });
+    return this.me(userId);
   }
 
   async clear(): Promise<void> {

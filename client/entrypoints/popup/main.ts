@@ -3,7 +3,7 @@ import { escapeHtml, renderAccount } from '@/lib/account';
 import { callBackground, type ContentRequest, type PageMatch, type PageStatus } from '@/lib/messages';
 import { getSettings, updateSettings, type BackendMode } from '@/lib/settings';
 import { HIGHLIGHT_STYLES, isWeak, spreadLine, STATE_LABELS, STATES } from '@/lib/state';
-import type { NarrativeState } from '@/lib/types';
+import type { MeResponse, NarrativeState } from '@/lib/types';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 
@@ -71,22 +71,20 @@ async function refreshAccount(): Promise<boolean> {
   const account = $('#account');
   try {
     const me = await callBackground('me', null);
-    account.innerHTML = me.verified ? renderAccount(me) : '';
-    $('#sign-in').hidden = me.verified;
+    showAccount(me);
     return me.verified;
   } catch (e) {
     account.innerHTML = `<p class="muted">Could not load your account: ${escapeHtml(e instanceof Error ? e.message : String(e))}</p>`;
     $('#sign-in').hidden = true;
+    $('#sign-out').hidden = true;
     return false;
   }
 }
 
-/** Checks the account every few seconds for two minutes, so the popup notices the clicked sign-in link. */
-function awaitSignIn() {
-  const started = Date.now();
-  const timer = setInterval(async () => {
-    if ((await refreshAccount()) || Date.now() - started > 120_000) clearInterval(timer);
-  }, 3000);
+function showAccount(me: MeResponse) {
+  $('#account').innerHTML = me.verified ? renderAccount(me) : '';
+  $('#sign-in').hidden = me.verified;
+  $('#sign-out').hidden = !me.verified;
 }
 
 const MODE_BADGES: Record<BackendMode, string> = {
@@ -145,14 +143,23 @@ async function main() {
   const signIn = $<HTMLFormElement>('#sign-in');
   signIn.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = String(new FormData(signIn).get('email') ?? '').trim();
+    const data = new FormData(signIn);
+    const credentials = { email: String(data.get('email') ?? '').trim(), password: String(data.get('password') ?? '') };
+    const action = (e.submitter as HTMLButtonElement | null)?.value === 'register' ? 'register' : 'login';
     const status = $('#sign-in-status');
+    status.textContent = '';
     try {
-      const signedIn = await callBackground('requestMagicLink', email);
-      status.textContent = signedIn ? `Signed in as ${email}.` : `Check ${email} for your sign-in link.`;
-      awaitSignIn();
+      showAccount(await callBackground(action, credentials));
+      signIn.reset();
     } catch (err) {
-      status.textContent = `Could not send the link: ${err instanceof Error ? err.message : String(err)}`;
+      status.textContent = err instanceof Error ? err.message : String(err);
+    }
+  });
+  $('#sign-out').addEventListener('click', async () => {
+    try {
+      showAccount(await callBackground('logout', null));
+    } catch (err) {
+      $('#account').insertAdjacentHTML('beforeend', `<p class="error">${escapeHtml(err instanceof Error ? err.message : String(err))}</p>`);
     }
   });
   void refreshAccount();

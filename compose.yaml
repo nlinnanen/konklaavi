@@ -59,12 +59,6 @@ services:
 
   api:
     <<: *backend
-    environment:
-      <<: *backend-env
-      SMTP_URL: ${SMTP_URL:-smtp://mailpit:1025}
-      MAIL_FROM: ${MAIL_FROM:-hashtrust@localhost}
-      PUBLIC_API_URL:
-      AUTH_SKIP_EMAIL_VERIFICATION:
     ports:
       - "${API_PORT:-8000}:8000"
     healthcheck:
@@ -104,15 +98,6 @@ services:
       db:
         condition: service_healthy
     init: true
-    restart: unless-stopped
-
-  # Development mail server: catches magic-link emails, viewable at http://localhost:${MAILPIT_PORT:-8025}.
-  # Runs only with COMPOSE_PROFILES=dev, so a production .env without it never exposes captured links.
-  mailpit:
-    image: axllent/mailpit:v1.32.0
-    profiles: [dev]
-    ports:
-      - "${MAILPIT_PORT:-8025}:8025"
     restart: unless-stopped
 
 volumes:

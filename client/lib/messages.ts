@@ -2,6 +2,7 @@ import { browser } from 'wxt/browser';
 import type { LookupBlock, NarrativeBlock } from './api';
 import type { HighlightStyle } from './state';
 import type {
+  Credentials,
   Helpfulness,
   LookupResult,
   MatchLevel,
@@ -24,8 +25,9 @@ export interface BackgroundApi {
   /** This install's ratings by note id. */
   myRatings: [null, Record<string, Helpfulness>];
   clearMock: [null, null];
-  /** Emails a sign-in link for this install to the given address; true when it signed in at once. */
-  requestMagicLink: [string, boolean];
+  register: [Credentials, MeResponse];
+  login: [Credentials, MeResponse];
+  logout: [null, MeResponse];
   me: [null, MeResponse];
 }
 export type BackgroundRequest = {

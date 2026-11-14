@@ -1,42 +1,41 @@
-import dataclasses
-import logging
-import re
 import uuid
-
-from app.api import account
-
-
-def test_a_magic_link_signs_the_install_in_once(client, caplog):
-    user = uuid.uuid4()
-    assert client.get("/me", params={"userId": str(user)}).json()["email"] is None
-
-    with caplog.at_level(logging.WARNING, logger="app.api.account"):
-        response = client.post(
-            "/auth/magic-link", json={"userId": str(user), "email": " Reader@Example.org "}
-        )
-    assert response.json() == {"ok": True}
-    path = re.search(r"/auth/verify\?token=\S+", caplog.text).group(0)
-
-    page = client.get(path)
-    assert page.status_code == 200
-    assert "Signed in as reader@example.org" in page.text
-    assert client.get("/me", params={"userId": str(user)}).json()["email"] == "reader@example.org"
-    assert client.get(path).status_code == 400
-
-
-def test_skipping_email_verification_signs_the_install_in_at_once(client, monkeypatch, caplog):
-    monkeypatch.setattr(account, "settings", dataclasses.replace(account.settings, auth_skip_email_verification=True))
-    user = uuid.uuid4()
-
-    with caplog.at_level(logging.WARNING, logger="app.api.account"):
-        response = client.post("/auth/magic-link", json={"userId": str(user), "email": "Reader@Example.org"})
-    assert response.json() == {"ok": True, "signedIn": True}
-    assert "/auth/verify" not in caplog.text
-    assert client.get("/me", params={"userId": str(user)}).json()["email"] == "reader@example.org"
 
 
 def me(client, user):
     return client.get("/me", params={"userId": str(user)}).json()
+
+
+def credentials(user, password="correct horse"):
+    return {"userId": str(user), "email": " Reader@Example.org ", "password": password}
+
+
+def test_registering_signs_the_install_in(client):
+    user = uuid.uuid4()
+    assert me(client, user)["email"] is None
+
+    response = client.post("/auth/register", json=credentials(user))
+    assert response.status_code == 200
+    assert response.json()["email"] == me(client, user)["email"] == "reader@example.org"
+    assert client.post("/auth/register", json=credentials(uuid.uuid4())).status_code == 409
+
+
+def test_signing_in_links_another_install_to_the_same_account(client):
+    first, second = uuid.uuid4(), uuid.uuid4()
+    client.post("/auth/register", json=credentials(first))
+
+    assert client.post("/auth/login", json=credentials(second)).status_code == 200
+    assert me(client, second)["email"] == "reader@example.org"
+    client.post("/auth/logout", json={"userId": str(second)})
+    assert me(client, second)["email"] is None
+    assert me(client, first)["email"] == "reader@example.org"
+
+
+def test_a_wrong_password_is_rejected(client):
+    user = uuid.uuid4()
+    client.post("/auth/register", json=credentials(uuid.uuid4()))
+
+    assert client.post("/auth/login", json=credentials(user, "wrong password")).status_code == 401
+    assert me(client, user)["email"] is None
 
 
 def test_reputation_follows_helpful_notes_and_early_agreeing_ratings(client, conn, narrative, signed_in):
