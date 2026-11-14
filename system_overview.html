@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crowdsourced Trust Verifier</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+html { color-scheme: light; }
+body { margin: 0; }
+img { max-width: 100%; }
+/* Layout: one reading column at 68ch. Figures use the full 1040px width on a raised panel. Component lists are ruled two-column rows. */
+:root {
+  --bg: #F5F7FA;
+  --surface: #FFFFFF;
+  --node: #EEF2F7;
+  --ink: #16202B;
+  --muted: #586474;
+  --line: #D4DAE3;
+  --edge: #6B7888;
+  --accent: #2447C9;
+  --accent-soft: #E5EAFB;
+  --warn: #B4470E;
+  --warn-soft: #FBE9DA;
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10151C; --surface: #171E28; --node: #212B38; --ink: #E6EBF2; --muted: #9AA7B7;
+    --line: #2D3848; --edge: #8795A8; --accent: #94AAFF; --accent-soft: #1C274A;
+    --warn: #F2A268; --warn-soft: #3A2515; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10151C; --surface: #171E28; --node: #212B38; --ink: #E6EBF2; --muted: #9AA7B7;
+  --line: #2D3848; --edge: #8795A8; --accent: #94AAFF; --accent-soft: #1C274A;
+  --warn: #F2A268; --warn-soft: #3A2515; color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+}
+.wrap {
+  max-width: 1040px;
+  margin-inline: auto;
+  padding-block: 56px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 64px;
+}
+section, header { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+p, ol, ul, dl, h1, h2, h3, figure { margin: 0; }
+p, ol, ul, .prose { max-width: 68ch; }
+ol, ul { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(2rem, 5vw, 2.75rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.125rem;
+  line-height: 1.3;
+  margin-top: 16px;
+}
+.lede { font-size: 1.1875rem; line-height: 1.5; }
+
+.scope {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0 40px;
+  border-block: 1px solid var(--line);
+  margin-top: 16px;
+}
+.scope > div { padding-block: 16px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.scope .k {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted);
+}
+.scope p { font-size: 0.9375rem; }
+
+.tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 0 5px;
+  line-height: 1.5;
+  vertical-align: 0.1em;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+/* Figures */
+.fig { display: flex; flex-direction: column; gap: 10px; }
+.fig-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  overflow-x: auto;
+}
+.fig-panel svg { display: block; width: 100%; min-width: 760px; height: auto; }
+figcaption { font-size: 0.875rem; color: var(--muted); max-width: 78ch; }
+figcaption b { color: var(--ink); font-weight: 600; }
+
+.dg text { font-family: var(--font-body); font-size: 12px; fill: var(--ink); }
+.dg .t { font-size: 13px; font-weight: 600; }
+.dg .s { font-size: 11px; fill: var(--muted); }
+.dg .m { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; }
+.dg .e { font-size: 11px; }
+.dg .e-accent { font-size: 11px; fill: var(--accent); font-weight: 500; }
+.dg .h {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; fill: var(--muted);
+}
+.dg .box { fill: var(--node); stroke: var(--edge); stroke-width: 1; }
+.dg .box-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.6; }
+.dg .box-inherit { fill: var(--node); stroke: var(--warn); stroke-width: 1.4; stroke-dasharray: 5 4; }
+.dg .group { fill: none; stroke: var(--line); stroke-width: 1; }
+.dg .group-dash { fill: none; stroke: var(--edge); stroke-width: 1; stroke-dasharray: 3 4; }
+.dg .ln { fill: none; stroke: var(--edge); stroke-width: 1.3; }
+.dg .ln-accent { fill: none; stroke: var(--accent); stroke-width: 1.9; }
+.dg .ln-warn { fill: none; stroke: var(--warn); stroke-width: 2.2; }
+.dg .ln-dash { fill: none; stroke: var(--edge); stroke-width: 1.2; stroke-dasharray: 4 5; }
+.dg .ln-faint { fill: none; stroke: var(--line); stroke-width: 1; }
+.dg .ah { fill: var(--edge); }
+.dg .ah-accent { fill: var(--accent); }
+.dg .dot-accent { fill: var(--accent); }
+.dg .n { fill: var(--node); stroke: var(--edge); stroke-width: 1.3; }
+.dg .n-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.8; }
+
+/* Term and component rows */
+.rows { border-top: 1px solid var(--line); max-width: 860px; }
+.rows > div {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  gap: 4px 24px;
+  padding-block: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.rows dt { font-weight: 600; min-width: 0; }
+.rows dd { margin: 0; min-width: 0; color: var(--ink); }
+.rows dd span.x { color: var(--muted); }
+@media (max-width: 640px) {
+  .rows > div { grid-template-columns: minmax(0, 1fr); }
+  .wrap { gap: 48px; padding-block: 32px 64px; }
+}
+
+.steps { counter-reset: none; }
+.steps li::marker { font-family: var(--font-mono); font-size: 0.875em; color: var(--muted); }
+
+.decisions { list-style: none; padding: 0; gap: 0; max-width: 860px; border-top: 1px solid var(--line); }
+.decisions li { padding-block: 14px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
+.decisions .q { font-weight: 600; }
+.decisions p { color: var(--muted); max-width: 72ch; }
+code, .mono { font-family: var(--font-mono); font-size: 0.9em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Junction 2026 · Project overview · Draft, 14 November 2026</div>
+  <h1>Crowdsourced Trust Verifier</h1>
+  <p class="lede">Users flag web content as malicious, as propaganda, or as AI slop. The system combines these flags into a reputation for each site, page, and comment. A Chrome extension then warns the next user who opens that content, and gives the reason.</p>
+  <div class="scope">
+    <div>
+      <span class="k">In this document</span>
+      <p>Three work areas: the extension, the reputation model, and the backend.</p>
+    </div>
+    <div>
+      <span class="k">Not in this document</span>
+      <p>The simulation that tests the model.</p>
+    </div>
+    <div>
+      <span class="k">How to read the tags</span>
+      <p>The split into components is a proposal. A <span class="tag" style="margin-left:0">proposed</span> tag marks behavior that the team description does not contain.</p>
+    </div>
+  </div>
+</header>
+
+<section>
+  <h2>How the system works</h2>
+  <p>The system keeps two reputations. Target reputation controls what users see. User reputation controls how much each flag counts. Each reputation is an input to the other.</p>
+
+  <figure class="fig">
+    <div class="fig-panel">
+      <svg class="dg" viewBox="0 0 920 334" role="img" aria-label="Flow diagram. User A sends a flag. The flags give a weighted sum that is the target reputation. User B sees a warning and can confirm or dispute it. The engine compares each flag with the consensus to update user reputation. User reputation sets the weight of each flag. Collusion detection reads the flags and lowers the reputation of closed groups.">
+        <defs>
+          <marker id="f1-a" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+          <marker id="f1-b" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path class="ah-accent" d="M0 0L10 5L0 10z"/></marker>
+        </defs>
+
+        <path class="ln" d="M170 92H250" marker-end="url(#f1-a)"/>
+        <path class="ln" d="M410 92H510" marker-end="url(#f1-a)"/>
+        <path class="ln" d="M680 92H760" marker-end="url(#f1-a)"/>
+        <path class="ln" d="M830 60V28H330V60" marker-end="url(#f1-a)"/>
+        <path class="ln" d="M290 124V190H140V250" marker-end="url(#f1-a)"/>
+        <path class="ln" d="M240 282H375" marker-end="url(#f1-a)"/>
+        <path class="ln-accent" d="M595 124V282H545" marker-end="url(#f1-b)"/>
+        <path class="ln-accent" d="M460 250V98" marker-end="url(#f1-b)"/>
+        <circle class="dot-accent" cx="460" cy="92" r="3.5"/>
+
+        <text class="e" x="210" y="84" text-anchor="middle">flag</text>
+        <text class="e" x="460" y="80" text-anchor="middle">weighted sum</text>
+        <text class="e" x="720" y="84" text-anchor="middle">verdict</text>
+        <text class="e" x="580" y="20" text-anchor="middle">confirms or disputes the warning</text>
+        <text class="e" x="215" y="182" text-anchor="middle">who agrees with whom</text>
+        <text class="e" x="307" y="274" text-anchor="middle">lowers reputation</text>
+        <text class="e-accent" x="607" y="196">compares each flag</text>
+        <text class="e-accent" x="607" y="211">with the consensus</text>
+        <text class="e-accent" x="450" y="176" text-anchor="end">sets the weight</text>
+        <text class="e-accent" x="450" y="191" text-anchor="end">of each flag</text>
+
+        <rect class="box" x="20" y="60" width="150" height="64" rx="5"/>
+        <text class="t" x="95" y="87" text-anchor="middle">User A</text>
+        <text class="s" x="95" y="105" text-anchor="middle">sends a flag</text>
+
+        <rect class="box" x="250" y="60" width="160" height="64" rx="5"/>
+        <text class="t" x="330" y="87" text-anchor="middle">Flags</text>
+        <text class="s" x="330" y="105" text-anchor="middle">target, label, user</text>
+
+        <rect class="box" x="510" y="60" width="170" height="64" rx="5"/>
+        <text class="t" x="595" y="87" text-anchor="middle">Target reputation</text>
+        <text class="s" x="595" y="105" text-anchor="middle">one score for each label</text>
+
+        <rect class="box" x="760" y="60" width="140" height="64" rx="5"/>
+        <text class="t" x="830" y="87" text-anchor="middle">User B</text>
+        <text class="s" x="830" y="105" text-anchor="middle">sees a warning</text>
+
+        <rect class="box" x="375" y="250" width="170" height="64" rx="5"/>
+        <text class="t" x="460" y="277" text-anchor="middle">User reputation</text>
+        <text class="s" x="460" y="295" text-anchor="middle">weight of each user</text>
+
+        <rect class="box" x="40" y="250" width="200" height="64" rx="5"/>
+        <text class="t" x="140" y="277" text-anchor="middle">Collusion detection</text>
+        <text class="s" x="140" y="295" text-anchor="middle">finds closed groups</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 1.</b> The two reputations depend on each other. The blue arrows show the loop: the consensus on a target changes user reputation, and user reputation sets the weight of each flag.</figcaption>
+  </figure>
+
+  <ol class="steps">
+    <li>User A opens a page and sends a flag. The flag names a target and a label.</li>
+    <li>The backend stores the flag. The reputation engine multiplies the flag by the weight of User A.</li>
+    <li>The engine adds the weighted flags for each label. The result is the target reputation.</li>
+    <li>When the target reputation for a label is above a limit, the target gets a warning.</li>
+    <li>User B opens the same target. The extension shows the warning with the label and the reason.</li>
+    <li>User B can confirm the warning or dispute it. <span class="tag">proposed</span></li>
+    <li>The engine compares each flag with the consensus on its target. Users who agree with the consensus gain reputation. Users who disagree lose reputation.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>Terms</h2>
+  <p>This document uses each term with one meaning.</p>
+  <dl class="rows">
+    <div><dt>User</dt><dd>A person who has the extension and an account.</dd></div>
+    <div><dt>Target</dt><dd>The content that a flag names. A target is a domain, a page, or a comment.</dd></div>
+    <div><dt>Label</dt><dd>The type of problem: malicious, propaganda, or AI slop.</dd></div>
+    <div><dt>Flag</dt><dd>One report from one user. A flag names one target and one label.</dd></div>
+    <div><dt>Dispute <span class="tag">proposed</span></dt><dd>One report from one user that says a label is wrong for a target.</dd></div>
+    <div><dt>Target reputation</dt><dd>One score for each label on a target. The team description calls this site reputation.</dd></div>
+    <div><dt>User reputation</dt><dd>One score for each user. This score sets the weight of the flags from that user.</dd></div>
+    <div><dt>Consensus</dt><dd>The result for a label that most of the weight on a target supports.</dd></div>
+    <div><dt>Verdict</dt><dd>The result that the extension receives for a target: warning or no warning, with the label and the reason.</dd></div>
+  </dl>
+</section>
+
+<section>
+  <h2>Targets: domain, page, comment</h2>
+  <p>A flag names the most specific target that the user selects. The engine keeps a separate reputation for each target.</p>
+  <p>The warning applies at the level where the flags concentrate. Flags on many pages of one domain give a warning for the domain. Flags on one page give a warning for that page only.</p>
+  <p>Comments are targets only on integrated sites. For each integrated site, the extension needs an adapter that finds the comments and reads a stable ID for each comment.</p>
+
+  <figure class="fig">
+    <div class="fig-panel">
+      <svg class="dg" viewBox="0 0 980 340" role="img" aria-label="Two trees. Left: the domain aicookingrecipes.com has flags on many pages, so the domain has a warning and its pages inherit the warning. Right: the domain socialmedia.com has no warning. Its page /user/propaganda_account has a warning. Its page /user/alice has no warning. Its page /post/8841 has no warning, but one comment on that page has a warning.">
+        <path class="ln-faint" d="M400 16V324"/>
+
+        <path class="ln" d="M190 86V124M95 160V124H285V160"/>
+        <rect class="box-warn" x="80" y="30" width="220" height="56" rx="5"/>
+        <text class="m" x="190" y="54" text-anchor="middle">aicookingrecipes.com</text>
+        <text class="s" x="190" y="72" text-anchor="middle">flags on many pages · AI slop</text>
+        <rect class="box-inherit" x="10" y="160" width="170" height="50" rx="5"/>
+        <text class="m" x="95" y="182" text-anchor="middle">/recipes/pasta</text>
+        <text class="s" x="95" y="199" text-anchor="middle">inherits the warning</text>
+        <rect class="box-inherit" x="200" y="160" width="170" height="50" rx="5"/>
+        <text class="m" x="285" y="182" text-anchor="middle">/recipes/soup</text>
+        <text class="s" x="285" y="199" text-anchor="middle">inherits the warning</text>
+
+        <rect class="box-warn" x="10" y="254" width="22" height="14" rx="3"/>
+        <text class="s" x="42" y="265">warning: the score is above the limit</text>
+        <rect class="box-inherit" x="10" y="280" width="22" height="14" rx="3"/>
+        <text class="s" x="42" y="291">warning from the domain</text>
+        <rect class="box" x="10" y="306" width="22" height="14" rx="3"/>
+        <text class="s" x="42" y="317">no warning</text>
+
+        <path class="ln" d="M700 86V124M525 160V124H885V160M715 124V160M885 210V270"/>
+        <rect class="box" x="590" y="30" width="220" height="56" rx="5"/>
+        <text class="m" x="700" y="54" text-anchor="middle">socialmedia.com</text>
+        <text class="s" x="700" y="72" text-anchor="middle">few flags for its size</text>
+        <rect class="box-warn" x="420" y="160" width="210" height="50" rx="5"/>
+        <text class="m" x="525" y="182" text-anchor="middle">/user/propaganda_account</text>
+        <text class="s" x="525" y="199" text-anchor="middle">many flags · propaganda</text>
+        <rect class="box" x="650" y="160" width="130" height="50" rx="5"/>
+        <text class="m" x="715" y="182" text-anchor="middle">/user/alice</text>
+        <text class="s" x="715" y="199" text-anchor="middle">no flags</text>
+        <rect class="box" x="800" y="160" width="170" height="50" rx="5"/>
+        <text class="m" x="885" y="182" text-anchor="middle">/post/8841</text>
+        <text class="s" x="885" y="199" text-anchor="middle">few flags on the page</text>
+        <rect class="box-warn" x="800" y="270" width="170" height="50" rx="5"/>
+        <text class="m" x="885" y="292" text-anchor="middle">comment c-17</text>
+        <text class="s" x="885" y="309" text-anchor="middle">many flags · malicious</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 2.</b> Left: users flag many pages of one domain, and the warning applies to the full domain. Right: the domain has few flags for its size. Only one account page and one comment get a warning. The site names are examples.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>Components</h2>
+  <p>The project has three work areas. Figure 3 shows the data flow between them. The lists below give the job of each component.</p>
+
+  <figure class="fig">
+    <div class="fig-panel">
+      <svg class="dg" viewBox="0 0 1015 478" role="img" aria-label="Architecture diagram. In the Chrome extension, the popup sends a flag to the service worker, and the content script exchanges URLs and verdicts with the service worker. The service worker sends flags to the API and receives verdicts. The API appends flags to the event log. Three reputation engine jobs read new flags from the event log: target scoring writes scores to the verdict store, the user reputation update writes reputation to the user store, and collusion detection writes penalties to the user store. The API reads verdicts from the verdict store and accounts from the user store.">
+        <defs>
+          <marker id="f3-a" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+        </defs>
+
+        <rect class="group" x="10" y="4" width="240" height="470" rx="8"/>
+        <text class="h" x="24" y="26">CHROME EXTENSION</text>
+        <rect class="group" x="280" y="4" width="725" height="470" rx="8"/>
+        <text class="h" x="294" y="26">BACKEND</text>
+        <rect class="group-dash" x="628" y="66" width="194" height="356" rx="6"/>
+        <text class="h" x="640" y="413">REPUTATION ENGINE</text>
+
+        <path class="ln" d="M130 134V210" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M95 264V340" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M165 340V264" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M235 227H300" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M300 249H235" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M410 237H475" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M590 237H640" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M615 237V107H640" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M615 237V367H640" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M810 107H890" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M810 237H890" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M810 367H890" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M945 80V48H355V210" marker-end="url(#f3-a)"/>
+        <path class="ln" d="M945 394V440H355V264" marker-end="url(#f3-a)"/>
+
+        <text class="e" x="138" y="176">flag</text>
+        <text class="e" x="87" y="306" text-anchor="end">verdict</text>
+        <text class="e" x="173" y="306">URL, IDs</text>
+        <text class="e" x="267" y="219" text-anchor="middle">flag</text>
+        <text class="e" x="267" y="266" text-anchor="middle">verdict</text>
+        <text class="e" x="442" y="229" text-anchor="middle">appends</text>
+        <text class="e" x="607" y="170" text-anchor="end">new flags</text>
+        <text class="e" x="850" y="99" text-anchor="middle">scores</text>
+        <text class="e" x="850" y="229" text-anchor="middle">reputation</text>
+        <text class="e" x="850" y="359" text-anchor="middle">penalty</text>
+        <text class="e" x="650" y="40" text-anchor="middle">API reads verdicts</text>
+        <text class="e" x="650" y="457" text-anchor="middle">API reads accounts</text>
+
+        <rect class="box" x="25" y="80" width="210" height="54" rx="5"/>
+        <text class="t" x="130" y="103" text-anchor="middle">Popup</text>
+        <text class="s" x="130" y="120" text-anchor="middle">flag form with labels</text>
+        <rect class="box" x="25" y="210" width="210" height="54" rx="5"/>
+        <text class="t" x="130" y="233" text-anchor="middle">Service worker</text>
+        <text class="s" x="130" y="250" text-anchor="middle">API client, verdict cache</text>
+        <rect class="box" x="25" y="340" width="210" height="54" rx="5"/>
+        <text class="t" x="130" y="363" text-anchor="middle">Content script</text>
+        <text class="s" x="130" y="380" text-anchor="middle">warning, comment markers</text>
+
+        <rect class="box" x="300" y="210" width="110" height="54" rx="5"/>
+        <text class="t" x="355" y="233" text-anchor="middle">API</text>
+        <text class="s" x="355" y="250" text-anchor="middle">flags, verdicts</text>
+        <rect class="box" x="475" y="210" width="115" height="54" rx="5"/>
+        <text class="t" x="532" y="233" text-anchor="middle">Event log</text>
+        <text class="s" x="532" y="250" text-anchor="middle">append-only</text>
+
+        <rect class="box" x="640" y="80" width="170" height="54" rx="5"/>
+        <text class="t" x="725" y="103" text-anchor="middle">Target scoring</text>
+        <text class="s" x="725" y="120" text-anchor="middle">on each new flag</text>
+        <rect class="box" x="640" y="210" width="170" height="54" rx="5"/>
+        <text class="t" x="725" y="233" text-anchor="middle">User reputation update</text>
+        <text class="s" x="725" y="250" text-anchor="middle">agreement with consensus</text>
+        <rect class="box" x="640" y="340" width="170" height="54" rx="5"/>
+        <text class="t" x="725" y="363" text-anchor="middle">Collusion detection</text>
+        <text class="s" x="725" y="380" text-anchor="middle">at a fixed interval</text>
+
+        <rect class="box" x="890" y="80" width="110" height="54" rx="5"/>
+        <text class="t" x="945" y="103" text-anchor="middle">Verdict store</text>
+        <text class="s" x="945" y="120" text-anchor="middle">score per target</text>
+        <rect class="box" x="890" y="210" width="110" height="184" rx="5"/>
+        <text class="t" x="945" y="292" text-anchor="middle">User store</text>
+        <text class="s" x="945" y="309" text-anchor="middle">accounts,</text>
+        <text class="s" x="945" y="323" text-anchor="middle">reputation</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 3.</b> Data flow between the components. Every flag goes into the event log. The three engine jobs read new flags from the log and write to the two stores. The jobs also read from both stores. Figure 1 shows that dependency.</figcaption>
+  </figure>
+
+  <h3>Extension</h3>
+  <dl class="rows">
+    <div><dt>Popup</dt><dd>The popup shows the flag form. The user selects a label and a target level, then sends the flag.</dd></div>
+    <div><dt>Warning</dt><dd>The content script shows a warning when the target has one. The warning states the label and the reason, for example the number of users who flagged the target.</dd></div>
+    <div><dt>Confirm and dispute <span class="tag">proposed</span></dt><dd>The warning has two buttons. The user confirms the label or disputes it. Without a dispute, the model cannot see disagreement.</dd></div>
+    <div><dt>Site adapters</dt><dd>Each integrated site needs one adapter. The adapter finds the comments on a page and reads the ID of each comment. It marks the comments that have a warning.</dd></div>
+    <div><dt>Service worker</dt><dd>The service worker sends flags to the API. It requests the verdict for each URL that the user opens. It keeps recent verdicts in a local cache.</dd></div>
+    <div><dt>URL rules</dt><dd>These rules convert a URL to a domain target and a page target. They remove tracking parameters and fragments. The backend must use the same rules.</dd></div>
+    <div><dt>Account</dt><dd>The extension authenticates the user. The backend needs one stable identity for each flag.</dd></div>
+  </dl>
+
+  <h3>Reputation model</h3>
+  <dl class="rows">
+    <div><dt>Target scoring</dt><dd>This job calculates one score for each label on each target. Flags increase the score and disputes decrease it. The weight of the user scales each flag and each dispute.</dd></div>
+    <div><dt>Level rule</dt><dd>This rule selects the level that gets the warning: domain, page, or comment.</dd></div>
+    <div><dt>Verdict rule</dt><dd>This rule converts a score to a verdict. A warning needs a score above a limit and flags from a minimum number of different users.</dd></div>
+    <div><dt>User reputation update</dt><dd>This job compares each flag with the consensus on its target. Agreement increases the reputation of the user. Disagreement decreases it.</dd></div>
+    <div><dt>Collusion detection</dt><dd>This job finds groups of users who agree with each other but disagree with other users. It decreases the reputation of each member.</dd></div>
+    <div><dt>Time decay <span class="tag">proposed</span></dt><dd>Old flags lose weight with time, because a site can change.</dd></div>
+  </dl>
+
+  <h3>Backend</h3>
+  <dl class="rows">
+    <div><dt>API</dt><dd>The API receives flags and disputes, and returns verdicts. It authenticates each user and limits the request rate.</dd></div>
+    <div><dt>Event log</dt><dd>The log stores every flag and every dispute. It never changes a stored event. After a change to the model, the engine can calculate all scores again from the log.</dd></div>
+    <div><dt>Reputation worker</dt><dd>The worker runs the three engine jobs. Target scoring runs on each new flag. The user reputation update runs when the consensus on a target changes. Collusion detection runs at a fixed interval.</dd></div>
+    <div><dt>Verdict store</dt><dd>This store holds the current scores and the verdict for each target. The API reads from it on each verdict request.</dd></div>
+    <div><dt>User store</dt><dd>This store holds accounts, user reputation, and the penalties from collusion detection.</dd></div>
+    <div><dt>Hosting</dt><dd>The hackathon requires a public deployment on Hostinger infrastructure. One server can run the API, the worker, and the database. <span class="tag">proposed</span></dd></div>
+  </dl>
+</section>
+
+<section>
+  <h2>Reputation model</h2>
+
+  <h3 style="margin-top:0">Target reputation</h3>
+  <p>Each target has one score for each label. A flag adds the weight of its user to the score. A dispute subtracts the weight of its user.</p>
+  <p>A target gets a warning when two conditions are true:</p>
+  <ul>
+    <li>The score for a label is above the limit.</li>
+    <li>Enough different users contributed to the score.</li>
+  </ul>
+  <p>The second condition prevents a warning that comes from one or two users with a high weight.</p>
+
+  <h3>User reputation</h3>
+  <p>Each user has one reputation score. The score sets the weight of every flag and every dispute from that user.</p>
+  <p>The engine updates the score when a target reaches a stable consensus. A user who agreed with the consensus gains reputation. A user who disagreed loses reputation.</p>
+  <p>A user who frequently flags content that other users find acceptable therefore loses weight with time.</p>
+
+  <h3>Collusion detection</h3>
+  <p>A bot swarm can produce a false consensus. Reputation from agreement does not stop this, because the bots agree with each other.</p>
+  <p>The engine therefore measures how frequently each pair of users agrees. A group is suspect when two conditions are true:</p>
+  <ul>
+    <li>The members agree with each other on almost every target.</li>
+    <li>The members frequently disagree with users outside the group.</li>
+  </ul>
+  <p>The engine decreases the reputation of each member of a suspect group. The flags of the group then have little effect on target reputation.</p>
+
+  <figure class="fig">
+    <div class="fig-panel">
+      <svg class="dg" viewBox="0 0 920 290" role="img" aria-label="Agreement graph. On the left, nine users in the wider crowd connect with thin lines that show a moderate rate of agreement. On the right, five users form a group where thick lines connect every pair. Dashed lines between the group and the crowd show that they rarely agree.">
+        <path class="ln" d="M70 90L160 50M70 90L150 160M160 50L250 110M150 160L250 110M250 110L330 50M250 110L340 180M330 50L430 110M340 180L430 110M430 110L510 60M430 110L500 190M160 50L330 50M340 180L500 190"/>
+        <path class="ln-dash" d="M703 101L510 60M703 101L430 110M725 169L500 190"/>
+        <path class="ln-warn" d="M760 60L817 101M760 60L795 169M760 60L725 169M760 60L703 101M817 101L795 169M817 101L725 169M817 101L703 101M795 169L725 169M795 169L703 101M725 169L703 101"/>
+
+        <circle class="n" cx="70" cy="90" r="9"/>
+        <circle class="n" cx="160" cy="50" r="9"/>
+        <circle class="n" cx="150" cy="160" r="9"/>
+        <circle class="n" cx="250" cy="110" r="9"/>
+        <circle class="n" cx="330" cy="50" r="9"/>
+        <circle class="n" cx="340" cy="180" r="9"/>
+        <circle class="n" cx="430" cy="110" r="9"/>
+        <circle class="n" cx="510" cy="60" r="9"/>
+        <circle class="n" cx="500" cy="190" r="9"/>
+
+        <circle class="n-warn" cx="760" cy="60" r="9"/>
+        <circle class="n-warn" cx="817" cy="101" r="9"/>
+        <circle class="n-warn" cx="795" cy="169" r="9"/>
+        <circle class="n-warn" cx="725" cy="169" r="9"/>
+        <circle class="n-warn" cx="703" cy="101" r="9"/>
+
+        <text class="e" x="600" y="60" text-anchor="middle">rarely agree</text>
+        <text class="e" x="760" y="32" text-anchor="middle">agree on almost every target</text>
+        <text class="t" x="290" y="246" text-anchor="middle">Wider crowd</text>
+        <text class="s" x="290" y="264" text-anchor="middle">users agree at a moderate rate</text>
+        <text class="t" x="760" y="246" text-anchor="middle">Coordinated group</text>
+        <text class="s" x="760" y="264" text-anchor="middle">agrees inside, disagrees outside</text>
+      </svg>
+    </div>
+    <figcaption><b>Figure 4.</b> Each circle is a user. A line connects two users who flagged the same targets. A thicker line shows a higher rate of agreement. The coordinated group agrees inside the group and disagrees with the wider crowd.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>Open decisions</h2>
+  <p>The team must answer these questions before the model is complete.</p>
+  <ul class="decisions">
+    <li>
+      <span class="q">How does a user disagree?</span>
+      <p>A missing flag is not a vote. The model needs an explicit signal that a label is wrong. The dispute button on a warning is one option. A “no problem here” action on pages without a warning is a second option.</p>
+    </li>
+    <li>
+      <span class="q">When does a page warning become a domain warning?</span>
+      <p>A large site collects many flags in total, even when most of its pages are acceptable. One option uses the share of flagged pages. A second option divides the flags by the number of different visitors.</p>
+    </li>
+    <li>
+      <span class="q">Which weight does a new user get?</span>
+      <p>A low start weight slows a bot swarm. It also slows honest new users.</p>
+    </li>
+    <li>
+      <span class="q">How difficult is it to create an account?</span>
+      <p>Collusion detection is weaker when one person can create many accounts at no cost. One option is authentication through an existing identity provider.</p>
+    </li>
+    <li>
+      <span class="q">Who sets the first consensus?</span>
+      <p>The first group that flags a target sets the early consensus. A bot swarm that arrives first can therefore gain reputation. A seed group of trusted users is one possible defense.</p>
+    </li>
+    <li>
+      <span class="q">How much does the backend learn about browsing?</span>
+      <p>A verdict request tells the backend which URL the user opened. The extension can request the domain only, send a hash prefix, or download the list of flagged targets.</p>
+    </li>
+    <li>
+      <span class="q">Which sites get a comment adapter first?</span>
+      <p>Each adapter is separate work. An adapter can fail when the site changes its markup.</p>
+    </li>
+  </ul>
+</section>
+
+</div>
+</body>
+</html>
