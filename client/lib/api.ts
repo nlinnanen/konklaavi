@@ -2,6 +2,7 @@ import { emptyCounts, summarize } from './aggregate';
 import { EMBEDDING_DIM, type Embedder } from './embed';
 import { hashNormalized } from './fingerprint';
 import { normalizeText } from './normalize';
+import { tierOf, tierRank } from './tier';
 import {
   VERDICTS,
   type DomainStats,
@@ -24,24 +25,17 @@ export interface TrustApi {
   submitVote(vote: VoteRequest): Promise<void>;
   /** Results for sentence hashes (exact matches) and for block hashes (variant matches). */
   lookup(hashes: string[], blocks?: LookupBlock[]): Promise<LookupResult[]>;
-  /** Narrative-level results for blocks, embedded on the device; only backends that keep text local have it. */
-  matchNarratives?(blocks: NarrativeBlock[]): Promise<LookupResult[]>;
+  /** Narrative-level and related results for embedding units, embedded on the device; only backends that keep text local have it. */
+  matchNarratives?(units: NarrativeBlock[]): Promise<LookupResult[]>;
   domainStats(domain: string): Promise<DomainStats>;
 }
 
 export const MAX_LOOKUP_BATCH = 500;
 
-/** A block offered for narrative matching: its content hash and normalized text. */
+/** An embedding unit offered for narrative matching: its content hash and the text `embeddingUnits` gives it. */
 export interface NarrativeBlock {
   hash: string;
   text: string;
-}
-
-/** Only blocks of at least this many words are embedded. */
-export const NARRATIVE_MIN_WORDS = 8;
-
-export function embeddable(text: string): boolean {
-  return text.split(/\s+/).filter(Boolean).length >= NARRATIVE_MIN_WORDS;
 }
 
 export function validateVote(vote: VoteRequest): void {
@@ -122,9 +116,9 @@ export type IndexSnapshot = Omit<IndexResponse, 'full' | 'removed'>;
 
 /** The snapshot after `update`: a full index replaces it, a delta replaces the entries of the narratives it names. */
 export function applyIndexUpdate(snapshot: IndexSnapshot | undefined, update: IndexResponse): IndexSnapshot {
-  const { version, signatures, sentences, fingerprints, narrativeThreshold, narrativeVectors } = update;
+  const { version, signatures, sentences, fingerprints, narrativeThreshold, relatedThreshold, narrativeVectors } = update;
   if (update.full || !snapshot) {
-    return { version, signatures, sentences, fingerprints, narrativeThreshold, narrativeVectors };
+    return { version, signatures, sentences, fingerprints, narrativeThreshold, relatedThreshold, narrativeVectors };
   }
   const changed = new Set([...update.removed, ...signatures.map((s) => s.narrativeId)]);
   const kept = <T extends { narrativeId: string }>(list: T[]) => list.filter((e) => !changed.has(e.narrativeId));
@@ -134,6 +128,7 @@ export function applyIndexUpdate(snapshot: IndexSnapshot | undefined, update: In
     sentences: [...kept(snapshot.sentences), ...sentences],
     fingerprints: [...kept(snapshot.fingerprints), ...fingerprints],
     narrativeThreshold,
+    relatedThreshold,
     narrativeVectors: [...kept(snapshot.narrativeVectors), ...narrativeVectors],
   };
 }
@@ -163,26 +158,43 @@ function vectorTable(entries: NarrativeVectors[]): VectorTable {
   };
 }
 
-/** The signature a match is reported with: an active narrative first, then the one with the most shared bands. */
-function pick(candidates: Map<string, number>, signatures: Map<string, IndexSignature>): IndexSignature | undefined {
-  let best: { signature: IndexSignature; rank: number } | undefined;
-  for (const [id, shared] of candidates) {
+/**
+ * The result a match is reported with, from candidate narratives and their
+ * scores (shared bands or cosine): the strongest tier first, then the highest score.
+ */
+function pick(
+  hash: string,
+  candidates: Map<string, number>,
+  signatures: Map<string, IndexSignature>,
+  level: (score: number) => Signature['matchLevel'],
+  similarity = false,
+): LookupResult | undefined {
+  let best: { result: LookupResult; rank: number; score: number } | undefined;
+  for (const [id, score] of candidates) {
     const signature = signatures.get(id);
     if (!signature) continue;
-    const rank = (signature.state === 'active' ? 1e6 : 0) + shared;
-    if (!best || rank > best.rank) best = { signature, rank };
+    const result = indexResult(hash, signature, level(score), similarity ? score : undefined);
+    const rank = tierRank(tierOf(result));
+    if (!best || rank > best.rank || (rank === best.rank && score > best.score)) {
+      best = { result, rank, score };
+    }
   }
-  return best?.signature;
+  return best?.result;
 }
 
-function indexResult(hash: string, signature: IndexSignature, matchLevel: Signature['matchLevel']): LookupResult {
+function indexResult(
+  hash: string,
+  signature: IndexSignature,
+  matchLevel: Signature['matchLevel'],
+  similarity?: number,
+): LookupResult {
   return {
     hash,
     counts: emptyCounts(),
     total: 0,
-    flagged: signature.state === 'active',
+    flagged: signature.state === 'active' && matchLevel !== 'related',
     topVerdict: signature.verdict,
-    signature: { ...signature, matchLevel },
+    signature: { ...signature, matchLevel, ...(similarity === undefined ? {} : { similarity }) },
   };
 }
 
@@ -215,8 +227,8 @@ export class SignatureIndex {
     const out = new Map<string, LookupResult>();
     for (const hash of hashes) {
       const ids = this.sentences.get(hash);
-      const signature = ids && pick(new Map(ids.map((id) => [id, 1])), this.signatures);
-      if (signature) out.set(hash, indexResult(hash, signature, 'exact'));
+      const result = ids && pick(hash, new Map(ids.map((id) => [id, 1])), this.signatures, () => 'exact');
+      if (result) out.set(hash, result);
     }
     for (const block of blocks) {
       if (out.has(block.hash)) continue;
@@ -231,8 +243,8 @@ export class SignatureIndex {
         const id = this.fingerprints[position]!.narrativeId;
         if (n >= 2) shared.set(id, Math.max(shared.get(id) ?? 0, n));
       }
-      const signature = pick(shared, this.signatures);
-      if (signature) out.set(block.hash, indexResult(block.hash, signature, 'variant'));
+      const result = pick(block.hash, shared, this.signatures, () => 'variant');
+      if (result) out.set(block.hash, result);
     }
     return [...out.values()];
   }
@@ -241,12 +253,18 @@ export class SignatureIndex {
     return this.snapshot.narrativeVectors.length > 0;
   }
 
-  /** A block matches a narrative when its cosine to one of the narrative's vectors reaches the index's threshold. */
-  matchNarratives(blocks: { hash: string; vector: number[] }[]): LookupResult[] {
+  /**
+   * A unit matches a narrative at the narrative level when its cosine to one of
+   * the narrative's vectors reaches `narrativeThreshold`, and is related to it
+   * from `relatedThreshold`.
+   */
+  matchNarratives(units: { hash: string; vector: number[] }[]): LookupResult[] {
     this.vectors ??= vectorTable(this.snapshot.narrativeVectors);
     const { narrativeIds, rows, norms } = this.vectors;
+    const { narrativeThreshold, relatedThreshold } = this.snapshot;
+    const level = (cosine: number) => (cosine >= narrativeThreshold ? 'narrative' : 'related');
     const out: LookupResult[] = [];
-    for (const { hash, vector } of blocks) {
+    for (const { hash, vector } of units) {
       const length = Math.hypot(...vector);
       const best = new Map<string, number>();
       for (let r = 0; r < narrativeIds.length; r++) {
@@ -254,17 +272,17 @@ export class SignatureIndex {
         for (let k = 0, base = r * EMBEDDING_DIM; k < EMBEDDING_DIM; k++) dot += vector[k]! * rows[base + k]!;
         const cosine = dot / (length * norms[r]!);
         const id = narrativeIds[r]!;
-        if (cosine >= this.snapshot.narrativeThreshold && cosine > (best.get(id) ?? -1)) best.set(id, cosine);
+        if (cosine >= relatedThreshold && cosine > (best.get(id) ?? -1)) best.set(id, cosine);
       }
-      const signature = pick(best, this.signatures);
-      if (signature) out.push(indexResult(hash, signature, 'narrative'));
+      const result = pick(hash, best, this.signatures, level, true);
+      if (result) out.push(result);
     }
     return out;
   }
 }
 
-/** Embeddings kept per block content hash, so a block seen again is not embedded again. */
-const MAX_CACHED_EMBEDDINGS = 2000;
+/** Embeddings kept per unit content hash, so a unit seen again is not embedded again. */
+const MAX_CACHED_EMBEDDINGS = 5000;
 
 /** How old a downloaded index gets before a lookup triggers a delta download. */
 export const INDEX_REFRESH_MS = 5 * 60_000;
@@ -308,13 +326,12 @@ export class LocalIndexApi implements TrustApi {
     return (await this.ready()).lookup(hashes, blocks);
   }
 
-  /** Embeds the blocks of 8+ words and matches them against the narrative vectors. */
-  async matchNarratives(blocks: NarrativeBlock[]): Promise<LookupResult[]> {
+  /** Embeds the units and matches them against the narrative vectors. */
+  async matchNarratives(units: NarrativeBlock[]): Promise<LookupResult[]> {
     const index = await this.ready();
-    const wanted = blocks.filter((b) => embeddable(b.text));
-    if (!this.embed || !wanted.length || !index.hasNarrativeVectors) return [];
-    const vectors = await this.embedCached(wanted, this.embed);
-    return index.matchNarratives(wanted.map((b, i) => ({ hash: b.hash, vector: vectors[i]! })));
+    if (!this.embed || !units.length || !index.hasNarrativeVectors) return [];
+    const vectors = await this.embedCached(units, this.embed);
+    return index.matchNarratives(units.map((u, i) => ({ hash: u.hash, vector: vectors[i]! })));
   }
 
   private async embedCached(blocks: NarrativeBlock[], embed: Embedder): Promise<number[][]> {
@@ -337,7 +354,8 @@ export class LocalIndexApi implements TrustApi {
   private async ready(): Promise<SignatureIndex> {
     if (!this.stored) {
       const stored = await this.store.get<StoredIndex>(INDEX_KEY);
-      if (stored?.baseUrl === this.baseUrl && stored.snapshot.narrativeVectors) this.stored = stored;
+      // A stored index without `relatedThreshold` lacks the tier fields of its signatures.
+      if (stored?.baseUrl === this.baseUrl && stored.snapshot.relatedThreshold !== undefined) this.stored = stored;
     }
     if (!this.stored) await this.refresh();
     else if (this.now() - this.stored.checkedAt >= INDEX_REFRESH_MS) {
@@ -433,6 +451,7 @@ export const MOCK_NARRATIVES: { sentence: string; signature: Signature }[] = [
       sourceUrl: 'https://euvsdisinfo.eu/',
       state: 'active',
       matchLevel: 'exact',
+      settled: true,
     },
   },
 ];
