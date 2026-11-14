@@ -41,7 +41,10 @@ export interface LookupResult {
   counts: VerdictCounts;
   total: number;
   flagged: boolean;
-  /** When flagged: most-voted negative verdict. Otherwise: most-voted verdict overall. */
+  /**
+   * When votes flag it: most-voted negative verdict. When only a narrative flags it: the narrative's
+   * verdict. Otherwise: most-voted verdict overall.
+   */
   topVerdict: Verdict;
   /** Present when the hash belongs to a narrative in state `under_review` or `active`. */
   signature?: Signature;

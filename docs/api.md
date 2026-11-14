@@ -7,14 +7,14 @@ The contracts every workstream builds against. Only the integrator changes this 
 FastAPI on `API_PORT`, CORS open to all origins.
 
 - `GET /health` returns `{ok: true}`.
-- `POST /votes` takes a `VoteRequest` and returns `{ok: true}`. A repeat vote by the same `userId` on the same `contentHash` replaces the earlier one. Each vote enqueues a `fetch` job for its URL and an `analyze` job.
-- `POST /lookup` takes `{hashes: string[], blocks?: {hash: string, bands: string[]}[]}`, at most 500 hashes, and returns `{results: LookupResult[]}` for the hashes the backend knows. `hashes` are sentence hashes and match at the exact level. `blocks` carry a block's content hash and its LSH bands and match at the variant level, with the result keyed by the block hash.
+- `POST /votes` takes a `VoteRequest` and returns `{ok: true}`. A repeat vote by the same `userId` on the same `contentHash` replaces the earlier one. Each vote enqueues a `fetch` job for its URL and an `analyze` job; `analyze` does nothing for a `trustworthy` vote.
+- `POST /lookup` takes `{hashes: string[], blocks?: {hash: string, bands: string[]}[]}`, at most 500 hashes, and returns `{results: LookupResult[]}` for the hashes that have votes or a signature. `hashes` are sentence hashes and match at the exact level. `blocks` carry a block's content hash and its LSH bands and match at the variant level, with the result keyed by the block hash.
 - `GET /domains/{domain}` returns `DomainStats`.
 - `POST /check` takes `{text?: string, url?: string}`, fingerprints the text (or the fetched page) through the fingerprint service, and returns `{matches: {text: string, result: LookupResult}[]}`. The dashboard and judges use it without the extension.
 - `GET /index?since={version}` returns the signature index, in full when `since` is missing or too old: `{version, full, signatures: Signature[], sentences: {hash, narrativeId}[], bands: {band, hash, narrativeId}[], removed: string[]}`.
 - `POST /hits` takes `{hits: {hash: string, narrativeId: string, url: string, seenAt: string}[]}` and returns `{ok: true}`. Each hit records a detection observation and enqueues a `fetch` job for the URL.
 
-A `LookupResult` is flagged when its votes reach the flag threshold or when it belongs to a narrative in state `active`. It carries a `signature` when it belongs to a narrative in state `active` or `under_review`:
+A `LookupResult` is flagged when it has at least 2 votes and at least half of them are negative, or when it belongs to a narrative in state `active`. Its `topVerdict` is the most-voted negative verdict when votes flag it, the narrative's verdict when only the narrative flags it, and the most-voted verdict otherwise. It carries a `signature` when it belongs to a narrative in state `active` or `under_review`:
 
 ```ts
 export interface Signature {
@@ -69,7 +69,7 @@ Environment variables, read in `backend/app/config.py`: `DATABASE_URL`, `FP_URL`
 ## File ownership
 
 - integrator: `docs/`, `compose.yaml`, `backend/migrations/000_*`, `backend/app/{config,db,migrate,worker}.py`, `backend/app/jobs/__init__.py`, `backend/app/api/main.py`, `backend/tests/conftest.py`, `client/lib/types.ts`.
-- ext: `client/entrypoints/`, `client/lib/api.ts`, `client/lib/messages.ts`, `client/e2e/`.
+- ext: `client/entrypoints/`, `client/lib/api.ts`, `client/lib/messages.ts`, `client/e2e/`, `client/package.json`, `client/README.md`, `client/.gitignore`.
 - pipeline: `client/lib/{normalize,fingerprint,minhash,embed}.ts`, `fingerprint-service/`, `backend/app/fpclient.py`, `backend/app/jobs/{fetch,variants}.py`, migrations `2xx`.
 - core: `backend/app/api/core.py`, `backend/app/jobs/analyze.py`, `backend/Dockerfile`, `deploy/`, migrations `1xx`.
 - data: `backend/app/seed/`, `backend/app/jobs/cluster.py`, `backend/app/eval/`, `dashboard/`, `simulation/`, migrations `3xx`.

@@ -1,8 +1,23 @@
 import os
+from pathlib import Path
 
 import psycopg
 import pytest
 from psycopg import sql
+
+
+def _load_worktree_env():
+    """Read the worktree's .env so host-side runs reach its stack's ports; exported variables win."""
+    env = Path(__file__).resolve().parents[2] / ".env"
+    if not env.is_file():
+        return
+    for line in env.read_text().splitlines():
+        key, sep, value = line.strip().partition("=")
+        if sep and not key.startswith("#"):
+            os.environ.setdefault(key.strip(), value.strip().strip("'\""))
+
+
+_load_worktree_env()
 
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL") or (
     f"postgresql://postgres:postgres@localhost:{os.environ.get('DB_PORT') or '5432'}/trust_test"
