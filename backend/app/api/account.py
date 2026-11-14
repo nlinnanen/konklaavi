@@ -1,7 +1,8 @@
 """Accounts and a user's standing.
 
 A magic link sent by email links the extension's install to an account for that email. Tokens are
-single-use, stored as hashes, and expire after TOKEN_LIFETIME.
+single-use, stored as hashes, and expire after TOKEN_LIFETIME. With AUTH_SKIP_EMAIL_VERIFICATION, a
+demo setting, requesting a link links the install at once.
 """
 
 import hashlib
@@ -42,6 +43,16 @@ def token_hash(token: str) -> bytes:
     return hashlib.sha256(token.encode()).digest()
 
 
+def link_account(conn, install_id: UUID, email: str) -> None:
+    """Link the install to the account for the email, creating the account."""
+    account_id = conn.execute(
+        "INSERT INTO user_account (email) VALUES (%s)"
+        " ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email RETURNING id",
+        (email,),
+    ).fetchone()[0]
+    conn.execute("UPDATE install SET account_id = %s WHERE id = %s", (account_id, install_id))
+
+
 @router.post("/auth/magic-link")
 def post_magic_link(request: MagicLinkRequest) -> dict:
     """Email a sign-in link, or log it when SMTP_URL is unset."""
@@ -49,6 +60,9 @@ def post_magic_link(request: MagicLinkRequest) -> dict:
     token = secrets.token_urlsafe(32)
     with connection() as conn:
         conn.execute("INSERT INTO install (id) VALUES (%s) ON CONFLICT DO NOTHING", (request.user_id,))
+        if settings.auth_skip_email_verification:
+            link_account(conn, request.user_id, email)
+            return {"ok": True, "signedIn": True}
         per_email, per_install = conn.execute(
             "SELECT count(*) FILTER (WHERE email = %(email)s), count(*) FILTER (WHERE install_id = %(install)s)"
             " FROM login_token WHERE (email = %(email)s OR install_id = %(install)s)"
@@ -94,12 +108,7 @@ def get_verify(token: str) -> HTMLResponse:
         if row is None:
             return page("This sign-in link is invalid, used or expired. Request a new one.", 400)
         install_id, email = row
-        account_id = conn.execute(
-            "INSERT INTO user_account (email) VALUES (%s)"
-            " ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email RETURNING id",
-            (email,),
-        ).fetchone()[0]
-        conn.execute("UPDATE install SET account_id = %s WHERE id = %s", (account_id, install_id))
+        link_account(conn, install_id, email)
     return page(f"Signed in as {html.escape(email)}, you can close this tab.")
 
 

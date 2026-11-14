@@ -161,6 +161,12 @@ export interface MagicLinkRequest {
   email: string;
 }
 
+/** Response of POST /auth/magic-link; `signedIn` when the server skips email verification (demo servers). */
+export interface MagicLinkResponse {
+  ok: true;
+  signedIn?: boolean;
+}
+
 /** A note the user wrote, as GET /me lists it. */
 export interface AccountNote {
   id: string;

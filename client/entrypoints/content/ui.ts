@@ -468,7 +468,8 @@ export class OverlayUi {
   }
 
   /** Asks the reader to sign in by email before writing; `onSend` resolves once the link is sent. */
-  openSignIn(anchor: DOMRect, onSend: (email: string) => Promise<void>) {
+  /** `onSend` resolves to true when the server signed in without email. */
+  openSignIn(anchor: DOMRect, onSend: (email: string) => Promise<boolean>) {
     const head = el('div', 'panel-head', el('h2', undefined, 'Sign in to add context'), closeButton(() => this.closePanel()));
     const lede = el(
       'p',
@@ -495,8 +496,9 @@ export class OverlayUi {
       }
       send.disabled = true;
       try {
-        await onSend(value);
-        status.textContent = `Check ${value} for your sign-in link.`;
+        status.textContent = (await onSend(value))
+          ? `Signed in as ${value}. Select the passage again.`
+          : `Check ${value} for your sign-in link.`;
       } catch (err) {
         status.textContent = `Could not send the link: ${err instanceof Error ? err.message : err}`;
         send.disabled = false;

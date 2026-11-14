@@ -64,6 +64,7 @@ services:
       SMTP_URL: ${SMTP_URL:-smtp://mailpit:1025}
       MAIL_FROM: ${MAIL_FROM:-hashtrust@localhost}
       PUBLIC_API_URL:
+      AUTH_SKIP_EMAIL_VERIFICATION:
     ports:
       - "${API_PORT:-8000}:8000"
     healthcheck:

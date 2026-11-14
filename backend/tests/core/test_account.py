@@ -1,6 +1,9 @@
+import dataclasses
 import logging
 import re
 import uuid
+
+from app.api import account
 
 
 def test_a_magic_link_signs_the_install_in_once(client, caplog):
@@ -19,6 +22,17 @@ def test_a_magic_link_signs_the_install_in_once(client, caplog):
     assert "Signed in as reader@example.org" in page.text
     assert client.get("/me", params={"userId": str(user)}).json()["email"] == "reader@example.org"
     assert client.get(path).status_code == 400
+
+
+def test_skipping_email_verification_signs_the_install_in_at_once(client, monkeypatch, caplog):
+    monkeypatch.setattr(account, "settings", dataclasses.replace(account.settings, auth_skip_email_verification=True))
+    user = uuid.uuid4()
+
+    with caplog.at_level(logging.WARNING, logger="app.api.account"):
+        response = client.post("/auth/magic-link", json={"userId": str(user), "email": "Reader@Example.org"})
+    assert response.json() == {"ok": True, "signedIn": True}
+    assert "/auth/verify" not in caplog.text
+    assert client.get("/me", params={"userId": str(user)}).json()["email"] == "reader@example.org"
 
 
 def me(client, user):
