@@ -198,6 +198,8 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: Local development sends magic-link email to Mailpit (`axllent/mailpit`, compose profile `dev`, enabled by `COMPOSE_PROFILES=dev` in the worktree `.env`); production needs `SMTP_URL` and `MAIL_FROM` in the VPS `.env`, and without them sending fails.
 - integrator: Paraphrase anchors stay shipped (6 per narrative) until the background evaluation shows whether they raise recall or false positives; on two headline tests they scored below the claim vectors.
 - integrator: Deployment supersedes the hand-set-up VPS: GitHub Actions builds the app images and pushes them to GHCR as `sha-<commit>`; Ansible in `infra/ansible` hardens and configures the VPS; the release job deploys over SSH as an unprivileged `deploy` user whose key can only run `sudo /usr/local/sbin/junction26-release <sha>`. Every push to `main` releases. See [deployment.md](deployment.md).
+- integrator: Matching stays on the device; no page text goes to the server except an explicit report. Instead of server-side LLM verification, highlights carry confidence tiers (confirmed, likely, related, reported, disputed) with distinct colours, and users correct false matches with feedback votes that carry hashes and the narrative id, never page text.
+- integrator: Narrative-level matching embeds sentences of 5+ words and windows of 3 consecutive sentences, so short claims are compared too; the related tier starts at cosine 0.70.
 
 ## Deferred
 
