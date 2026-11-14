@@ -255,7 +255,6 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - ext: the popup's flagged list does not distinguish narrative matches from exact ones.
 - ext: real paraphrases of a claim scored cosine 0.59 to 0.69 against its claim embedding in a probe, under the 0.85 default threshold.
 - ext: onnxruntime-web's location is resolved through Node's require in `wxt.config.ts`; a nested onnxruntime-web version in transformers would make the copied files mismatch.
-- core: `test_delta` is flaky while the compose worker runs, because the index version is a cluster-wide snapshot xmin.
 - core: /check embeds every block in one fingerprint call, matched or short.
 - data: the 313 negatives are recent RSS items from one day, heavy on Russia/Ukraine news.
 - data: commit 336fff6 says ten languages; the negatives cover nine.
