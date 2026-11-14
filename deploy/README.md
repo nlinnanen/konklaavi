@@ -38,6 +38,17 @@ curl https://$DOMAIN/api/health
 
 The dashboard is at `https://$DOMAIN/`. In the extension, set the backend URL to `https://$DOMAIN/api`.
 
+## Local check
+
+The same stack runs on a laptop with `DOMAIN=localhost`, where Caddy issues a certificate from its own local CA instead of Let's Encrypt:
+
+```sh
+DOMAIN=localhost POSTGRES_PASSWORD=local COMPOSE_PROJECT_NAME=junction26-prod docker compose -f compose.yaml -f deploy/compose.prod.yaml up -d --build
+curl -k https://localhost/api/health
+```
+
+`https://localhost/` serves the dashboard. `docker compose -p junction26-prod -f compose.yaml -f deploy/compose.prod.yaml down -v` removes the stack and its volumes.
+
 ## Update
 
 ```sh

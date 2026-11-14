@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
@@ -13,18 +13,18 @@ from pydantic.alias_generators import to_camel
 from app import fpclient
 from app.db import connection
 from app.jobs import enqueue
+from app.jobs.fetch import domain_of
+from app.trust import NEGATIVE_VERDICTS, SHIPPED_STATES, VERDICTS, Tally, tallies
 
 router = APIRouter()
 
-VERDICTS = ("misinformation", "manipulative", "misleading", "trustworthy")
-NEGATIVE_VERDICTS = VERDICTS[:3]
-# Share of negative votes needed to flag content, as in client/lib/aggregate.ts.
-FLAG_THRESHOLD = 0.5
-# One vote is never enough to flag content on votes alone.
-MIN_VOTES = 2
 MAX_LOOKUP_HASHES = 500
+MAX_HITS = 500
 # LSH bands a block must share with a fingerprint to match it at the variant level.
 MIN_SHARED_BANDS = 2
+BANDS = 32
+# A URL gets at most one hit fetch in this interval.
+HIT_FETCH_INTERVAL = timedelta(days=1)
 
 Verdict = Literal["misinformation", "manipulative", "misleading", "trustworthy"]
 
@@ -55,39 +55,39 @@ class LookupRequest(Body):
     blocks: list[BlockBands] = Field(default=[], max_length=MAX_LOOKUP_HASHES)
 
 
+class Hit(Body):
+    hash: str = Field(min_length=1)
+    narrative_id: int
+    url: str = Field(pattern=r"^https?://")
+    seen_at: datetime
+
+
+class HitsRequest(Body):
+    hits: list[Hit] = Field(max_length=MAX_HITS)
+
+
 class CheckRequest(Body):
     text: str | None = None
     url: str | None = None
 
 
-def empty_counts() -> dict[str, int]:
-    return dict.fromkeys(VERDICTS, 0)
+def summarize(hash: str, tally: Tally, signature: dict | None = None) -> dict:
+    """A LookupResult. A signature from an active narrative flags the hash whatever the votes say.
 
-
-def _argmax(counts: dict[str, int], among: tuple[str, ...]) -> str:
-    return max(among, key=lambda v: counts[v])
-
-
-def votes_flag(counts: dict[str, int], min_votes: int = MIN_VOTES) -> bool:
-    total = sum(counts.values())
-    negative = sum(counts[v] for v in NEGATIVE_VERDICTS)
-    return total >= min_votes and total > 0 and negative / total >= FLAG_THRESHOLD
-
-
-def summarize(hash: str, counts: dict[str, int], signature: dict | None = None) -> dict:
-    """A LookupResult. A signature from an active narrative flags the hash whatever the votes say."""
-    by_votes = votes_flag(counts)
+    Counts are distinct users per verdict; flagging and the top verdict follow the weighted votes.
+    """
+    by_votes = tally.flags()
     by_narrative = signature is not None and signature["state"] == "active"
     if by_votes:
-        top = _argmax(counts, NEGATIVE_VERDICTS)
+        top = tally.top_verdict(NEGATIVE_VERDICTS)
     elif by_narrative:
         top = signature["verdict"]
     else:
-        top = _argmax(counts, VERDICTS)
+        top = tally.top_verdict()
     result = {
         "hash": hash,
-        "counts": counts,
-        "total": sum(counts.values()),
+        "counts": tally.users,
+        "total": tally.total_users,
         "flagged": by_votes or by_narrative,
         "topVerdict": top,
     }
@@ -96,16 +96,15 @@ def summarize(hash: str, counts: dict[str, int], signature: dict | None = None) 
     return result
 
 
-def vote_counts(conn: Connection, hashes: list[str]) -> dict[str, dict[str, int]]:
+def vote_tallies(conn: Connection, hashes: list[str]) -> dict[str, Tally]:
+    """Weighted votes per sentence hash, each user's latest vote on the hash."""
     rows = conn.execute(
-        "SELECT h, v.verdict, count(*) FROM vote v, unnest(v.sentence_hashes) h"
-        " WHERE v.sentence_hashes && %(hashes)s AND h = ANY(%(hashes)s) GROUP BY h, v.verdict",
+        "SELECT DISTINCT ON (h, v.user_id) h, v.user_id, v.verdict FROM vote v, unnest(v.sentence_hashes) h"
+        " WHERE v.sentence_hashes && %(hashes)s AND h = ANY(%(hashes)s)"
+        " ORDER BY h, v.user_id, v.received_at DESC",
         {"hashes": hashes},
     ).fetchall()
-    counts: dict[str, dict[str, int]] = {}
-    for hash, verdict, count in rows:
-        counts.setdefault(hash, empty_counts())[verdict] = count
-    return counts
+    return tallies(conn, rows)
 
 
 SIGNATURE_COLUMNS = "n.id, n.title, n.verdict, n.techniques, n.explanation, n.source, n.source_url, n.state"
@@ -121,7 +120,7 @@ def signature(row: tuple, match_level: str) -> dict:
         "explanation": explanation,
         "source": source,
         "sourceUrl": source_url,
-        "state": state,
+        "state": "active" if state == "active" else "under_review",
         "matchLevel": match_level,
     }
 
@@ -135,10 +134,10 @@ def exact_signatures(conn: Connection, hashes: list[str]) -> dict[str, dict]:
         JOIN fingerprint f ON f.id = s.fingerprint_id
         JOIN variant va ON va.id = f.variant_id
         JOIN narrative n ON n.id = va.narrative_id
-        WHERE s.hash = ANY(%s) AND n.state IN ('active', 'under_review')
+        WHERE s.hash = ANY(%s) AND n.state = ANY(%s)
         ORDER BY s.hash, n.state = 'active' DESC, n.updated_at DESC
         """,
-        (hashes,),
+        (hashes, list(SHIPPED_STATES)),
     ).fetchall()
     return {row[0]: signature(row[1:], "exact") for row in rows}
 
@@ -171,10 +170,16 @@ def variant_signatures(conn: Connection, blocks: list[BlockBands]) -> dict[str, 
         JOIN fingerprint f ON f.id = sh.fingerprint_id
         JOIN variant va ON va.id = f.variant_id
         JOIN narrative n ON n.id = va.narrative_id
-        WHERE n.state IN ('active', 'under_review')
+        WHERE n.state = ANY(%(states)s)
         ORDER BY sh.block, n.state = 'active' DESC, sh.bands DESC, n.updated_at DESC
         """,
-        {"keys": keys, "bands": bands, "hashes": hashes, "min_shared": MIN_SHARED_BANDS},
+        {
+            "keys": keys,
+            "bands": bands,
+            "hashes": hashes,
+            "min_shared": MIN_SHARED_BANDS,
+            "states": list(SHIPPED_STATES),
+        },
     ).fetchall()
     return {row[0]: signature(row[1:], "variant") for row in rows}
 
@@ -185,13 +190,13 @@ def lookup(conn: Connection, hashes: list[str], blocks: list[BlockBands]) -> dic
     A hash that is both a sentence and a block hash keeps its exact signature.
     """
     hashes = list(dict.fromkeys(hashes))
-    counts = vote_counts(conn, hashes)
+    votes = vote_tallies(conn, hashes)
     signatures = {**variant_signatures(conn, blocks), **exact_signatures(conn, hashes)}
     keys = dict.fromkeys([*hashes, *(block.hash for block in blocks)])
     return {
-        h: summarize(h, counts.get(h, empty_counts()), signatures.get(h))
+        h: summarize(h, votes.get(h, Tally()), signatures.get(h))
         for h in keys
-        if h in counts or h in signatures
+        if h in votes or h in signatures
     }
 
 
@@ -228,21 +233,24 @@ def post_lookup(request: LookupRequest) -> dict:
 def get_domain(domain: str) -> dict:
     with connection() as conn:
         rows = conn.execute(
-            "SELECT content_hash, verdict, count(*) FROM vote WHERE domain = %s GROUP BY 1, 2", (domain,)
+            "SELECT content_hash, user_id, verdict FROM vote WHERE domain = %s", (domain,)
         ).fetchall()
-    counts = empty_counts()
-    per_content: dict[str, dict[str, int]] = {}
-    for content_hash, verdict, count in rows:
-        counts[verdict] += count
-        per_content.setdefault(content_hash, empty_counts())[verdict] = count
-    votes = sum(counts.values())
+        per_content = tallies(conn, rows)
+    overall = Tally()
+    for tally in per_content.values():
+        for verdict in VERDICTS:
+            overall.users[verdict] += tally.users[verdict]
+            overall.weight[verdict] += tally.weight[verdict]
+    votes = overall.total_users
     return {
         "domain": domain,
         "votesCount": votes,
-        "flaggedCount": sum(votes_flag(c) for c in per_content.values()),
-        "counts": counts,
+        "flaggedCount": sum(tally.flags() for tally in per_content.values()),
+        "counts": overall.users,
         "topVerdict": (
-            _argmax(counts, NEGATIVE_VERDICTS if votes_flag(counts, 1) else VERDICTS) if votes else None
+            overall.top_verdict(NEGATIVE_VERDICTS if overall.mostly_negative() else VERDICTS)
+            if votes
+            else None
         ),
     }
 
@@ -291,3 +299,124 @@ def post_check(request: CheckRequest) -> dict:
         if not sentence_matches and block["contentHash"] in results:
             matches.append({"text": blocks[block["index"]], "result": results[block["contentHash"]]})
     return {"matches": matches}
+
+
+def index_signature(row: tuple) -> dict:
+    result = signature(row, "exact")
+    del result["matchLevel"]
+    return result
+
+
+@router.get("/index")
+def get_index(since: int | None = None) -> dict:
+    """The shipped signatures, in full or as the narratives changed since a version.
+
+    The version is the oldest transaction still running at read time: every change from an older
+    transaction is in the response, and a later one is sent again next time. A delta carries each
+    changed narrative's sentences and fingerprints in full, and lists the ones no longer shipped.
+    """
+    with connection() as conn:
+        conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+        version = conn.execute("SELECT pg_snapshot_xmin(pg_current_snapshot())::text::bigint").fetchone()[0]
+        full = since is None or since > version
+        changed = None
+        if not full:
+            changed = [
+                row[0]
+                for row in conn.execute(
+                    "SELECT DISTINCT narrative_id FROM index_change WHERE xid >= %s::text::xid8",
+                    (str(since),),
+                )
+            ]
+        params = {"states": list(SHIPPED_STATES), "full": full, "changed": changed}
+        narratives = conn.execute(
+            f"SELECT {SIGNATURE_COLUMNS} FROM narrative n"
+            " WHERE n.state = ANY(%(states)s) AND (%(full)s OR n.id = ANY(%(changed)s)) ORDER BY n.id",
+            params,
+        ).fetchall()
+        ids = [row[0] for row in narratives]
+        sentences = conn.execute(
+            "SELECT DISTINCT s.hash, va.narrative_id FROM sentence s"
+            " JOIN fingerprint f ON f.id = s.fingerprint_id JOIN variant va ON va.id = f.variant_id"
+            " WHERE va.narrative_id = ANY(%s) ORDER BY 2, 1",
+            (ids,),
+        ).fetchall()
+        bands = conn.execute(
+            "SELECT va.narrative_id, f.id, array_agg(l.band), array_agg(l.hash) FROM lsh_band l"
+            " JOIN fingerprint f ON f.id = l.fingerprint_id JOIN variant va ON va.id = f.variant_id"
+            " WHERE va.narrative_id = ANY(%s) GROUP BY 1, 2 ORDER BY 1, 2",
+            (ids,),
+        ).fetchall()
+    fingerprints = []
+    for narrative_id, _, numbers, hashes in bands:
+        slots: list[str | None] = [None] * BANDS
+        for number, hash in zip(numbers, hashes, strict=True):
+            slots[number] = hash
+        fingerprints.append({"narrativeId": str(narrative_id), "bands": slots})
+    return {
+        "version": version,
+        "full": full,
+        "signatures": [index_signature(row) for row in narratives],
+        "sentences": [{"hash": hash, "narrativeId": str(narrative_id)} for hash, narrative_id in sentences],
+        "fingerprints": fingerprints,
+        "removed": [] if full else [str(id) for id in sorted(set(changed) - set(ids))],
+    }
+
+
+def record_hit(conn: Connection, hit: Hit) -> None:
+    """A detection observation of the hit's fingerprint, when the narrative holds the hash."""
+    domain_id = conn.execute(
+        "INSERT INTO domain (name) VALUES (%s) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id",
+        (domain_of(hit.url),),
+    ).fetchone()[0]
+    page_id = conn.execute(
+        "INSERT INTO page (url, domain_id) VALUES (%s, %s)"
+        " ON CONFLICT (url) DO UPDATE SET url = EXCLUDED.url RETURNING id",
+        (hit.url, domain_id),
+    ).fetchone()[0]
+    fingerprint = conn.execute(
+        """
+        SELECT f.id FROM fingerprint f JOIN variant va ON va.id = f.variant_id
+        WHERE va.narrative_id = %(narrative)s
+          AND (f.content_hash = %(hash)s OR f.id IN (SELECT fingerprint_id FROM sentence WHERE hash = %(hash)s))
+        ORDER BY f.id LIMIT 1
+        """,
+        {"narrative": hit.narrative_id, "hash": hit.hash},
+    ).fetchone()
+    if fingerprint is not None:
+        conn.execute(
+            "INSERT INTO observation (seen_at, fingerprint_id, page_id, source)"
+            " VALUES (least(%s, now()), %s, %s, 'detection')",
+            (hit.seen_at, fingerprint[0], page_id),
+        )
+
+
+def enqueue_hit_fetch(conn: Connection, url: str, narrative_id: int) -> None:
+    conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (url,))
+    recent = conn.execute(
+        "SELECT 1 FROM job WHERE kind = 'fetch' AND payload->>'url' = %s AND payload->>'reason' = 'hit'"
+        " AND created_at > now() - %s",
+        (url, HIT_FETCH_INTERVAL),
+    ).fetchone()
+    if recent is None:
+        enqueue(conn, "fetch", {"url": url, "reason": "hit", "narrative_id": narrative_id})
+
+
+@router.post("/hits")
+def post_hits(request: HitsRequest) -> dict:
+    """Record detections by the extension and fetch each page once a day; hits on unknown narratives are dropped."""
+    with connection() as conn:
+        known = {
+            row[0]
+            for row in conn.execute(
+                "SELECT id FROM narrative WHERE id = ANY(%s)", ([hit.narrative_id for hit in request.hits],)
+            )
+        }
+        fetches: dict[str, int] = {}
+        for hit in request.hits:
+            if hit.narrative_id in known:
+                record_hit(conn, hit)
+                fetches.setdefault(hit.url, hit.narrative_id)
+        for url in sorted(fetches):
+            enqueue_hit_fetch(conn, url, fetches[url])
+    return {"ok": True}
