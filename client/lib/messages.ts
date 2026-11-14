@@ -1,6 +1,6 @@
 import { browser } from 'wxt/browser';
 import type { LookupBlock, NarrativeBlock } from './api';
-import type { DomainStats, LookupResult, Signature, Verdict, VoteInput } from './types';
+import type { DomainStats, LookupResult, MeResponse, Signature, Verdict, VoteInput } from './types';
 
 /** Requests handled by the background worker: [payload, response]. */
 export interface BackgroundApi {
@@ -10,6 +10,10 @@ export interface BackgroundApi {
   matchNarratives: [NarrativeBlock[], LookupResult[]];
   domainStats: [string, DomainStats];
   clearMock: [null, null];
+  /** Emails a sign-in link for this install to the given address. */
+  requestMagicLink: [string, null];
+  /** The install's account and reputation; null in mock mode, which has no accounts. */
+  me: [null, MeResponse | null];
 }
 export type BackgroundRequest = {
   [K in keyof BackgroundApi]: { target: 'background'; type: K; payload: BackgroundApi[K][0] };
@@ -88,11 +92,11 @@ export const SOURCE_LABELS: Record<Signature['source'], string> = {
   factcheck: 'Fact-checker',
 };
 
-/** The signature's source URL when it is safe to link to (http or https), else null. */
-export function sourceHref(signature: Signature): string | null {
-  if (!signature.sourceUrl) return null;
+/** The source URL when it is safe to link to (http or https), else null. */
+export function sourceHref(source: { sourceUrl: string | null }): string | null {
+  if (!source.sourceUrl) return null;
   try {
-    const url = new URL(signature.sourceUrl);
+    const url = new URL(source.sourceUrl);
     return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
   } catch {
     return null;
