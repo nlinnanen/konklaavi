@@ -6,7 +6,7 @@ Built for Junction 2026, on the "Trust the source" challenge direction.
 
 ## Try it
 
-The demo deployment is at **https://srv2160986.hstgr.cloud/**: the dashboard is at the root and the API under `/api`.
+The demo deployment is at **https://srv2160986.hstgr.cloud/**: the dashboard is at the root, the API under `/api` and the moderators' admin panel at `/api/admin`.
 
 ### Browser extension
 
@@ -64,8 +64,8 @@ ALLOWED_DOMAINS='*' uv run demo/proxy-view/viewer.py    # then open http://local
 
 - `client/`: the browser extension (WXT, TypeScript) and the fingerprint library in `client/lib/` that the extension and the fingerprint service share. Its [README](client/README.md) covers development.
 - `fingerprint-service/`: a Node service that runs the fingerprint library and the embedding model for the backend.
-- `backend/`: the FastAPI API, the job worker, SQL migrations and the offline benchmark in `backend/app/eval/benchmark/`.
-- `dashboard/`: a Streamlit app for narratives, notes, the moderation queue and reputation.
+- `backend/`: the FastAPI API, the moderators' admin panel in `backend/app/admin/`, the job worker, SQL migrations and the offline benchmark in `backend/app/eval/benchmark/`.
+- `dashboard/`: a Streamlit app for narratives, notes, the moderation queue and reputation. Moderators use the admin panel.
 - `simulation/`: synthetic crowd runs against the API. They post to `/votes`, which the notes API does not serve.
 - `demo/proxy-view/`: a proxy that shows an article with the extension's highlights, for demos without the extension.
 - `deploy/` and `infra/ansible/`: the production compose file and the VPS configuration.
@@ -79,7 +79,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-The API is on `http://localhost:8000` and the dashboard on `http://localhost:8501`. The first start downloads the embedding model into the `models` volume. LLM moderation of notes needs `ANTHROPIC_API_KEY` in `.env`; without it new notes wait in the moderation queue.
+The API is on `http://localhost:8000`, the admin panel on `http://localhost:8000/admin` and the dashboard on `http://localhost:8501`. The admin panel signs in with an account's email and password; moderators are the accounts in `MODERATOR_EMAILS` or with enough reputation. The first start downloads the embedding model into the `models` volume. LLM moderation of notes needs `ANTHROPIC_API_KEY` in `.env`; without it new notes wait in the moderation queue.
 
 To load the extension against the local backend, build it from `client/` and load `client/dist/chrome-mv3` as an unpacked extension in `chrome://extensions`:
 

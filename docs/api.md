@@ -66,6 +66,14 @@ The extension's install id (`userId`, a random UUID) identifies the reader. An a
 
 Reputation belongs to an account: `(good + 1) / (good + bad + 4)`. A note that becomes helpful adds 2 to good and one that becomes not helpful 2 to bad; a rating cast before its note was decided adds 1 to good when it agrees with the decision and 1 to bad when it doesn't. The reasons are in the docstring of `backend/app/trust.py`.
 
+## Admin panel
+
+Moderators use the admin panel at `/admin` (`/api/admin` behind the production proxy), server-rendered by FastAPI from `backend/app/admin/` with Jinja2 and HTMX. Its pages and fragments are HTML for the browser, not a contract.
+
+- Sign-in takes an account's email and password, checked and rate limited per email as `POST /auth/login` does, and opens a session: `admin_session(token_hash, account_id, created_at, expires_at)` holds the SHA-256 of a random token, and an HTTP-only, SameSite=Lax cookie holds the token for 7 days. Every page needs a session; approving and hiding notes need a moderator as `trust.py` defines one and return 403 otherwise.
+- Links resolve against a `<base href>`: absolute when the request carries `X-Forwarded-Prefix` or a `root_path`, otherwise relative to the requested page, so the panel works under a prefix the proxy strips without naming it.
+- A narrative's page files each of its blocks under the closest way it matches: the noted passage, exact copies (a sentence hash shared with the passage or another exact copy), edited copies (a near-duplicate of one of those by MinHash at Jaccard >= 0.5, the same dateless text, or a `DERIVED_FROM` edge), and the rest by embedding cosine to the narrative's vectors, or to its centroid without any.
+
 ## Fingerprint service
 
 Node on `FP_PORT`. It runs the fingerprint code in `client/lib/`, so its output is identical to the extension's.
@@ -113,7 +121,7 @@ Environment variables, read in `backend/app/config.py`: `DATABASE_URL`, `FP_URL`
 - integrator: `docs/`, `compose.yaml`, `backend/migrations/000_*`, `backend/app/{config,db,migrate,worker}.py`, `backend/app/jobs/__init__.py`, `backend/app/api/main.py`, `backend/tests/conftest.py`, `client/lib/types.ts`.
 - ext: `client/entrypoints/`, `client/lib/{api,state,account,settings,messages,domain}.ts`, `client/wxt.config.ts`, `client/e2e/`, `client/package.json`, `client/README.md`, `client/.gitignore`.
 - pipeline: `client/lib/{normalize,fingerprint,minhash,embed}.ts`, `fingerprint-service/`, `backend/app/fpclient.py`, `backend/app/jobs/{fetch,variants}.py`, migrations `2xx`.
-- core: `backend/app/api/{core,account,narratives,notes}.py`, `backend/app/jobs/{score,moderate}.py`, `backend/app/{trust,mail,vectors}.py`, `backend/Dockerfile`, `deploy/`, migrations `1xx`.
+- core: `backend/app/api/{core,account,narratives,notes}.py`, `backend/app/admin/`, `backend/app/jobs/{score,moderate}.py`, `backend/app/{trust,mail,vectors}.py`, `backend/Dockerfile`, `deploy/`, migrations `1xx`.
 - data: `backend/app/eval/`, `backend/app/jobs/cluster.py`, `dashboard/`, `simulation/`, migrations `3xx`.
 
 Tests live next to their owner's code: `backend/tests/<workstream>/`, and `*.test.ts` beside TypeScript sources.
