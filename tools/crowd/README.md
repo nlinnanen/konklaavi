@@ -1,6 +1,6 @@
 # Crowd bots
 
-LLM personas that read real news sites and write and rate Konklaavi notes through the public API, so that scoring, moderation and reputation run on realistic data. Each persona has a behaviour: `careful_fact_checker`, `casual_reader`, `camp_a` and `camp_b` are honest (the camps differ only in political framing), `troll` and `brigade` act in bad faith. `crowd.yaml` is a trial of 8 personas and `crowd-overnight.yaml` an overnight run of 30.
+LLM personas that read real news sites and write and rate Konklaavi notes through the public API, so that scoring, moderation and reputation run on realistic data. Each persona has a behaviour: `careful_fact_checker`, `casual_reader`, `camp_a` and `camp_b` are honest (the camps differ only in political framing), `troll` and `brigade` act in bad faith. `crowd.yaml` is a trial of 8 personas and `crowd-overnight.yaml` an overnight run of 60.
 
 A persona with `logged_in: true` signs in as `bot-<name>@crowd.hashtrust.test`, with the password in `CROWD_BOT_PASSWORD` or one generated into the state file; one without writes as an anonymous install. The state file `.crowd-state-<api host>.json` beside the config holds those identities and every note and rating each persona made, which is the ground truth for checking whether reputation separates the good personas from the bad ones. It holds passwords and stays out of git; the run appends one line per action to `crowd-<api host>.log`.
 
@@ -20,13 +20,15 @@ The 30-minute trial against production, stopping at 20 credits:
 set -a; . ../../.env; set +a; uv run python -m crowd run --config crowd.yaml --api https://konklaavi.tech/api --minutes 30 --budget-credits 20
 ```
 
-The overnight run, eight hours at about 50 credits an hour:
+The overnight run, ten hours at about 100 credits an hour:
 
 ```sh
-set -a; . ../../.env; set +a; uv run python -m crowd run --config crowd-overnight.yaml --api https://konklaavi.tech/api --minutes 480 --budget-credits 400
+set -a; . ../../.env; set +a; uv run python -m crowd run --config crowd-overnight.yaml --api https://konklaavi.tech/api --minutes 600 --budget-credits 1000
 ```
 
-Ctrl-C stops after the current action. The run also stops when the credits the router reports reach the budget, so it can overshoot by one call.
+Due actions run on a pool of `--workers` threads (default 16). A persona has at most one action in flight, so its hourly caps hold, while different personas act at once. `--llm-concurrency` (default 16) caps the model calls in flight; a call the router turns away as rate-limited or overloaded is retried a few times with jittered backoff. The 3-second interval per news host holds across all workers.
+
+Ctrl-C stops scheduling, lets the actions in flight finish and saves the state; a second Ctrl-C saves and quits at once. The run also stops scheduling when the credits the router reports reach the budget, so the actions in flight can overshoot it by up to one call each.
 
 Per persona, the notes written, their statuses and moderation, the ratings cast and the current `/me` reputation, with the mean reputation of signed-in good and bad personas:
 
