@@ -4,6 +4,7 @@ feeds through feedparser and article text through trafilatura."""
 import logging
 import random
 import re
+import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -81,6 +82,8 @@ class Web:
             headers={"User-Agent": USER_AGENT}, timeout=30, follow_redirects=True, max_redirects=5
         )
         self.last_request: dict[str, float] = {}
+        self.host_locks: dict[str, threading.Lock] = {}
+        self.locks_lock = threading.Lock()
         self.robots: dict[str, Robots] = {}
         self.feeds: dict[str, tuple[datetime, list[tuple[str, str]]]] = {}
 
@@ -98,14 +101,18 @@ class Web:
         return response
 
     def _get(self, url: str) -> httpx.Response:
+        """One request at a time per host across all workers, MIN_INTERVAL after the previous one ended."""
         host = urlsplit(url).netloc
-        wait = self.last_request.get(host, 0) + MIN_INTERVAL - time.monotonic()
-        if wait > 0:
-            time.sleep(wait)
-        try:
-            return self.client.get(url)
-        finally:
-            self.last_request[host] = time.monotonic()
+        with self.locks_lock:
+            lock = self.host_locks.setdefault(host, threading.Lock())
+        with lock:
+            wait = self.last_request.get(host, 0) + MIN_INTERVAL - time.monotonic()
+            if wait > 0:
+                time.sleep(wait)
+            try:
+                return self.client.get(url)
+            finally:
+                self.last_request[host] = time.monotonic()
 
     def _robots(self, url: str) -> Robots:
         parts = urlsplit(url)

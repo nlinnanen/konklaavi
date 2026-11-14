@@ -81,7 +81,7 @@ Reputation belongs to an account: `(good + 1) / (good + bad + 4)`; an install wi
 
 ## Admin panel
 
-Moderators use the admin panel at `/admin` (`/api/admin` behind the production proxy), server-rendered by FastAPI from `backend/app/admin/` with Jinja2 and HTMX. Its pages and fragments are HTML for the browser, not a contract.
+Moderators use the admin panel at `/admin` (also `/admin` behind the production proxy, which routes it to the API), server-rendered by FastAPI from `backend/app/admin/` with Jinja2 and HTMX. Its pages and fragments are HTML for the browser, not a contract.
 
 - Sign-in takes an account's email and password, checked and rate limited per email as `POST /auth/login` does, and opens a session: `admin_session(token_hash, account_id, created_at, expires_at)` holds the SHA-256 of a random token, and an HTTP-only, SameSite=Lax cookie holds the token for 7 days. Every page needs a session; approving and hiding notes need a moderator as `trust.py` defines one and return 403 otherwise.
 - Links resolve against a `<base href>`: absolute when the request carries `X-Forwarded-Prefix` or a `root_path`, otherwise relative to the requested page, so the panel works under a prefix the proxy strips without naming it.

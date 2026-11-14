@@ -6,13 +6,13 @@ Built for Junction 2026, on the "Trust the source" challenge direction.
 
 ## Try it
 
-The demo deployment is at **https://konklaavi.tech/**: the dashboard is at the root, the API under `/api` and the moderators' admin panel at `/api/admin`.
+The demo deployment is at **https://konklaavi.tech/**: the web demo is at the root, the API under `/api` and the moderators' admin panel at `/admin`.
 
 ### Browser extension
 
 The extension isn't in a web store, so you load it unpacked. That needs no review and takes a minute.
 
-1. Download the zip from the [`latest-demo` release](https://github.com/nlinnanen/junction26/releases/tag/latest-demo). Every deploy rebuilds it against the demo API.
+1. Download the zip from the [`latest-demo` release](https://github.com/nlinnanen/konklaavi/releases/tag/latest-demo). Every deploy rebuilds it against the demo API.
 2. Unzip it into a folder you keep.
 3. Open `chrome://extensions` (or Edge or Brave), turn on **Developer mode** and click **Load unpacked**. Choose the unzipped folder.
 4. Pin Konklaavi from the puzzle-piece menu and open an article.
@@ -37,7 +37,7 @@ The extension matches on your device: it downloads the narrative index, and page
 
 ### Web demo (no extension needed)
 
-**https://konklaavi.tech/demo/** opens an article and shows what the extension would show on it: the highlights, the cards with readers' notes, rating and reporting notes, and adding a note to a selected passage. It runs the extension's own UI code, so the page looks as it would with the extension. A top bar marks the page as a demo copy and holds the address bar, and a guided tour walks through the features on the first visit.
+**https://konklaavi.tech/** opens an article and shows what the extension would show on it: the highlights, the cards with readers' notes, rating and reporting notes, and adding a note to a selected passage. It runs the extension's own UI code, so the page looks as it would with the extension. A top bar marks the page as a demo copy and holds the address bar, and a guided tour walks through the features on the first visit.
 
 It is a demo, not the product. The server renders the article again in headless Chromium, so comments and other content its JavaScript loads are included, removes its scripts and sends its visible text to the API's `/check`; that takes 10 to 25 seconds, and some sites don't work. It opens Wikipedia, the major Finnish news sites (Yle, HS, Ilta-Sanomat, Iltalehti, MTV Uutiset and others), major international news sites (BBC, the Guardian, the New York Times, DW, Al Jazeera and others) and Reddit; the start page lists them. Some of them (Reddit, Reuters, AP, Euronews) show automated browsers a bot check, so they don't load. A rendered page is kept for 15 minutes, so opening it again is instant.
 

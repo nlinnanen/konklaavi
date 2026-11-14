@@ -1,4 +1,5 @@
-# The overnight run: 30 readers, mostly honest, with two trolls and a four-member brigade.
+# The overnight run: 60 readers, mostly honest, with four trolls and a five-member brigade. At about
+# 0.45 credits per note decision and 0.13 per batch of three ratings, they spend about 100 credits an hour.
 domain: crowd.hashtrust.test
 
 sites:
@@ -20,33 +21,63 @@ sites:
       - https://feeds.bbci.co.uk/news/rss.xml
 
 personas:
-  - {name: aino, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: eero, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: helmi, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, yle], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: juho, behaviour: careful_fact_checker, logged_in: false, sites: [sputnik, yle, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: kaisa, behaviour: careful_fact_checker, logged_in: true, sites: [rt, yle], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: lasse, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, rt], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: mikko, behaviour: careful_fact_checker, logged_in: true, sites: [bbc, sputnik], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: noora, behaviour: careful_fact_checker, logged_in: false, sites: [sputnik, yle, rt], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: olli, behaviour: casual_reader, logged_in: true, sites: [rt, bbc], writes_per_hour: 1, rates_per_hour: 6}
-  - {name: pihla, behaviour: casual_reader, logged_in: false, sites: [rt, yle], writes_per_hour: 1, rates_per_hour: 6}
-  - {name: risto, behaviour: casual_reader, logged_in: false, sites: [bbc, rt], writes_per_hour: 1, rates_per_hour: 6}
-  - {name: saara, behaviour: casual_reader, logged_in: true, sites: [rt, bbc, yle], writes_per_hour: 1, rates_per_hour: 6}
-  - {name: tapio, behaviour: casual_reader, logged_in: false, sites: [yle, bbc], writes_per_hour: 1, rates_per_hour: 6}
-  - {name: ulla, behaviour: casual_reader, logged_in: false, sites: [rt, bbc], writes_per_hour: 1, rates_per_hour: 6}
-  - {name: veeti, behaviour: camp_a, logged_in: true, sites: [yle, rt, sputnik], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: aleksi, behaviour: camp_a, logged_in: true, sites: [rt, yle], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: bea, behaviour: camp_a, logged_in: true, sites: [rt, sputnik], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: carl, behaviour: camp_a, logged_in: false, sites: [sputnik, rt], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: dana, behaviour: camp_a, logged_in: true, sites: [rt, sputnik, yle], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: emil, behaviour: camp_b, logged_in: true, sites: [sputnik, yle, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: frida, behaviour: camp_b, logged_in: true, sites: [yle, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: gustav, behaviour: camp_b, logged_in: true, sites: [bbc, sputnik], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: hanna, behaviour: camp_b, logged_in: false, sites: [yle, sputnik, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: ivan, behaviour: camp_b, logged_in: true, sites: [sputnik, yle, bbc], writes_per_hour: 1.5, rates_per_hour: 8}
-  - {name: jonna, behaviour: troll, logged_in: true, sites: [bbc, yle], writes_per_hour: 2, rates_per_hour: 8}
-  - {name: karl, behaviour: troll, logged_in: true, sites: [yle, bbc], writes_per_hour: 2, rates_per_hour: 8}
-  - {name: liisa, behaviour: brigade, logged_in: true, sites: [bbc, rt], writes_per_hour: 2, rates_per_hour: 10}
-  - {name: mats, behaviour: brigade, logged_in: false, sites: [sputnik, bbc], writes_per_hour: 2, rates_per_hour: 10}
-  - {name: nina, behaviour: brigade, logged_in: true, sites: [sputnik, bbc, rt], writes_per_hour: 2, rates_per_hour: 10}
-  - {name: oskar, behaviour: brigade, logged_in: false, sites: [yle, bbc, rt], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: aino, behaviour: careful_fact_checker, logged_in: false, sites: [sputnik, bbc], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: eero, behaviour: careful_fact_checker, logged_in: true, sites: [rt, sputnik], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: helmi, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, rt, yle], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: juho, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, rt], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: kaisa, behaviour: careful_fact_checker, logged_in: true, sites: [rt, bbc], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: lasse, behaviour: careful_fact_checker, logged_in: true, sites: [rt, yle, sputnik], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: mikko, behaviour: careful_fact_checker, logged_in: false, sites: [rt, yle], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: noora, behaviour: careful_fact_checker, logged_in: true, sites: [bbc, rt], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: olli, behaviour: careful_fact_checker, logged_in: true, sites: [yle, bbc, rt], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: pihla, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, bbc, rt], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: risto, behaviour: careful_fact_checker, logged_in: true, sites: [rt, yle], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: saara, behaviour: careful_fact_checker, logged_in: true, sites: [bbc, sputnik, yle], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: tapio, behaviour: careful_fact_checker, logged_in: true, sites: [yle, sputnik], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: ulla, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, rt], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: veeti, behaviour: careful_fact_checker, logged_in: true, sites: [bbc, sputnik, yle], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: aleksi, behaviour: casual_reader, logged_in: true, sites: [rt, yle], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: bea, behaviour: casual_reader, logged_in: true, sites: [sputnik, bbc], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: carl, behaviour: casual_reader, logged_in: true, sites: [rt, yle, sputnik], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: dana, behaviour: casual_reader, logged_in: false, sites: [bbc, yle], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: emil, behaviour: casual_reader, logged_in: true, sites: [rt, sputnik], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: frida, behaviour: casual_reader, logged_in: true, sites: [rt, bbc, sputnik], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: gustav, behaviour: casual_reader, logged_in: false, sites: [bbc, sputnik, yle], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: hanna, behaviour: casual_reader, logged_in: true, sites: [rt, sputnik], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: ivan, behaviour: casual_reader, logged_in: true, sites: [rt, sputnik, bbc], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: jonna, behaviour: casual_reader, logged_in: true, sites: [sputnik, yle], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: karl, behaviour: casual_reader, logged_in: true, sites: [bbc, rt], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: liisa, behaviour: casual_reader, logged_in: false, sites: [yle, rt], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: mats, behaviour: casual_reader, logged_in: false, sites: [yle, bbc, sputnik], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: nina, behaviour: casual_reader, logged_in: true, sites: [bbc, rt, yle], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: oskar, behaviour: camp_a, logged_in: true, sites: [sputnik, yle], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: petra, behaviour: camp_a, logged_in: true, sites: [sputnik, bbc], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: quentin, behaviour: camp_a, logged_in: true, sites: [bbc, yle], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: rasmus, behaviour: camp_a, logged_in: true, sites: [yle, rt, bbc], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: sofia, behaviour: camp_a, logged_in: true, sites: [bbc, sputnik, yle], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: teemu, behaviour: camp_a, logged_in: true, sites: [bbc, rt], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: urho, behaviour: camp_a, logged_in: true, sites: [bbc, rt], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: valtteri, behaviour: camp_a, logged_in: true, sites: [rt, bbc, yle], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: wilma, behaviour: camp_a, logged_in: true, sites: [rt, sputnik, bbc], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: xavier, behaviour: camp_a, logged_in: true, sites: [bbc, rt], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: ylva, behaviour: camp_a, logged_in: true, sites: [yle, sputnik], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: zoe, behaviour: camp_b, logged_in: true, sites: [bbc, sputnik], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: arttu, behaviour: camp_b, logged_in: false, sites: [sputnik, rt], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: birgit, behaviour: camp_b, logged_in: true, sites: [yle, sputnik, rt], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: cecilia, behaviour: camp_b, logged_in: false, sites: [yle, rt], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: daniel, behaviour: camp_b, logged_in: false, sites: [yle, bbc], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: elina, behaviour: camp_b, logged_in: false, sites: [yle, bbc, sputnik], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: fredrik, behaviour: camp_b, logged_in: true, sites: [sputnik, yle], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: greta, behaviour: camp_b, logged_in: true, sites: [yle, bbc, rt], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: heikki, behaviour: camp_b, logged_in: false, sites: [sputnik, bbc], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: iida, behaviour: camp_b, logged_in: true, sites: [sputnik, yle], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: jari, behaviour: camp_b, logged_in: true, sites: [rt, bbc, sputnik], writes_per_hour: 2.5, rates_per_hour: 12}
+  - {name: katja, behaviour: troll, logged_in: false, sites: [yle, sputnik], writes_per_hour: 3, rates_per_hour: 12}
+  - {name: leevi, behaviour: troll, logged_in: true, sites: [yle, sputnik, rt], writes_per_hour: 3, rates_per_hour: 12}
+  - {name: minna, behaviour: troll, logged_in: true, sites: [bbc, rt], writes_per_hour: 3, rates_per_hour: 12}
+  - {name: niko, behaviour: troll, logged_in: false, sites: [rt, sputnik], writes_per_hour: 3, rates_per_hour: 12}
+  - {name: otto, behaviour: brigade, logged_in: true, sites: [rt, yle], writes_per_hour: 3, rates_per_hour: 15}
+  - {name: paula, behaviour: brigade, logged_in: false, sites: [sputnik, bbc], writes_per_hour: 3, rates_per_hour: 15}
+  - {name: rauli, behaviour: brigade, logged_in: true, sites: [yle, rt], writes_per_hour: 3, rates_per_hour: 15}
+  - {name: sanna, behaviour: brigade, logged_in: false, sites: [bbc, sputnik, yle], writes_per_hour: 3, rates_per_hour: 15}
+  - {name: tuomas, behaviour: brigade, logged_in: false, sites: [sputnik, rt], writes_per_hour: 3, rates_per_hour: 15}

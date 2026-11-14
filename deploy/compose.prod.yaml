@@ -1,7 +1,7 @@
 # Production override: docker compose -f compose.yaml -f deploy/compose.prod.yaml ...
 # The app images come from GHCR, built by .github/workflows/release.yml; the VPS never builds.
 # IMAGE_TAG (sha-<commit>) is set in .env by /usr/local/sbin/junction26-release.
-# Only Caddy listens publicly; the API and dashboard listen on localhost for SSH tunnels.
+# Only Caddy listens publicly; the API listens on localhost for SSH tunnels.
 
 x-database-url: &database-url DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/postgres
 
@@ -33,7 +33,10 @@ services:
     environment:
       - *database-url
 
+  # Not deployed: the root serves the web demo and moderators use the API's admin panel. Releases build no
+  # dashboard image, so the profile stays off in production.
   dashboard:
+    profiles: [dashboard]
     image: ${IMAGE_PREFIX:-ghcr.io/nlinnanen/junction26}-dashboard:${IMAGE_TAG:?set IMAGE_TAG (the release script does)}
     build: !reset null
     environment:
@@ -69,18 +72,17 @@ services:
         aliases: ["${DOMAIN:?set DOMAIN in .env}"]
     depends_on:
       - api
-      - dashboard
       - proxy-view
     restart: unless-stopped
 
-  # The demo proxy view (demo/proxy-view) at https://DOMAIN/demo/. It renders allowlisted sites in
+  # The web demo (demo/proxy-view) at https://DOMAIN/. It renders allowlisted sites in
   # Chromium, on a network it shares only with Caddy, so it can't reach the database or internal services.
   # It calls the API at its public address.
   proxy-view:
     image: ${IMAGE_PREFIX:-ghcr.io/nlinnanen/junction26}-proxy-view:${IMAGE_TAG:?set IMAGE_TAG (the release script does)}
     environment:
       KONKLAAVI_API: https://${DOMAIN:?set DOMAIN in .env}/api
-      PUBLIC_BASE: https://${DOMAIN:?set DOMAIN in .env}/demo
+      PUBLIC_BASE: https://${DOMAIN:?set DOMAIN in .env}
     networks: [proxy-view]
     shm_size: 1gb
     mem_limit: 2g
