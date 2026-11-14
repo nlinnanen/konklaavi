@@ -9,7 +9,7 @@ Handler = Callable[[Connection, dict], None]
 
 HANDLERS: dict[str, Handler] = {}
 # (kind, interval in seconds) for jobs the worker enqueues on a schedule.
-PERIODIC: list[tuple[str, int]] = [("cluster", 300), ("lifecycle", 600)]
+PERIODIC: list[tuple[str, int]] = [("cluster", 300), ("lifecycle", 600), ("narrative_vectors", 300)]
 MAX_ATTEMPTS = 5
 # A job running longer than this is taken to have lost its worker and can be claimed again.
 LEASE = timedelta(minutes=10)

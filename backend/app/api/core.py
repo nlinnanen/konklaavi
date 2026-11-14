@@ -1,11 +1,9 @@
-import base64
 import re
 from datetime import datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
 import httpx
-import numpy as np
 import trafilatura
 from fastapi import APIRouter, HTTPException
 from psycopg import Connection
@@ -18,6 +16,7 @@ from app.db import connection
 from app.jobs import enqueue
 from app.jobs.fetch import domain_of
 from app.trust import NEGATIVE_VERDICTS, SHIPPED_STATES, VERDICTS, Tally, tallies
+from app.vectors import quantize
 
 router = APIRouter()
 
@@ -343,11 +342,6 @@ def post_check(request: CheckRequest) -> dict:
         if not sentence_matches and block["contentHash"] in results:
             matches.append({"text": blocks[block["index"]], "result": results[block["contentHash"]]})
     return {"matches": matches}
-
-
-def quantize(embedding: list[float]) -> str:
-    """A unit vector as base64 of its int8 values round(v * 127)."""
-    return base64.b64encode(np.rint(np.array(embedding) * 127).astype(np.int8).tobytes()).decode()
 
 
 def index_signature(row: tuple) -> dict:
