@@ -1,4 +1,4 @@
-from app.seed.download import html_to_text, to_case
+from app.eval.benchmark.download import html_to_text, to_case
 
 ROW = {
     "title": "Claim",

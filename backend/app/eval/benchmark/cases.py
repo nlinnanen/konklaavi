@@ -1,8 +1,11 @@
-"""Import EUvsDisinfo cases: seed cases become active narratives, test cases go to eval_case.
+"""Import EUvsDisinfo cases into the benchmark database: seed cases become narratives, test cases go to
+eval_case.
 
-A seed case with two or more article URLs holds a third of them out of the import, for the evaluation.
+A seed case's narrative stands in for a narrative born from a note: source 'note', titled with the case's
+claim, so /index and /lookup ship it. A seed case with two or more article URLs holds a third of them out
+of the import, for the run.
 
-python -m app.seed.euvsdisinfo [--limit N] [--file PATH]
+python -m app.eval.benchmark import [--limit N] [--file PATH]
 """
 
 import argparse
@@ -14,7 +17,9 @@ from pathlib import Path
 
 from psycopg import Connection
 
+from app.config import settings
 from app.db import connection
+from app.eval.benchmark.database import require_benchmark_database
 from app.jobs import enqueue
 from app.migrate import migrate
 
@@ -81,14 +86,14 @@ def import_cases(conn: Connection, cases: list[dict]) -> ImportResult:
 def _insert_narrative(conn: Connection, case: dict) -> int | None:
     """Insert the case's narrative and return its id, or None when it was imported before."""
     exists = conn.execute(
-        "SELECT 1 FROM narrative WHERE source = 'euvsdisinfo' AND source_url = %s", (case["url"],)
+        "SELECT 1 FROM narrative WHERE source = 'note' AND source_url = %s", (case["url"],)
     ).fetchone()
     if exists:
         return None
     row = conn.execute(
-        "INSERT INTO narrative (title, claim, explanation, verdict, source, source_url, state)"
-        " VALUES (%s, %s, %s, 'misinformation', 'euvsdisinfo', %s, 'active') RETURNING id",
-        (case["title"], case["summary"], case["disproof"], case["url"]),
+        "INSERT INTO narrative (title, claim, source, source_url, state)"
+        " VALUES (%s, %s, 'note', %s, 'active') RETURNING id",
+        (case["title"], case["summary"], case["url"]),
     ).fetchone()
     return row[0]
 
@@ -119,6 +124,7 @@ def main() -> None:
     parser.add_argument("--file", type=Path, default=SEED_FILE, help="seed file, one JSON case per line")
     parser.add_argument("--limit", type=int, help="import only the first N cases of the file")
     args = parser.parse_args()
+    require_benchmark_database(settings.database_url)
     logging.basicConfig(level=logging.INFO)
     migrate()
     cases = load_cases(args.file, args.limit)

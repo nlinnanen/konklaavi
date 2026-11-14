@@ -1,10 +1,10 @@
-"""Build the curated EUvsDisinfo seed file from the published dataset.
+"""Build the benchmark's EUvsDisinfo case file from the published dataset.
 
 The rows come from the Hugging Face dataset NLP-UniBW/eu_vs_disinfo, a scrape of the euvsdisinfo.eu case
 database, read through the datasets-server rows API. euvsdisinfo.eu itself sits behind a bot block, so the
 importer never contacts it.
 
-    uv run python -m app.seed.download --cases 400
+    uv run python -m app.eval.benchmark download --cases 400
 """
 
 import argparse
@@ -17,14 +17,14 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from app.seed.euvsdisinfo import SEED_FILE
+from app.eval.benchmark.cases import SEED_FILE
 
 ROWS_URL = "https://datasets-server.huggingface.co/rows"
 DATASET = "NLP-UniBW/eu_vs_disinfo"
 PAGE_SIZE = 100
 # Pause between requests to the rows API.
 REQUEST_INTERVAL = 1.0
-USER_AGENT = "hashtrust/0.1 (seed importer)"
+USER_AGENT = "hashtrust/0.1 (benchmark)"
 
 
 class _Paragraphs(HTMLParser):
@@ -69,7 +69,7 @@ def html_to_text(html: str) -> str:
 
 
 def to_case(row: dict) -> dict | None:
-    """A seed case from a dataset row, or None when the row lacks a claim, a disproof or an article URL."""
+    """A case from a dataset row, or None when the row lacks a claim, a disproof or an article URL."""
     urls = [u.strip() for u in row.get("link_original") or []]
     urls = list(dict.fromkeys(u for u in urls if urlsplit(u).scheme in ("http", "https")))
     disproof = html_to_text(row.get("response_html") or "") or (row.get("response") or "").strip()
