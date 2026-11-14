@@ -138,6 +138,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: `Settings` carries `backendMode: 'local'` and `sendHits`.
 - integrator: a periodic `lifecycle` job re-evaluates every shipped narrative every 10 minutes.
 - integrator: the cluster job leaves out fingerprints that are not prose or that `variants.boilerplate` marks.
+- core: the database runs without timescaledb-tune (`NO_TS_TUNE`), since the tune script panics where the container has no cgroup `memory.max` and aborts initdb before the toolkit extension is installed.
 
 ## Deferred
 
