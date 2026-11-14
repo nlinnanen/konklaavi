@@ -9,17 +9,21 @@ export interface FlaggedRange {
 
 export const highlightSupported = typeof CSS !== 'undefined' && 'highlights' in CSS;
 
-const STYLE_ID = 'trust-verifier-highlight-style';
+const STYLE_ID = 'hashtrust-highlight-style';
 const COLORS: Record<NegativeVerdict, [string, string]> = {
   misinformation: ['rgba(239, 68, 68, 0.22)', '#dc2626'],
   manipulative: ['rgba(168, 85, 247, 0.22)', '#9333ea'],
   misleading: ['rgba(245, 158, 11, 0.25)', '#d97706'],
 };
 
-/** Registered highlight name: exact matches as `tv-<verdict>`, edited copies as `tv-<verdict>-variant`. */
+/**
+ * Registered highlight name: exact matches as `tv-<verdict>`, edited copies as
+ * `tv-<verdict>-variant` and the same claim in other words as `tv-<verdict>-narrative`.
+ */
 function highlightName(result: LookupResult): string {
   const verdict = displayVerdict(result) as NegativeVerdict;
-  return result.signature?.matchLevel === 'variant' ? `tv-${verdict}-variant` : `tv-${verdict}`;
+  const level = result.signature?.matchLevel;
+  return level === 'variant' || level === 'narrative' ? `tv-${verdict}-${level}` : `tv-${verdict}`;
 }
 
 const STYLES = NEGATIVE_VERDICTS.flatMap((v) => {
@@ -27,6 +31,7 @@ const STYLES = NEGATIVE_VERDICTS.flatMap((v) => {
   return [
     `::highlight(tv-${v}) { background-color: ${bg}; text-decoration: underline wavy ${line}; text-decoration-thickness: 1px; }`,
     `::highlight(tv-${v}-variant) { text-decoration: underline dashed ${line}; text-decoration-thickness: 2px; }`,
+    `::highlight(tv-${v}-narrative) { text-decoration: underline dotted ${line}; text-decoration-thickness: 1px; }`,
   ];
 });
 
@@ -44,6 +49,7 @@ export class Highlighter {
     for (const v of NEGATIVE_VERDICTS) {
       this.highlights.set(`tv-${v}`, new Highlight());
       this.highlights.set(`tv-${v}-variant`, new Highlight());
+      this.highlights.set(`tv-${v}-narrative`, new Highlight());
     }
     this.injectStyle();
     this.register();

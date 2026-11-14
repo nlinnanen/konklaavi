@@ -1,6 +1,6 @@
 import streamlit as st
 
-st.set_page_config(page_title="Narratives", layout="wide")
+st.set_page_config(page_title="HashTrust", layout="wide")
 st.navigation(
     [
         st.Page("narratives.py", title="Narratives", default=True),

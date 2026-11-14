@@ -188,7 +188,9 @@ export class OverlayUi {
     this.tooltip.replaceChildren();
     const verdict = displayVerdict(result);
     this.tooltip.append(el('strong', undefined, `⚠ Flagged as ${VERDICT_LABELS[verdict].toLowerCase()}`));
-    if (result.signature?.matchLevel === 'variant') this.tooltip.append(el('div', 'match', 'Edited copy of a known narrative'));
+    const level = result.signature?.matchLevel;
+    if (level === 'variant') this.tooltip.append(el('div', 'match', 'Edited copy of a known narrative'));
+    if (level === 'narrative') this.tooltip.append(el('div', 'match', 'Same claim, different wording'));
     if (result.signature) this.tooltip.append(this.narrative(result.signature, pinned));
     if (result.total > 0) {
       const share = Math.round((result.counts[result.topVerdict] / result.total) * 100);

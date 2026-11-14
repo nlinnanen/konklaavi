@@ -14,6 +14,7 @@ import {
   type IndexResponse,
   type KeyValueStore,
 } from './api';
+import { EMBEDDING_DIM } from './embed';
 import { hashNormalized } from './fingerprint';
 import { normalizeText } from './normalize';
 import type { LookupResult, Signature, VoteRequest } from './types';
@@ -140,7 +141,27 @@ function signature(narrativeId: string, state: Signature['state'] = 'active'): S
 }
 
 function index(over: Partial<IndexResponse> = {}): IndexResponse {
-  return { version: 1, full: true, signatures: [], sentences: [], fingerprints: [], removed: [], ...over };
+  return {
+    version: 1,
+    full: true,
+    signatures: [],
+    sentences: [],
+    fingerprints: [],
+    narrativeThreshold: 0.85,
+    narrativeVectors: [],
+    removed: [],
+    ...over,
+  };
+}
+
+/** The index encoding of a vector: 384 int8 values round(v * 127), base64. */
+function encodeVector(v: number[]): string {
+  return btoa(String.fromCharCode(...v.map((x) => Math.round(x * 127) & 0xff)));
+}
+
+/** A 384-d unit vector whose first two components are `a` and `b`. */
+function unit(a: number, b: number): number[] {
+  return [a, b, ...Array<number>(EMBEDDING_DIM - 2).fill(0)];
 }
 
 /** An index fingerprint of `narrativeId` with only the bands in `set`. */
@@ -209,6 +230,10 @@ describe('applyIndexUpdate', () => {
         { hash: 's2', narrativeId: 'n2' },
       ],
       fingerprints: [fingerprint('n1', { 0: 'a' }), fingerprint('n2', { 0: 'b' })],
+      narrativeVectors: [
+        { narrativeId: 'n1', vectors: ['v1'] },
+        { narrativeId: 'n2', vectors: ['v2'] },
+      ],
     }),
   );
 
@@ -224,6 +249,7 @@ describe('applyIndexUpdate', () => {
           { hash: 's4', narrativeId: 'n3' },
         ],
         fingerprints: [fingerprint('n3', { 1: 'c' })],
+        narrativeVectors: [{ narrativeId: 'n2', vectors: ['v2b'] }],
         removed: ['n1'],
       }),
     );
@@ -234,11 +260,19 @@ describe('applyIndexUpdate', () => {
     ]);
     expect(next.sentences.map((s) => s.hash).sort()).toEqual(['s3', 's4']);
     expect(next.fingerprints.map((f) => f.narrativeId)).toEqual(['n3']);
+    expect(next.narrativeVectors).toEqual([{ narrativeId: 'n2', vectors: ['v2b'] }]);
   });
 
   it('replaces everything with a full index', () => {
     const next = applyIndexUpdate(base, index({ version: 9, signatures: [signature('n3')] }));
-    expect(next).toEqual({ version: 9, signatures: [signature('n3')], sentences: [], fingerprints: [] });
+    expect(next).toEqual({
+      version: 9,
+      signatures: [signature('n3')],
+      sentences: [],
+      fingerprints: [],
+      narrativeThreshold: 0.85,
+      narrativeVectors: [],
+    });
   });
 });
 
@@ -268,6 +302,37 @@ describe('LocalIndexApi', () => {
     await api.refresh();
     expect((await api.lookup(['s1', 's2'])).map((r) => r.hash)).toEqual(['s1', 's2']);
     expect(requests).toEqual(['GET http://backend/index', 'GET http://backend/index?since=1']);
+  });
+
+  it('matches blocks of 8+ words to the narrative whose vector is within the threshold, embedding each once', async () => {
+    backend([
+      index({
+        signatures: [signature('n1'), signature('n2')],
+        narrativeVectors: [
+          { narrativeId: 'n1', vectors: [encodeVector(unit(1, 0))] },
+          { narrativeId: 'n2', vectors: [encodeVector(unit(0, 1))] },
+        ],
+      }),
+    ]);
+    const vectors: Record<string, number[]> = {
+      'close to the first narrative in other words': unit(0.9, Math.sqrt(1 - 0.81)),
+      'about something else that sits between the two narratives': unit(0.8, 0.6),
+    };
+    const embedded: string[] = [];
+    const embed = async (texts: string[]) => texts.map((t) => (embedded.push(t), vectors[t]!));
+    const api = new LocalIndexApi('http://backend', memoryStore(), () => 0, embed);
+    const blocks = [
+      { hash: 'close', text: 'close to the first narrative in other words' },
+      { hash: 'between', text: 'about something else that sits between the two narratives' },
+      { hash: 'short', text: 'a block of seven words in it' },
+    ];
+
+    const results = await api.matchNarratives(blocks);
+    expect(results.map((r) => [r.hash, r.flagged, r.signature?.narrativeId, r.signature?.matchLevel])).toEqual([
+      ['close', true, 'n1', 'narrative'],
+    ]);
+    await api.matchNarratives(blocks.slice(0, 1));
+    expect(embedded).toEqual(Object.keys(vectors));
   });
 
   it('keeps the index across restarts of the background worker', async () => {

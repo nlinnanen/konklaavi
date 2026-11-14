@@ -124,7 +124,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - core: the production stack and Caddyfile are validated locally with DOMAIN=localhost.
 - ext: the local index refreshes on lookup: an index 5 minutes old answers while a `?since` delta downloads in the background, so nothing polls while the browser is idle.
 - ext: LocalIndexApi waits for the first full download; a failed first download fails the lookup.
-- ext: the index is stored in IndexedDB (`trust-verifier`, store `kv`, key `index`) with its baseUrl and last check time; an index for another backend URL is ignored.
+- ext: the index is stored in IndexedDB (`hashtrust`, store `kv`, key `index`) with its baseUrl and last check time; an index for another backend URL is ignored.
 - ext: local lookup results have zero vote counts, are flagged only when the narrative is active, and carry the narrative's verdict.
 - ext: detection hits go out after each local lookup as one POST /hits batch of the flagged results with a signature, each hash once per page (URL without fragment, last 500 pages remembered), for http(s) pages only, when `sendHits` is on; failures are logged and dropped.
 - ext: a build with `WXT_API_URL` set defaults to Local index with that URL.
@@ -139,6 +139,31 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: a periodic `lifecycle` job re-evaluates every shipped narrative every 10 minutes.
 - integrator: the cluster job leaves out fingerprints that are not prose or that `variants.boilerplate` marks.
 - core: the database runs without timescaledb-tune (`NO_TS_TUNE`), since the tune script panics where the container has no cgroup `memory.max` and aborts initdb before the toolkit extension is installed.
+- integrator: Narrative-level matching runs only where the text stays with its owner: the extension's local index mode and `/check`. `/lookup` stays exact and variant, because sending embeddings would leak page text.
+- integrator: The app is named HashTrust.
+- pipeline: int8 quantization is floor(v * 127 + 0.5) clamped to [-127, 127] in TypeScript and Python, so both encode the same bytes; Python's round() would round halves to even.
+- pipeline: a narrative's block vectors are its up to 5 attached prose, non-boilerplate fingerprints with an embedding, ranked by cosine distance to the mean of those blocks' embeddings, ties by id.
+- pipeline: the claim vector embeds `narrative_text` (title and claim joined by a newline) through the fingerprint service; a narrative with no 5-word sentence gets no claim vector.
+- pipeline: `narrative_vectors` rewrites block rows only when the central set changes and computes the claim vector only when missing, so a sweep causes no `/index` deltas for unchanged narratives.
+- pipeline: fetch enqueues `narrative_vectors` for the narratives it changed plus its payload narrative even when the page failed; `match_variants` enqueues it for the narratives it joined.
+- pipeline: migration 202 adds a row trigger on `narrative_vector` that writes `index_change`, and enqueues one `narrative_vectors` sweep for existing narratives.
+- pipeline: `narrative_text` lives in `variants.py`.
+- integrator: `narrative_vectors` runs every 5 minutes without ids, so narratives that `analyze` or the cluster job create or extend get vectors.
+- core: every narrative in a full index or a delta gets a `narrativeVectors` entry, empty when it has no vectors, so replacing it clears stale vectors; the claim vector comes first, then block vectors by fingerprint_id.
+- core: /check encodes vectors with `app.vectors.quantize`, sends `embed=true` for every block and counts whitespace words of the raw block text.
+- core: when several narratives pass the threshold, a block's narrative match prefers an active narrative, then the highest cosine; a narrative match carries zero vote counts.
+- ext: in local index mode the extension embeds blocks of 8+ words with transformers.js in an offscreen document in Chrome and in the background page in Firefox; the build copies onnxruntime-web's asyncify .mjs/.wasm (about 27 MB) into `ort/`, and the extension CSP adds 'wasm-unsafe-eval'.
+- ext: the q8 model weights (about 120 MB) download on first use from the Hugging Face hub into the browser cache; the backend serves no model files.
+- ext: narrative matching runs as a second `matchNarratives` message after exact and variant highlights are painted, only for blocks where neither the block nor any of its sentences got a result; an embedding failure leaves those highlights unchanged.
+- ext: block embeddings are cached in background memory by block content hash, up to 2000 entries.
+- ext: narrative matches are sent as detection hits; the backend records no observation for them but fetches the page for the narrative.
+- ext: a stored index without `narrativeVectors` is downloaded again in full.
+- ext: narrative matches get a 1px dotted underline in the verdict colour and the tooltip line "Same claim, different wording".
+- ext: `SignatureIndex` keeps narrative vectors as one Int8Array matrix with a norm per row instead of dequantized floats, for memory and speed.
+- data: the eval's narrative-level match flags only blocks against active narratives, as /lookup flags only active narratives.
+- data: the eval sweeps thresholds 0.70 to 0.95 in steps of 0.025 and reports `best_threshold`, the best known recall at a false-positive rate of at most 1%, the higher threshold on a tie.
+- data: the eval leaves out narrative candidates for blocks /lookup flagged through their block hash or any sentence hash.
+- data: the negatives are 313 reliable-outlet articles in nine languages; Reuters, AP, Le Monde, France 24 and LSM refuse anonymous fetches and are left out.
 
 ## Deferred
 
@@ -194,3 +219,15 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - ext: `client/lib/extensionSettings.ts` duplicates `client/lib/settings.ts`; with `Settings` widened, the two fold into one.
 - data: the spread page reads per-page `observation_daily`, which no migration creates; core's aggregates are per narrative and domain, so the page always buckets the raw table.
 - integrator: the cluster job runs `variants.boilerplate` over every unassigned prose fingerprint; its cost at full scale is unmeasured.
+- pipeline: a narrative whose claim cannot be embedded calls the fingerprint service again on every sweep.
+- pipeline: a changed claim text does not refresh the claim vector; only a missing one is computed.
+- ext: the embedding cache is lost when Chrome stops the service worker.
+- ext: narrative matching scans every narrative vector per block; a full EUvsDisinfo index of about 90k vectors is unmeasured in the browser.
+- ext: the popup's flagged list does not distinguish narrative matches from exact ones.
+- ext: real paraphrases of a claim scored cosine 0.59 to 0.69 against its claim embedding in a probe, under the 0.85 default threshold.
+- ext: onnxruntime-web's location is resolved through Node's require in `wxt.config.ts`; a nested onnxruntime-web version in transformers would make the copied files mismatch.
+- core: `test_delta` is flaky while the compose worker runs, because the index version is a cluster-wide snapshot xmin.
+- core: /check embeds every block in one fingerprint call, matched or short.
+- data: the 313 negatives are recent RSS items from one day, heavy on Russia/Ukraine news.
+- data: commit 336fff6 says ten languages; the negatives cover nine.
+- integrator: `NARRATIVE_MATCH_THRESHOLD` stays at 0.85 until a full evaluation picks `best_threshold`.

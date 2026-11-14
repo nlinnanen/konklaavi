@@ -1,5 +1,5 @@
 {
-  "name": "fingerprint-service",
+  "name": "hashtrust-fingerprint-service",
   "private": true,
   "version": "0.1.0",
   "type": "module",

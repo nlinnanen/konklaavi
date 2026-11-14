@@ -1,4 +1,4 @@
-import type { LookupBlock } from '@/lib/api';
+import { embeddable, type LookupBlock, type NarrativeBlock } from '@/lib/api';
 import { fingerprintSentences, hashNormalized, splitSentences, type Sentence } from '@/lib/fingerprint';
 import { callBackground } from '@/lib/messages';
 import { bands, minhash } from '@/lib/minhash';
@@ -19,16 +19,20 @@ interface ScannedBlock {
   sentences: ScannedSentence[];
   /** Content hash and LSH bands of the whole block; null when it has no sentence. */
   fingerprint: LookupBlock | null;
+  /** The normalized block text. */
+  normalized: string;
 }
 
 /** The block's content hash and bands, computed as the fingerprint service does for a block. */
-async function blockFingerprint(text: string, sentences: Sentence[]): Promise<LookupBlock | null> {
+async function blockFingerprint(normalized: string, sentences: Sentence[]): Promise<LookupBlock | null> {
   if (!sentences.length) return null;
   const { contentHash } = await fingerprintSentences(sentences);
-  return { hash: contentHash, bands: bands(minhash(normalizeText(text))) };
+  return { hash: contentHash, bands: bands(minhash(normalized)) };
 }
 
-const isVariant = (result: LookupResult) => result.signature?.matchLevel === 'variant';
+/** A match of the whole block: an edited copy, or the same claim in other words. */
+const isBlockLevel = (result: LookupResult) =>
+  result.signature?.matchLevel === 'variant' || result.signature?.matchLevel === 'narrative';
 
 /** Cap per scan pass so huge pages don't stall the tab. */
 const MAX_SENTENCES_PER_PASS = 5000;
@@ -41,6 +45,8 @@ export class PageScanner {
   private blocks = new Map<Element, ScannedBlock>();
   /** hash -> result, or null when the backend has no votes for it. */
   private results = new Map<string, LookupResult | null>();
+  /** Block hashes already matched against narratives. */
+  private narrativeChecked = new Set<string>();
   private observer?: MutationObserver;
   private dirty = new Set<Node>();
   private timer?: ReturnType<typeof setTimeout>;
@@ -73,14 +79,17 @@ export class PageScanner {
   /** Scan (or rescan) the blocks containing the given roots. Serialized so passes don't interleave. */
   scan(roots: Iterable<Node>, force = false): Promise<void> {
     const list = [...roots];
-    this.running = this.running.then(() => this.doScan(list, force)).catch((e) => console.warn('[trust-verifier] scan failed', e));
+    this.running = this.running.then(() => this.doScan(list, force)).catch((e) => console.warn('[hashtrust] scan failed', e));
     return this.running;
   }
 
   /** Forget cached results (e.g. after voting or switching backend) and rescan everything. */
   refresh(hashes?: string[]): Promise<void> {
     if (hashes) hashes.forEach((h) => this.results.delete(h));
-    else this.results.clear();
+    else {
+      this.results.clear();
+      this.narrativeChecked.clear();
+    }
     return this.scan([document.body], true);
   }
 
@@ -97,7 +106,8 @@ export class PageScanner {
         split.map(async (s) => ({ hash: await hashNormalized(s.normalized), start: s.start, end: s.end, text: s.text })),
       );
       budget -= sentences.length;
-      const scanned = { model, sentences, fingerprint: await blockFingerprint(model.text, split) };
+      const normalized = normalizeText(model.text);
+      const scanned = { model, sentences, normalized, fingerprint: await blockFingerprint(normalized, split) };
       this.blocks.set(block, scanned);
       touched.push(scanned);
     }
@@ -116,22 +126,55 @@ export class PageScanner {
     }
 
     for (const block of touched) this.highlighter.setBlock(block.model.block, this.flaggedRanges(block));
+    void this.matchNarratives(touched);
+  }
+
+  /**
+   * Matches the blocks that nothing matched exactly or as a variant against
+   * narratives. It runs after the exact and variant highlights are painted,
+   * since the first embedding waits for the model to download, and a failure
+   * leaves those highlights alone.
+   */
+  private async matchNarratives(touched: ScannedBlock[]) {
+    const pending = new Map<string, NarrativeBlock>();
+    for (const { fingerprint, sentences, normalized } of touched) {
+      if (!fingerprint || this.narrativeChecked.has(fingerprint.hash) || !embeddable(normalized)) continue;
+      if (this.results.get(fingerprint.hash) || sentences.some((s) => this.results.get(s.hash))) continue;
+      pending.set(fingerprint.hash, { hash: fingerprint.hash, text: normalized });
+    }
+    if (!pending.size) return;
+    for (const hash of pending.keys()) this.narrativeChecked.add(hash);
+    let found: LookupResult[];
+    try {
+      found = await callBackground('matchNarratives', [...pending.values()]);
+    } catch (e) {
+      console.warn('[hashtrust] narrative matching failed', e);
+      return;
+    }
+    if (!found.length) return;
+    found.forEach((r) => this.results.set(r.hash, r));
+    const matched = new Set(found.map((r) => r.hash));
+    for (const block of this.blocks.values()) {
+      if (block.fingerprint && matched.has(block.fingerprint.hash)) {
+        this.highlighter.setBlock(block.model.block, this.flaggedRanges(block));
+      }
+    }
   }
 
   /**
    * Exact sentence matches, or, when the block has none, the whole block if
-   * it matches a narrative as an edited copy.
+   * it matches a narrative as an edited copy or in other words.
    */
   private flaggedRanges({ model, sentences, fingerprint }: ScannedBlock): FlaggedRange[] {
     const flagged: FlaggedRange[] = [];
     for (const s of sentences) {
       const result = this.results.get(s.hash);
-      if (result?.flagged && !isVariant(result)) {
+      if (result?.flagged && !isBlockLevel(result)) {
         flagged.push({ range: rangeFor(model, s.start, s.end), text: s.text, result });
       }
     }
     const block = fingerprint && this.results.get(fingerprint.hash);
-    if (!flagged.length && block?.flagged && isVariant(block)) {
+    if (!flagged.length && block?.flagged && isBlockLevel(block)) {
       const start = sentences[0]!.start;
       const end = sentences.at(-1)!.end;
       flagged.push({ range: rangeFor(model, start, end), text: model.text.slice(start, end), result: block });
