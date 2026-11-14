@@ -106,6 +106,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: Testing is the minimum necessary: tests only for logic that would fail silently or that the demo depends on, and agents run only the test file they touch while iterating, with one full run before a commit.
 - integrator: Workstreams start in parallel against contracts and mocks; nothing waits on another workstream's branch. Stacks start with `docker compose up --wait` instead of polling loops.
 - integrator: No build or merge step runs a full-scale import or evaluation. Full-scale runs happen only as separate background jobs that nothing waits on, and their results are read when they finish.
+- integrator: Deployment is one Hostinger VPS set up once by hand, plus GitHub Actions that deploy every push to the `deploy` branch over SSH with a pinned host key; releasing is fast-forwarding `deploy` to a merged `integration` commit. No IaC.
 
 ## Deferred
 
