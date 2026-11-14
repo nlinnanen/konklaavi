@@ -1,11 +1,13 @@
 import { browser } from 'wxt/browser';
-import type { LookupBlock } from './api';
+import type { LookupBlock, NarrativeBlock } from './api';
 import type { DomainStats, LookupResult, Signature, Verdict, VoteInput } from './types';
 
 /** Requests handled by the background worker: [payload, response]. */
 export interface BackgroundApi {
   vote: [VoteInput, null];
   lookup: [{ hashes: string[]; blocks: LookupBlock[] }, LookupResult[]];
+  /** Narrative-level matches for blocks with no exact or variant match. */
+  matchNarratives: [NarrativeBlock[], LookupResult[]];
   domainStats: [string, DomainStats];
   clearMock: [null, null];
 }
@@ -25,6 +27,13 @@ export async function callBackground<K extends keyof BackgroundApi>(
   if (!res) throw new Error('No response from background worker');
   if (!res.ok) throw new Error(res.error);
   return res.data;
+}
+
+/** The background worker's request to the offscreen document, which embeds texts with the on-device model. */
+export interface EmbedRequest {
+  target: 'offscreen';
+  type: 'embed';
+  texts: string[];
 }
 
 /** Requests the popup sends to the content script in the active tab. */

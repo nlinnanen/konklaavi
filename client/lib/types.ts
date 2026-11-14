@@ -66,7 +66,7 @@ export interface Signature {
   source: 'euvsdisinfo' | 'report' | 'cluster';
   sourceUrl: string | null;
   state: 'under_review' | 'active';
-  matchLevel: 'exact' | 'variant';
+  matchLevel: 'exact' | 'variant' | 'narrative';
 }
 
 /** A signature as GET /index ships it; the match level is the client's to set. */
@@ -76,6 +76,12 @@ export type IndexSignature = Omit<Signature, 'matchLevel'>;
 export interface IndexFingerprint {
   narrativeId: string;
   bands: (string | null)[];
+}
+
+/** A narrative's representative unit vectors, each 384 int8 values round(v * 127), base64-encoded. */
+export interface NarrativeVectors {
+  narrativeId: string;
+  vectors: string[];
 }
 
 /**
@@ -90,6 +96,9 @@ export interface IndexResponse {
   signatures: IndexSignature[];
   sentences: { hash: string; narrativeId: string }[];
   fingerprints: IndexFingerprint[];
+  /** Cosine at or above which a block matches a narrative's vectors. */
+  narrativeThreshold: number;
+  narrativeVectors: NarrativeVectors[];
   removed: string[];
 }
 

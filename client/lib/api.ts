@@ -1,4 +1,5 @@
 import { emptyCounts, summarize } from './aggregate';
+import { EMBEDDING_DIM, type Embedder } from './embed';
 import { hashNormalized } from './fingerprint';
 import { normalizeText } from './normalize';
 import {
@@ -9,6 +10,7 @@ import {
   type IndexSignature,
   type LookupBlock,
   type LookupResult,
+  type NarrativeVectors,
   type Signature,
   type VoteRequest,
 } from './types';
@@ -20,10 +22,25 @@ export interface TrustApi {
   submitVote(vote: VoteRequest): Promise<void>;
   /** Results for sentence hashes (exact matches) and for block hashes (variant matches). */
   lookup(hashes: string[], blocks?: LookupBlock[]): Promise<LookupResult[]>;
+  /** Narrative-level results for blocks, embedded on the device; only backends that keep text local have it. */
+  matchNarratives?(blocks: NarrativeBlock[]): Promise<LookupResult[]>;
   domainStats(domain: string): Promise<DomainStats>;
 }
 
 export const MAX_LOOKUP_BATCH = 500;
+
+/** A block offered for narrative matching: its content hash and normalized text. */
+export interface NarrativeBlock {
+  hash: string;
+  text: string;
+}
+
+/** Only blocks of at least this many words are embedded. */
+export const NARRATIVE_MIN_WORDS = 8;
+
+export function embeddable(text: string): boolean {
+  return text.split(/\s+/).filter(Boolean).length >= NARRATIVE_MIN_WORDS;
+}
 
 export function validateVote(vote: VoteRequest): void {
   if (!VERDICTS.includes(vote.verdict)) throw new Error(`Invalid verdict: ${vote.verdict}`);
@@ -95,8 +112,10 @@ export type IndexSnapshot = Omit<IndexResponse, 'full' | 'removed'>;
 
 /** The snapshot after `update`: a full index replaces it, a delta replaces the entries of the narratives it names. */
 export function applyIndexUpdate(snapshot: IndexSnapshot | undefined, update: IndexResponse): IndexSnapshot {
-  const { version, signatures, sentences, fingerprints } = update;
-  if (update.full || !snapshot) return { version, signatures, sentences, fingerprints };
+  const { version, signatures, sentences, fingerprints, narrativeThreshold, narrativeVectors } = update;
+  if (update.full || !snapshot) {
+    return { version, signatures, sentences, fingerprints, narrativeThreshold, narrativeVectors };
+  }
   const changed = new Set([...update.removed, ...signatures.map((s) => s.narrativeId)]);
   const kept = <T extends { narrativeId: string }>(list: T[]) => list.filter((e) => !changed.has(e.narrativeId));
   return {
@@ -104,6 +123,33 @@ export function applyIndexUpdate(snapshot: IndexSnapshot | undefined, update: In
     signatures: [...kept(snapshot.signatures), ...signatures],
     sentences: [...kept(snapshot.sentences), ...sentences],
     fingerprints: [...kept(snapshot.fingerprints), ...fingerprints],
+    narrativeThreshold,
+    narrativeVectors: [...kept(snapshot.narrativeVectors), ...narrativeVectors],
+  };
+}
+
+/** The 384 int8 values of a base64-encoded narrative vector. */
+function decodeVector(base64: string): Int8Array {
+  return Int8Array.from(atob(base64), (c) => (c.charCodeAt(0) << 24) >> 24);
+}
+
+/** Narrative vectors as rows of one int8 matrix, with each row's narrative and length. */
+interface VectorTable {
+  narrativeIds: string[];
+  rows: Int8Array;
+  norms: Float32Array;
+}
+
+function vectorTable(entries: NarrativeVectors[]): VectorTable {
+  const decoded = entries.flatMap(({ narrativeId, vectors }) =>
+    vectors.map((v) => ({ narrativeId, row: decodeVector(v) })).filter((d) => d.row.length === EMBEDDING_DIM),
+  );
+  const rows = new Int8Array(decoded.length * EMBEDDING_DIM);
+  decoded.forEach((d, i) => rows.set(d.row, i * EMBEDDING_DIM));
+  return {
+    narrativeIds: decoded.map((d) => d.narrativeId),
+    rows,
+    norms: Float32Array.from(decoded, (d) => Math.hypot(...d.row)),
   };
 }
 
@@ -137,8 +183,9 @@ export class SignatureIndex {
   /** `${band index}:${hash}` to the positions in `fingerprints` that carry it. */
   private bands = new Map<string, number[]>();
   private fingerprints: IndexSnapshot['fingerprints'];
+  private vectors?: VectorTable;
 
-  constructor(snapshot: IndexSnapshot) {
+  constructor(private snapshot: IndexSnapshot) {
     this.signatures = new Map(snapshot.signatures.map((s) => [s.narrativeId, s]));
     this.fingerprints = snapshot.fingerprints;
     const add = <T>(m: Map<string, T[]>, key: string, value: T) => m.set(key, [...(m.get(key) ?? []), value]);
@@ -179,7 +226,35 @@ export class SignatureIndex {
     }
     return [...out.values()];
   }
+
+  get hasNarrativeVectors(): boolean {
+    return this.snapshot.narrativeVectors.length > 0;
+  }
+
+  /** A block matches a narrative when its cosine to one of the narrative's vectors reaches the index's threshold. */
+  matchNarratives(blocks: { hash: string; vector: number[] }[]): LookupResult[] {
+    this.vectors ??= vectorTable(this.snapshot.narrativeVectors);
+    const { narrativeIds, rows, norms } = this.vectors;
+    const out: LookupResult[] = [];
+    for (const { hash, vector } of blocks) {
+      const length = Math.hypot(...vector);
+      const best = new Map<string, number>();
+      for (let r = 0; r < narrativeIds.length; r++) {
+        let dot = 0;
+        for (let k = 0, base = r * EMBEDDING_DIM; k < EMBEDDING_DIM; k++) dot += vector[k]! * rows[base + k]!;
+        const cosine = dot / (length * norms[r]!);
+        const id = narrativeIds[r]!;
+        if (cosine >= this.snapshot.narrativeThreshold && cosine > (best.get(id) ?? -1)) best.set(id, cosine);
+      }
+      const signature = pick(best, this.signatures);
+      if (signature) out.push(indexResult(hash, signature, 'narrative'));
+    }
+    return out;
+  }
 }
+
+/** Embeddings kept per block content hash, so a block seen again is not embedded again. */
+const MAX_CACHED_EMBEDDINGS = 2000;
 
 /** How old a downloaded index gets before a lookup triggers a delta download. */
 export const INDEX_REFRESH_MS = 5 * 60_000;
@@ -200,11 +275,13 @@ export class LocalIndexApi implements TrustApi {
   private stored?: StoredIndex;
   private index?: SignatureIndex;
   private refreshing?: Promise<void>;
+  private embeddings = new Map<string, number[]>();
 
   constructor(
     readonly baseUrl: string,
     private store: KeyValueStore,
     private now: () => number = Date.now,
+    private embed?: Embedder,
   ) {
     this.remote = new RemoteApi(baseUrl);
   }
@@ -217,18 +294,47 @@ export class LocalIndexApi implements TrustApi {
     return this.remote.domainStats(domain);
   }
 
-  /** Waits for the first download; an index older than INDEX_REFRESH_MS answers while a delta downloads. */
   async lookup(hashes: string[], blocks: LookupBlock[] = []): Promise<LookupResult[]> {
+    return (await this.ready()).lookup(hashes, blocks);
+  }
+
+  /** Embeds the blocks of 8+ words and matches them against the narrative vectors. */
+  async matchNarratives(blocks: NarrativeBlock[]): Promise<LookupResult[]> {
+    const index = await this.ready();
+    const wanted = blocks.filter((b) => embeddable(b.text));
+    if (!this.embed || !wanted.length || !index.hasNarrativeVectors) return [];
+    const vectors = await this.embedCached(wanted, this.embed);
+    return index.matchNarratives(wanted.map((b, i) => ({ hash: b.hash, vector: vectors[i]! })));
+  }
+
+  private async embedCached(blocks: NarrativeBlock[], embed: Embedder): Promise<number[][]> {
+    const missing = [...new Map(blocks.filter((b) => !this.embeddings.has(b.hash)).map((b) => [b.hash, b.text]))];
+    const fresh = new Map<string, number[]>();
+    if (missing.length) {
+      const vectors = await embed(missing.map(([, text]) => text));
+      missing.forEach(([hash], i) => fresh.set(hash, vectors[i]!));
+    }
+    const out = blocks.map((b) => fresh.get(b.hash) ?? this.embeddings.get(b.hash)!);
+    for (const [hash, vector] of fresh) this.embeddings.set(hash, vector);
+    for (const hash of this.embeddings.keys()) {
+      if (this.embeddings.size <= MAX_CACHED_EMBEDDINGS) break;
+      this.embeddings.delete(hash);
+    }
+    return out;
+  }
+
+  /** Waits for the first download; an index older than INDEX_REFRESH_MS answers while a delta downloads. */
+  private async ready(): Promise<SignatureIndex> {
     if (!this.stored) {
       const stored = await this.store.get<StoredIndex>(INDEX_KEY);
-      if (stored?.baseUrl === this.baseUrl && stored.snapshot.fingerprints) this.stored = stored;
+      if (stored?.baseUrl === this.baseUrl && stored.snapshot.narrativeVectors) this.stored = stored;
     }
     if (!this.stored) await this.refresh();
     else if (this.now() - this.stored.checkedAt >= INDEX_REFRESH_MS) {
       this.refresh().catch((e) => console.warn('[trust-verifier] index refresh failed', e));
     }
     this.index ??= new SignatureIndex(this.stored!.snapshot);
-    return this.index.lookup(hashes, blocks);
+    return this.index;
   }
 
   /** Downloads the full index, or the delta since the stored version. Concurrent calls share one download. */
