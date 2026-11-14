@@ -11,7 +11,7 @@ from psycopg import Connection
 
 from app import fpclient
 from app.jobs import enqueue, register
-from app.jobs.variants import boilerplate, near_duplicates, update_centroids
+from app.jobs.variants import boilerplate, narrative_text, near_duplicates, update_centroids
 
 # A common desktop browser string: some sites refuse unknown clients, and nothing here identifies a user.
 USER_AGENT = (
@@ -180,12 +180,6 @@ def relevant(blocks: list[tuple[int, list[float]]], narrative_embedding: list[fl
     ]
 
 
-def narrative_text(conn: Connection, narrative_id: int) -> str | None:
-    """The narrative's title and claim, or None when there is no such narrative."""
-    row = conn.execute("SELECT title, claim FROM narrative WHERE id = %s", (narrative_id,)).fetchone()
-    return None if row is None else "\n".join(part for part in row if part)
-
-
 def attach_to_narrative(conn: Connection, narrative_id: int, fingerprint_ids: list[int]) -> None:
     """Put the fingerprints that have no variant yet into one new variant of the narrative."""
     unassigned = [
@@ -256,6 +250,35 @@ def fetched_recently(conn: Connection, url: str) -> bool:
     )
 
 
+def ingest(
+    conn: Connection, page_id: int, article: Article, narrative_id: int | None, text: str | None
+) -> set[int]:
+    """Store the article's blocks and attach the relevant ones; return the narratives whose blocks changed."""
+    # The narrative's title and claim ride along as one extra block, embedded in the same call.
+    extra = [text] if narrative_id is not None else []
+    result = fpclient.fingerprint(article.blocks + extra, embed=True)["blocks"]
+    stored = store_fingerprints(conn, page_id, article.blocks, result[: len(article.blocks)])
+    if not stored:
+        return set()
+    ids = [s.id for s in stored]
+
+    # Near-duplicates on other pages may have become boilerplate through this page.
+    changed = detach(conn, boilerplate(conn, near_duplicates(conn, ids)))
+    narrative_embedding = result[-1]["embedding"] if extra else None
+    if narrative_embedding is not None:
+        attach_relevant(conn, narrative_id, ids, narrative_embedding)
+        changed.add(narrative_id)
+    elif narrative_id is not None:
+        log.warning("narrative %s has no sentence to embed; nothing attached", narrative_id)
+    repick(conn, changed)
+    update_centroids(conn, changed)
+
+    new = [s.id for s in stored if s.new]
+    if new:
+        enqueue(conn, "match_variants", {"fingerprint_ids": new})
+    return changed
+
+
 @register("fetch")
 def handle(conn: Connection, payload: dict) -> None:
     url = payload["url"]
@@ -277,27 +300,9 @@ def handle(conn: Connection, payload: dict) -> None:
             "INSERT INTO narrative_page (narrative_id, page_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
             (narrative_id, page_id),
         )
-    if article is None:
-        return
-    # The narrative's title and claim ride along as one extra block, embedded in the same call.
-    extra = [text] if narrative_id is not None else []
-    result = fpclient.fingerprint(article.blocks + extra, embed=True)["blocks"]
-    stored = store_fingerprints(conn, page_id, article.blocks, result[: len(article.blocks)])
-    if not stored:
-        return
-    ids = [s.id for s in stored]
-
-    # Near-duplicates on other pages may have become boilerplate through this page.
-    changed = detach(conn, boilerplate(conn, near_duplicates(conn, ids)))
-    narrative_embedding = result[-1]["embedding"] if extra else None
-    if narrative_embedding is not None:
-        attach_relevant(conn, narrative_id, ids, narrative_embedding)
+    changed = ingest(conn, page_id, article, narrative_id, text) if article is not None else set()
+    # The payload's narrative gets its claim vector even when its page failed.
+    if narrative_id is not None:
         changed.add(narrative_id)
-    elif narrative_id is not None:
-        log.warning("narrative %s has no sentence to embed; nothing attached", narrative_id)
-    repick(conn, changed)
-    update_centroids(conn, changed)
-
-    new = [s.id for s in stored if s.new]
-    if new:
-        enqueue(conn, "match_variants", {"fingerprint_ids": new})
+    if changed:
+        enqueue(conn, "narrative_vectors", {"narrative_ids": sorted(changed)})
