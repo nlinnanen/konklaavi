@@ -4,9 +4,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.main import app
-from app.eval import run
-from app.eval.metrics import Match, Page, best_threshold, metrics, report, sweep
-from app.seed.euvsdisinfo import import_cases, load_cases, split_urls
+from app.eval.benchmark import run
+from app.eval.benchmark.cases import import_cases, load_cases, split_urls
+from app.eval.benchmark.metrics import Match, Page, best_threshold, metrics, report, sweep
 
 FIXTURE = Path(__file__).parent / "fixtures" / "euvsdisinfo.jsonl"
 
@@ -110,10 +110,10 @@ def insert(conn, sql, *params):
 
 @pytest.fixture
 def fetched_page(conn):
-    """A fetched page with a block of two sentences in an active narrative and a clean block."""
+    """A fetched page with a block of two sentences in a note narrative and a clean block."""
     narrative = insert(
         conn,
-        "INSERT INTO narrative (title, source, state) VALUES ('Sanctions backfire', 'euvsdisinfo', 'active')",
+        "INSERT INTO narrative (title, source, state) VALUES ('Sanctions backfire', 'note', 'active')",
     )
     variant = insert(conn, "INSERT INTO variant (narrative_id) VALUES (%s)", narrative)
     domain = insert(conn, "INSERT INTO domain (name) VALUES ('news.example')")
@@ -215,7 +215,7 @@ def test_a_page_repeating_most_of_a_held_out_page_on_another_domain_is_its_mirro
 
 
 def test_a_miss_names_the_case_narrative_without_blocks(conn):
-    narrative = insert(conn, "INSERT INTO narrative (title, source) VALUES ('Empty', 'euvsdisinfo')")
+    narrative = insert(conn, "INSERT INTO narrative (title, source) VALUES ('Empty', 'note')")
     add_page(conn, "https://a.example/held", ARTICLE)
 
     reason = run.miss_reason(conn, "https://a.example/held", str(narrative))
@@ -224,7 +224,7 @@ def test_a_miss_names_the_case_narrative_without_blocks(conn):
 
 
 def test_a_miss_reports_the_closest_block_to_the_case_narrative(conn):
-    narrative = insert(conn, "INSERT INTO narrative (title, source) VALUES ('Claim', 'euvsdisinfo')")
+    narrative = insert(conn, "INSERT INTO narrative (title, source) VALUES ('Claim', 'note')")
     variant = insert(conn, "INSERT INTO variant (narrative_id) VALUES (%s)", narrative)
     page = add_page(conn, "https://a.example/held", ARTICLE)
     unit = [1.0] + [0.0] * 383

@@ -1,17 +1,18 @@
-"""Evaluate page-level detection against EUvsDisinfo article URLs and reliable-outlet negatives.
+"""Measure narrative recognition against EUvsDisinfo article URLs and reliable-outlet negatives.
 
-python -m app.eval [--api URL] [--timeout SECONDS]
+python -m app.eval.benchmark run [--timeout SECONDS] [--out PATH]
 
 Known narratives: the URLs each seed case held out of the import, and mirrors of their text on other
 domains. Unseen narratives: the URLs of the test cases, which were held out whole, so nothing was seeded
 for them and low recall is expected.
 
-Narrative-level matching flags a block of MIN_WORDS or more words, with no exact or variant match, whose
-cosine to one of an active narrative's vectors reaches a threshold. The evaluation sweeps THRESHOLDS and
+A page is recognised when /lookup matches one of its blocks or sentences to a narrative. Narrative-level
+matching recognises a block of MIN_WORDS or more words, with no exact or variant match, whose cosine to one
+of a narrative's vectors reaches a threshold. The evaluation sweeps THRESHOLDS and
 picks the one with the best known recall within MAX_FALSE_POSITIVE_RATE on the negatives.
 
-Fetches go through the worker's fetch job, so the worker must be running. Lookups go to the API at
---api, or to the API app in-process.
+Fetches go through the fetch job, so a worker on the benchmark database must be running. Lookups go to
+the API app in-process, which uses the benchmark database too.
 """
 
 import argparse
@@ -29,16 +30,18 @@ from fastapi.testclient import TestClient
 from psycopg import Connection
 
 from app.api.main import app
+from app.config import settings
 from app.db import connection
-from app.eval.metrics import Match, Page, at_threshold, best_threshold, entry, report, sweep
+from app.eval.benchmark.cases import is_test_case, load_cases, split_urls
+from app.eval.benchmark.database import require_benchmark_database
+from app.eval.benchmark.metrics import Match, Page, at_threshold, best_threshold, entry, report, sweep
 from app.jobs import enqueue
 from app.jobs.cluster import is_chrome
-from app.migrate import migrate
-from app.seed.euvsdisinfo import is_test_case, load_cases, split_urls
 
 HERE = Path(__file__).resolve().parent
-NEGATIVES_FILE = HERE / "negatives.txt"
-RESULTS_FILE = HERE / "results" / "latest.json"
+# Shared with app/reliable.py.
+NEGATIVES_FILE = HERE.parent / "negatives.txt"
+RESULTS_FILE = HERE.parent / "results" / "latest.json"
 MAX_LOOKUP_HASHES = 500
 MATCH_TEXT_CHARS = 300
 POLL_SECONDS = 5
@@ -75,7 +78,7 @@ def label_urls(conn: Connection, cases: list[dict]) -> Labels:
 
     A URL fetched as a seed, by any case, is in the knowledge base and is evaluated in neither set.
     """
-    narratives = dict(conn.execute("SELECT source_url, id FROM narrative WHERE source = 'euvsdisinfo'"))
+    narratives = dict(conn.execute("SELECT source_url, id FROM narrative WHERE source = 'note'"))
     imported = [c for c in cases if not is_test_case(c["id"]) and c["url"] in narratives]
     seeded = {url for case in imported for url in split_urls(case)[0]}
     seeded |= {
@@ -252,7 +255,7 @@ def lookup_requests(blocks: list[dict]) -> Iterator[dict]:
 
 
 def page_matches(client: httpx.Client, blocks: list[dict]) -> tuple[list[Match], set[str]]:
-    """One match per flagged block and narrative, carrying the block's text, and the flagged blocks' hashes."""
+    """One match per matched block and narrative, carrying the block's text, and the matched blocks' hashes."""
     block_of = {block["hash"]: block for block in blocks}
     block_of.update({h: block for block in blocks for h in block["sentences"]})
     matches = []
@@ -261,16 +264,16 @@ def page_matches(client: httpx.Client, blocks: list[dict]) -> tuple[list[Match],
         response = client.post("/lookup", json=body)
         response.raise_for_status()
         for result in response.json()["results"]:
-            if not result["flagged"]:
+            narrative = result.get("narrative")
+            if not narrative:
                 continue
             block = block_of[result["hash"]]
             flagged.add(block["hash"])
-            signature = result.get("signature") or {}
             matches.append(
                 Match(
                     text=block["content"][:MATCH_TEXT_CHARS],
-                    narrative_id=signature.get("narrativeId"),
-                    narrative=signature.get("title"),
+                    narrative_id=narrative["narrativeId"],
+                    narrative=narrative["title"],
                 )
             )
     return list(dict.fromkeys(matches)), flagged
@@ -283,12 +286,12 @@ class NarrativeVectors:
 
 
 def narrative_vectors(conn: Connection) -> NarrativeVectors:
-    """The vectors of the active narratives."""
+    """The vectors of the narratives /index ships."""
     rows = conn.execute(
         """
         SELECT n.id, n.title, nv.embedding::real[]
         FROM narrative_vector nv JOIN narrative n ON n.id = nv.narrative_id
-        WHERE n.state = 'active'
+        WHERE n.source = 'note'
         """
     ).fetchall()
     return NarrativeVectors(
@@ -328,7 +331,6 @@ def page_status(conn: Connection, url: str) -> str:
 
 
 def evaluate(client: httpx.Client, timeout: float) -> dict:
-    migrate()
     with connection() as conn:
         labels = label_urls(conn, load_cases())
         narratives = narrative_vectors(conn)
@@ -457,7 +459,7 @@ def print_table(results: dict) -> None:
     for page in neg["false_positives"]:
         print(f"\nfalse positive: {page['url']}")
         for match in page["matches"]:
-            print(f"  [{match['narrative'] or 'votes'}] {match['text']}")
+            print(f"  [{match['narrative']}] {match['text']}")
     for page in known["false_negatives"]:
         print(f"\nfalse negative: {page['url']}\n  {page['reason']}")
     print_sweep(results["narrative"])
@@ -465,7 +467,7 @@ def print_table(results: dict) -> None:
 
 def print_sweep(section: dict) -> None:
     print(
-        f"\nNarrative-level matching: {section['vectors']} vectors of {section['narratives']} active"
+        f"\nNarrative-level matching: {section['vectors']} vectors of {section['narratives']}"
         f" narratives, blocks of {section['min_words']}+ words"
     )
     print(f"{'threshold':>10}{'FPR':>8}{'known P':>10}{'known R':>10}{'unseen P':>10}{'unseen R':>10}")
@@ -486,17 +488,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--api", help="base URL of a running API; the API app runs in-process without it")
     parser.add_argument("--timeout", type=float, default=1800, help="seconds to wait for fetch jobs")
     parser.add_argument("--out", type=Path, default=RESULTS_FILE, help="where to write the JSON results")
     args = parser.parse_args()
+    require_benchmark_database(settings.database_url)
     logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s %(message)s")
     log.setLevel(logging.INFO)
-    if args.api:
-        client = httpx.Client(base_url=args.api, timeout=60)
-    else:
-        client = TestClient(app)
-    with client:
+    with TestClient(app) as client:
         results = evaluate(client, args.timeout)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n")

@@ -1,4 +1,5 @@
-"""Page-level detection metrics. A page counts as flagged when any of its blocks or sentences is."""
+"""Page-level recognition metrics. A page counts as flagged when any of its blocks or sentences matches a
+narrative."""
 
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field, replace
@@ -6,9 +7,9 @@ from dataclasses import asdict, dataclass, field, replace
 
 @dataclass(frozen=True)
 class Match:
-    text: str  # the block holding the flagged hash
-    narrative_id: str | None  # None when votes alone flag it
-    narrative: str | None
+    text: str  # the block holding the matched hash
+    narrative_id: str
+    narrative: str
     cosine: float | None = None  # a narrative-level match's cosine to the narrative's closest vector
 
 

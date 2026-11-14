@@ -1,6 +1,9 @@
 from pathlib import Path
 
-from app.seed.euvsdisinfo import import_cases, is_test_case, load_cases, split_urls
+import pytest
+
+from app.eval.benchmark.cases import import_cases, is_test_case, load_cases, split_urls
+from app.eval.benchmark.database import use_benchmark_database
 
 FIXTURE = Path(__file__).parent / "fixtures" / "euvsdisinfo.jsonl"
 
@@ -21,21 +24,15 @@ def test_seed_cases_become_narratives_with_fetch_jobs(conn):
     import_cases(conn, cases)
 
     narratives = {
-        row[4]: row
-        for row in conn.execute(
-            "SELECT id, title, claim, explanation, source_url, source, state, verdict FROM narrative"
-        )
+        row[3]: row for row in conn.execute("SELECT id, title, claim, source_url, source FROM narrative")
     }
     assert set(narratives) == {c["url"] for c in seed}
     case = seed[0]
     assert narratives[case["url"]][1:] == (
         case["title"],
         case["summary"],
-        case["disproof"],
         case["url"],
-        "euvsdisinfo",
-        "active",
-        "misinformation",
+        "note",
     )
     jobs = conn.execute("SELECT kind, payload FROM job").fetchall()
     assert all(kind == "fetch" for kind, _ in jobs)
@@ -80,3 +77,33 @@ def test_a_third_of_the_urls_rounded_up_is_held_out_whatever_their_order():
     assert len(held_out) == 2
     assert sorted(seed + held_out) == urls
     assert sorted(held_out_reversed) == sorted(held_out)
+
+
+PRODUCT = "postgresql://postgres:postgres@db:5432/postgres"
+BENCHMARK = "postgresql://postgres:postgres@db:5432/benchmark"
+
+
+def test_the_benchmark_points_the_app_at_its_own_database():
+    environ = {"DATABASE_URL": PRODUCT, "BENCHMARK_DATABASE_URL": BENCHMARK}
+
+    use_benchmark_database(environ)
+
+    assert environ["DATABASE_URL"] == BENCHMARK
+
+
+@pytest.mark.parametrize(
+    "environ",
+    [
+        {"DATABASE_URL": PRODUCT},
+        {"DATABASE_URL": PRODUCT, "BENCHMARK_DATABASE_URL": PRODUCT.replace("@db:", "@localhost:")},
+        {"BENCHMARK_DATABASE_URL": "postgresql://postgres:postgres@localhost:5436/postgres"},
+    ],
+    ids=["unset", "same database", "product default"],
+)
+def test_the_benchmark_refuses_the_product_database(environ):
+    product = environ.get("DATABASE_URL")
+
+    with pytest.raises(SystemExit):
+        use_benchmark_database(environ)
+
+    assert environ.get("DATABASE_URL") == product

@@ -43,7 +43,7 @@ def add_group(conn, points, title):
 
 def add_narrative(conn, embeddings):
     narrative_id = conn.execute(
-        "INSERT INTO narrative (title, source, state) VALUES ('Known', 'euvsdisinfo', 'active') RETURNING id"
+        "INSERT INTO narrative (title, source, state) VALUES ('Known', 'note', 'active') RETURNING id"
     ).fetchone()[0]
     variant_id = conn.execute(
         "INSERT INTO variant (narrative_id) VALUES (%s) RETURNING id", (narrative_id,)
