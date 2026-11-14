@@ -28,13 +28,35 @@ st.caption(
 )
 
 # The dashboard signs in like an extension install: a random install id linked to an account by email and password.
-if "install" not in st.session_state:
-    st.session_state.install = str(uuid.uuid4())
-user_id = st.text_input(
+# The id lives in session state across page switches and in the URL across reloads.
+if "install_id" not in st.session_state:
+    requested = st.query_params.get("install", "")
+    try:
+        st.session_state.install_id = str(uuid.UUID(requested))
+    except ValueError:
+        st.session_state.install_id = str(uuid.uuid4())
+st.query_params["install"] = st.session_state.install_id
+
+
+def use_install() -> None:
+    st.session_state.install_id = st.session_state.install_field.strip()
+
+
+def sign_out() -> None:
+    httpx.post(f"{API_URL}/auth/logout", json={"userId": st.session_state.install_id}, timeout=30)
+    me.clear()
+    st.session_state.install_id = str(uuid.uuid4())
+    st.session_state.pop("install_field", None)
+
+
+st.session_state.setdefault("install_field", st.session_state.install_id)
+st.text_input(
     "Install id",
-    key="install",
+    key="install_field",
+    on_change=use_install,
     help="This browser session's id, or the userId of an extension install already signed in",
 )
+user_id = st.session_state.install_id
 
 try:
     profile = me(user_id)
@@ -62,7 +84,9 @@ if not profile.get("verified"):
                 st.error(f"The API answered {response.status_code}: {response.text}")
     st.stop()
 
-st.success(f"Signed in as {profile['email']}, reputation {profile.get('reputation', 0):.2f}")
+signed_in, leave = st.columns([6, 1])
+signed_in.success(f"Signed in as {profile['email']}, reputation {profile.get('reputation', 0):.2f}")
+leave.button("Sign out", on_click=sign_out)
 
 queue = query(MODERATION_QUEUE)
 st.subheader(f"Queue ({len(queue)})")

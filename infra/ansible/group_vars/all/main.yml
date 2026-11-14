@@ -52,7 +52,7 @@ hostinger_router_key: "{{ vault_hostinger_router_key | default('') }}"
 anthropic_base_url: "https://router.hostinger.com/v1"
 moderation_model: ""
 # Comma-separated emails of moderators; accounts above moderator_reputation moderate too.
-moderator_emails: "rvirtaha@gmail.com"
+moderator_emails: "rvirtaha@gmail.com,test@test.test,mikael@a.com,hashtrust@linnanen.fi"
 moderator_reputation: ""
 note_min_ratings: "2"
 narrative_match_threshold: ""
