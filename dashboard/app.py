@@ -8,6 +8,7 @@ st.navigation(
         st.Page("spread.py", title="Spread"),
         st.Page("check.py", title="Check text"),
         st.Page("crowd.py", title="Crowd"),
+        st.Page("feedback.py", title="Feedback"),
         st.Page("evaluation.py", title="Evaluation"),
     ]
 ).run()

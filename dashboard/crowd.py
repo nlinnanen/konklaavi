@@ -1,22 +1,14 @@
 import json
 
-import httpx
 import pandas as pd
 import streamlit as st
 
-from common import API_URL, SIMULATION, query
+from common import SIMULATION, me, query
 from queries import REPORTERS, SETTLEMENTS
 
 # Reputation comes from GET /me, one call per reporter, so the page ranks only the most active ones.
 CANDIDATES = 25
 SETTLEMENT_ROWS = 50
-
-
-@st.cache_data(ttl=10)
-def me(user_id: str) -> dict:
-    response = httpx.get(f"{API_URL}/me", params={"userId": user_id}, timeout=10)
-    response.raise_for_status()
-    return response.json()
 
 
 def name(profile: dict) -> str:
