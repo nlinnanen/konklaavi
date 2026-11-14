@@ -20,8 +20,10 @@ UA = (
 )
 # Consent buttons, in the languages of the sites we demo on.
 CONSENT = re.compile(
-    r"^\s*(hyväksy( kaikki)?|salli( kaikki)?|accept( all| all cookies| cookies)?|agree|i agree|"
-    r"allow all|got it|ok|godkänn( alla)?|tillåt alla|akzeptieren|alle akzeptieren|zustimmen)\s*$",
+    r"^\s*(hyväksy( kaikki)?( evästeet)?|hyväksyn|salli( kaikki)?( evästeet)?|"
+    r"accept( all| all cookies| cookies| and continue| & continue)?|agree( and close| & close)?|i agree|"
+    r"yes,? i.m happy|allow all( cookies)?|got it|ok|godkänn( alla)?|tillåt alla|akzeptieren|"
+    r"alle akzeptieren|zustimmen)\s*$",
     re.IGNORECASE,
 )
 # Buttons that reveal more comments or replies.
@@ -36,6 +38,22 @@ EXPAND = re.compile(
 # ancestor of each visible text node, so inline markup (links, emphasis) stays inside its sentence.
 SNAPSHOT_JS = r"""
 () => {
+  // Without scripts, <noscript> fallbacks ("this site requires JavaScript") would show.
+  for (const el of document.querySelectorAll('noscript')) el.remove();
+  // Consent managers whose dialog was not dismissed: their iframe is dropped, but the container
+  // would still cover the page and block clicks.
+  const CMP = '[id^=sp_message_container],#onetrust-consent-sdk,#usercentrics-root,#didomi-host,' +
+    '#CybotCookiebotDialog,#qc-cmp2-container,.fc-consent-root,#cmpbox,#cmpbox2,.cmp-root,#truste-consent-track';
+  for (const el of document.querySelectorAll(CMP)) el.remove();
+  // A modal or the consent dialog may have locked scrolling.
+  for (const el of [document.documentElement, document.body]) {
+    if (getComputedStyle(el).overflowY === 'hidden') el.style.setProperty('overflow-y', 'auto', 'important');
+  }
+  // Empty ad slots leave large blank boxes.
+  const AD = /(^|[\s_-])(ad|ads|advert|advertisement|ad-slot|adslot|ad-container|banner-ad)([\s_-]|$)/i;
+  for (const el of document.querySelectorAll('[class*=ad i],[id*=ad i]')) {
+    if ((AD.test(el.className?.baseVal ?? el.className) || AD.test(el.id)) && (el.textContent || '').trim().length < 40 && !el.querySelector('article,p')) el.remove();
+  }
   for (const img of document.querySelectorAll('img')) {
     if (img.currentSrc) img.setAttribute('src', img.currentSrc);
     img.removeAttribute('loading');
@@ -59,7 +77,10 @@ SNAPSHOT_JS = r"""
     let b = el;
     while (b && b !== document.body && !blockOf.has(b)) {
       chain.push(b);
-      if (!INLINE.has(getComputedStyle(b).display)) break;
+      const cs = getComputedStyle(b);
+      // A floated drop cap ("I" of "In 4 July") belongs to its paragraph.
+      const dropCap = cs.float !== 'none' && b.textContent.trim().length <= 2;
+      if (!INLINE.has(cs.display) && !dropCap) break;
       b = b.parentElement;
     }
     const block = blockOf.has(b) ? blockOf.get(b) : b;
