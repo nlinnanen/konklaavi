@@ -1,10 +1,11 @@
 import { browser } from 'wxt/browser';
+import type { LookupBlock } from './api';
 import type { DomainStats, LookupResult, Signature, Verdict, VoteInput } from './types';
 
 /** Requests handled by the background worker: [payload, response]. */
 export interface BackgroundApi {
   vote: [VoteInput, null];
-  lookup: [string[], LookupResult[]];
+  lookup: [{ hashes: string[]; blocks: LookupBlock[] }, LookupResult[]];
   domainStats: [string, DomainStats];
   clearMock: [null, null];
 }

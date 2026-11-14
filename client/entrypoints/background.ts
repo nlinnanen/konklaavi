@@ -41,7 +41,7 @@ async function handle(msg: BackgroundRequest): Promise<unknown> {
       return null;
     }
     case 'lookup':
-      return api.lookup(msg.payload);
+      return api.lookup(msg.payload.hashes, msg.payload.blocks);
     case 'domainStats':
       return api.domainStats(msg.payload);
     case 'clearMock':

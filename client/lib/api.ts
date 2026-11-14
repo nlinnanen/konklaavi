@@ -3,10 +3,17 @@ import { hashNormalized } from './fingerprint';
 import { normalizeText } from './normalize';
 import { VERDICTS, type DomainStats, type LookupResult, type Signature, type VoteRequest } from './types';
 
-/** The backend contract. See PLAN.md. */
+/** A text block's content hash and LSH bands, matched at the variant level. */
+export interface LookupBlock {
+  hash: string;
+  bands: string[];
+}
+
+/** The backend contract. See docs/api.md. */
 export interface TrustApi {
   submitVote(vote: VoteRequest): Promise<void>;
-  lookup(hashes: string[]): Promise<LookupResult[]>;
+  /** Results for sentence hashes (exact matches) and for block hashes (variant matches). */
+  lookup(hashes: string[], blocks?: LookupBlock[]): Promise<LookupResult[]>;
   domainStats(domain: string): Promise<DomainStats>;
 }
 
@@ -42,12 +49,15 @@ export class RemoteApi implements TrustApi {
     await this.request('/votes', { method: 'POST', body: JSON.stringify(vote) });
   }
 
-  async lookup(hashes: string[]): Promise<LookupResult[]> {
+  async lookup(hashes: string[], blocks: LookupBlock[] = []): Promise<LookupResult[]> {
     const out: LookupResult[] = [];
-    for (let i = 0; i < hashes.length; i += MAX_LOOKUP_BATCH) {
+    for (let i = 0; i < Math.max(hashes.length, blocks.length); i += MAX_LOOKUP_BATCH) {
       const res = await this.request<{ results: LookupResult[] }>('/lookup', {
         method: 'POST',
-        body: JSON.stringify({ hashes: hashes.slice(i, i + MAX_LOOKUP_BATCH) }),
+        body: JSON.stringify({
+          hashes: hashes.slice(i, i + MAX_LOOKUP_BATCH),
+          blocks: blocks.slice(i, i + MAX_LOOKUP_BATCH),
+        }),
       });
       out.push(...(res?.results ?? []));
     }
@@ -122,6 +132,7 @@ export class MockApi implements TrustApi {
     await this.store.set(VOTES_KEY, votes);
   }
 
+  /** Matches sentences only; blocks are ignored. */
   async lookup(hashes: string[]): Promise<LookupResult[]> {
     const wanted = new Set(hashes);
     const counts = new Map<string, ReturnType<typeof emptyCounts>>();

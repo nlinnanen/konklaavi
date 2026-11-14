@@ -50,6 +50,7 @@ textarea {
 .tooltip.pinned { pointer-events: auto; }
 .tooltip strong { display: block; margin-bottom: 4px; font-size: 13px; }
 .tooltip .row { display: flex; justify-content: space-between; gap: 12px; color: #d1d5db; }
+.tooltip .match { color: #fbbf24; font-size: 11px; margin-bottom: 4px; }
 .tooltip .narrative { margin-bottom: 6px; }
 .tooltip .title { font-weight: 600; color: #fff; }
 .tooltip .tag { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #fbbf24; margin-left: 4px; }
@@ -187,6 +188,7 @@ export class OverlayUi {
     this.tooltip.replaceChildren();
     const verdict = displayVerdict(result);
     this.tooltip.append(el('strong', undefined, `⚠ Flagged as ${VERDICT_LABELS[verdict].toLowerCase()}`));
+    if (result.signature?.matchLevel === 'variant') this.tooltip.append(el('div', 'match', 'Edited copy of a known narrative'));
     if (result.signature) this.tooltip.append(this.narrative(result.signature, pinned));
     if (result.total > 0) {
       const share = Math.round((result.counts[result.topVerdict] / result.total) * 100);
