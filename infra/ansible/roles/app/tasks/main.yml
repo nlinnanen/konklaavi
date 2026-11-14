@@ -1,0 +1,97 @@
+- name: Require the deploy key
+  ansible.builtin.assert:
+    that:
+      - deploy_ssh_public_key | length > 0
+      - ghcr_user | length > 0
+    fail_msg: Set deploy_ssh_public_key and ghcr_user in group_vars/all/main.yml (infra/ansible/README.md).
+
+# --- Files the stack runs from ---------------------------------------------
+
+- name: Create the app directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - "{{ app_dir }}"
+    - "{{ app_dir }}/deploy"
+
+- name: Install the compose files and Caddyfile
+  ansible.builtin.copy:
+    src: "{{ app_repo_root }}/{{ item }}"
+    dest: "{{ app_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0640"
+  loop:
+    - compose.yaml
+    - deploy/compose.prod.yaml
+    - deploy/Caddyfile
+  notify: Apply the app configuration
+
+# The release script records the running release in .env; rendering .env again keeps it.
+- name: Read the current release
+  ansible.builtin.slurp:
+    path: "{{ app_dir }}/.env"
+  register: app_current_env
+  failed_when: false
+
+- name: Remember the current release
+  ansible.builtin.set_fact:
+    app_current_image_tag: "{{ (app_current_env.content | default('') | b64decode | regex_search('(?m)^IMAGE_TAG=(\\S*)', '\\1') or ['']) | first }}"
+
+- name: Write .env
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ app_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Apply the app configuration
+
+- name: Log in to the image registry (GHCR)
+  ansible.builtin.command:
+    cmd: docker login {{ image_prefix.split("/") | first }} --username {{ ghcr_user }} --password-stdin
+    stdin: "{{ ghcr_token }}"
+  no_log: true
+  changed_when: false
+
+# --- Release: the deploy user's only power -----------------------------------
+
+- name: Install the release script
+  ansible.builtin.template:
+    src: junction26-release.j2
+    dest: /usr/local/sbin/junction26-release
+    owner: root
+    group: root
+    mode: "0750"
+
+# Not in the docker group (that would be root-equivalent) and no password.
+- name: Create the deploy user
+  ansible.builtin.user:
+    name: "{{ deploy_user }}"
+    shell: /bin/sh
+    password: "!"
+    update_password: on_create
+    groups: []
+
+# The key can only run the release script, with the requested sha as its one argument, and gets no
+# pty or forwarding. "$SSH_ORIGINAL_COMMAND" expands to a single word; the script and sudoers both check it.
+- name: Install the deploy key, restricted to the release script
+  ansible.posix.authorized_key:
+    user: "{{ deploy_user }}"
+    key: "{{ deploy_ssh_public_key }}"
+    key_options: 'restrict,command="sudo -n /usr/local/sbin/junction26-release \"$SSH_ORIGINAL_COMMAND\""'
+    exclusive: true
+
+- name: Let the deploy user run only the release script, only with a commit sha
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/50-{{ deploy_user }}
+    content: |
+      # Managed by Ansible (infra/ansible/roles/app).
+      Defaults:{{ deploy_user }} !requiretty
+      {{ deploy_user }} ALL=(root) NOPASSWD: /usr/local/sbin/junction26-release ^[0-9a-f]{40}$
+    mode: "0440"
+    validate: visudo -cf %s

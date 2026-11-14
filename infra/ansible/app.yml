@@ -1,0 +1,6 @@
+# The app's runtime on the VPS: compose files, .env, GHCR login and the restricted deploy user.
+- name: Set up the app
+  hosts: all
+  become: true
+  roles:
+    - app
