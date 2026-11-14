@@ -57,7 +57,11 @@ def standing(conn: Connection, user_id: UUID) -> Standing:
     ).fetchone()
     if account is None:
         return Standing(None, None)
-    account_id, email = account
+    return account_standing(conn, *account)
+
+
+def account_standing(conn: Connection, account_id: UUID, email: str) -> Standing:
+    """The standing of an account, counting the notes and ratings of all its installs."""
     helpful, unhelpful = conn.execute(
         "SELECT count(*) FILTER (WHERE status = 'helpful'), count(*) FILTER (WHERE status = 'not_helpful')"
         " FROM note WHERE account_id = %s",
