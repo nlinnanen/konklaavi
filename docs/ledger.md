@@ -195,6 +195,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - data: the Crowd page ranks only the 25 most active reporters, because reputation comes from one `/me` call each; a reporter shows as the email's local part or `anon-` plus 8 characters of the install id.
 - data: the spread page reads `narrative_domain_daily`, `narrative_new_domains_daily` and `narrative_hits_hourly` and shows no per-page counts.
 - integrator: Simulation belongs to another team member (built with Bevy); the build workflows write no simulation code and run no simulations.
+- integrator: Local development sends magic-link email to Mailpit (`axllent/mailpit`, compose profile `dev`, enabled by `COMPOSE_PROFILES=dev` in the worktree `.env`); production needs `SMTP_URL` and `MAIL_FROM` in the VPS `.env`, and without them sending fails.
 
 ## Deferred
 
