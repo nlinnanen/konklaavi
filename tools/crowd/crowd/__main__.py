@@ -19,7 +19,8 @@ def run(args, config, state: State) -> None:
 
     host = urlsplit(args.api).netloc.replace(":", "_")
     log_path = args.config.parent / f"crowd-{host}.log"
-    Runner(config, Api(args.api), state, Llm(args.model), Web(), log_path).run(
+    llm = Llm(args.model, args.llm_concurrency)
+    Runner(config, Api(args.api), state, llm, Web(), log_path, args.workers).run(
         args.minutes, args.budget_credits
     )
 
@@ -74,6 +75,8 @@ def main() -> None:
             sub.add_argument("--minutes", type=float, required=True)
             sub.add_argument("--budget-credits", type=float, required=True)
             sub.add_argument("--model", default="claude-sonnet-5.5")
+            sub.add_argument("--workers", type=int, default=16, help="actions run at once")
+            sub.add_argument("--llm-concurrency", type=int, default=16, help="model calls run at once")
     args = parser.parse_args()
     args.config = args.config.resolve()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")

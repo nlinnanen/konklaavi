@@ -1,12 +1,20 @@
 """The bots' loop: each persona writes a note on a recent article and rates others' notes at its own pace,
-until the time or the credit budget runs out."""
+until the time or the credit budget runs out.
+
+A scheduler on the main thread hands due actions to a pool of workers. A persona has at most one action in
+flight, so its own actions stay sequential and its hourly caps hold, while different personas run at once.
+"""
 
 import logging
+import os
 import random
 import re
 import signal
+import threading
 import time
+import traceback
 from collections import deque
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -34,6 +42,11 @@ class Bot:
     next_rate: float
     writes: deque = field(default_factory=deque)
     rates: deque = field(default_factory=deque)
+    busy: bool = False
+
+    @property
+    def due(self) -> float:
+        return min(self.next_write, self.next_rate)
 
     @property
     def install(self) -> str:
@@ -56,53 +69,91 @@ def find_quote(quote: str, text: str) -> str | None:
 
 
 class Runner:
-    def __init__(self, config: Config, api: Api, state: State, llm: Llm, web: Web, log_path: Path):
+    def __init__(
+        self, config: Config, api: Api, state: State, llm: Llm, web: Web, log_path: Path, workers: int = 16
+    ):
         self.config, self.api, self.state, self.llm, self.web = config, api, state, llm, web
+        self.workers = workers
         self.credits = 0.0
         self.stopping = False
+        self.output = threading.RLock()  # the SIGINT handler prints on the main thread
         self.actions = open(log_path, "a", buffering=1)  # noqa: SIM115 - open for the whole run
 
     def action(self, bot: Bot, kind: str, result: str, detail: str = "") -> None:
-        line = f"{datetime.now(UTC).isoformat(timespec='seconds')} {bot.persona.name} {kind} {result}"
-        line += f" credits={self.credits:.3f}" + (f" {detail}" if detail else "")
-        self.actions.write(line + "\n")
-        print(line, flush=True)
+        with self.output:
+            line = f"{datetime.now(UTC).isoformat(timespec='seconds')} {bot.persona.name} {kind} {result}"
+            line += f" credits={self.credits:.3f}" + (f" {detail}" if detail else "")
+            self.actions.write(line + "\n")
+            print(line, flush=True)
+
+    def say(self, message: str) -> None:
+        with self.output:
+            print(message, flush=True)
 
     def run(self, minutes: float, budget: float) -> None:
         deadline = time.monotonic() + minutes * 60
         previous = signal.signal(signal.SIGINT, self._interrupt)
+        pool = ThreadPoolExecutor(self.workers, thread_name_prefix="crowd")
+        running: dict[Future, Bot] = {}
         try:
             bots = self._start()
             while not self.stopping:
                 now = time.monotonic()
                 if now >= deadline:
-                    print("time is up", flush=True)
+                    self.say("time is up")
                     break
                 if self.credits >= budget:
-                    print(f"budget reached: {self.credits:.3f} of {budget} credits", flush=True)
+                    self.say(f"budget reached: {self.credits:.3f} of {budget} credits")
                     break
-                due = min(bots, key=lambda b: min(b.next_write, b.next_rate))
-                wait = min(due.next_write, due.next_rate, deadline) - now
-                if wait > 0:
-                    time.sleep(min(wait, 1.0))
-                    continue
-                if due.next_write <= due.next_rate:
-                    self._write(due)
-                    due.next_write = time.monotonic() + self._interval(due.persona.writes_per_hour)
+                idle = sorted((b for b in bots if not b.busy), key=lambda b: b.due)
+                for bot in idle[: self.workers - len(running)]:
+                    if bot.due > now:
+                        break
+                    bot.busy = True
+                    running[pool.submit(self._step, bot)] = bot
+                # Sleep until the next idle bot is due, or an action finishes and frees its bot and worker.
+                waiting = [b.due for b in bots if not b.busy] if len(running) < self.workers else []
+                pause = min(max(min(waiting + [deadline]) - time.monotonic(), 0.05), 1.0)
+                if running:
+                    done, _ = wait(running, timeout=pause, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        running.pop(future).busy = False
                 else:
-                    self._rate(due)
-                    due.next_rate = time.monotonic() + self._interval(due.persona.rates_per_hour / RATE_BATCH)
-                self.state.save()
+                    time.sleep(pause)
+            if running:
+                self.say(f"waiting for {len(running)} actions in flight")
+            pool.shutdown(wait=True)
+        except KeyboardInterrupt:
+            self.state.save()
+            self.say(f"quit with actions in flight; {self.credits:.3f} credits used this run")
+            os._exit(130)
         finally:
             signal.signal(signal.SIGINT, previous)
             self.state.save()
-            print(f"stopped; {self.credits:.3f} credits used this run", flush=True)
+        self.say(f"stopped; {self.credits:.3f} credits used this run")
 
     def _interrupt(self, *_):
         if self.stopping:
             raise KeyboardInterrupt
-        print("stopping after the current action; Ctrl-C again to quit now", flush=True)
+        self.say("stopping after the actions in flight; Ctrl-C again to quit now")
         self.stopping = True
+
+    def _step(self, bot: Bot) -> None:
+        """The bot's next due action, on a worker."""
+        writing = bot.next_write <= bot.next_rate
+        try:
+            if writing:
+                self._write(bot)
+            else:
+                self._rate(bot)
+        except Exception as err:  # noqa: BLE001 - one failed action must not end the run
+            self.action(bot, "write" if writing else "rate", "error", f"{type(err).__name__}: {err}")
+            traceback.print_exc()
+        if writing:
+            bot.next_write = time.monotonic() + self._interval(bot.persona.writes_per_hour)
+        else:
+            bot.next_rate = time.monotonic() + self._interval(bot.persona.rates_per_hour / RATE_BATCH)
+        self.state.save()
 
     @staticmethod
     def _interval(per_hour: float) -> float:
@@ -136,12 +187,13 @@ class Runner:
                 self.api.sign_in(record["install"], record["email"], self.state.password(record))
             return True
         except ApiError as err:
-            print(f"{persona.name}: sign-in failed ({err}); it sits this run out", flush=True)
+            self.say(f"{persona.name}: sign-in failed ({err}); it sits this run out")
             return False
 
     def _charge(self, credits: float) -> None:
-        self.credits += credits
-        self.state.data["credits"] = self.state.data.get("credits", 0.0) + credits
+        with self.state.lock:
+            self.credits += credits
+            self.state.data["credits"] = self.state.data.get("credits", 0.0) + credits
 
     def _write(self, bot: Bot) -> None:
         if within_hour(bot.writes, time.monotonic()) >= bot.persona.writes_per_hour:
@@ -150,10 +202,11 @@ class Runner:
         site = random.choice(bot.persona.sites)
         seen = set(bot.record["articles"])
         article = self.web.article(self.config.sites[site], seen)
-        known = set(bot.record["articles"])
-        bot.record["articles"] = (bot.record["articles"] + [u for u in seen if u not in known])[
-            -SEEN_ARTICLES:
-        ]
+        with self.state.lock:
+            known = set(bot.record["articles"])
+            bot.record["articles"] = (bot.record["articles"] + [u for u in seen if u not in known])[
+                -SEEN_ARTICLES:
+            ]
         if article is None:
             self.action(bot, "write", "no-article", f"site={site}")
             return
@@ -184,16 +237,17 @@ class Runner:
         except ApiError as err:
             self.action(bot, "write", "rejected", f"url={article.url} {err}")
             return
-        bot.record["notes"].append(
-            {
-                "id": created["noteId"],
-                "narrativeId": created["narrativeId"],
-                "url": article.url,
-                "classification": note["classification"],
-                "passage": passage,
-                "at": datetime.now(UTC).isoformat(timespec="seconds"),
-            }
-        )
+        with self.state.lock:
+            bot.record["notes"].append(
+                {
+                    "id": created["noteId"],
+                    "narrativeId": created["narrativeId"],
+                    "url": article.url,
+                    "classification": note["classification"],
+                    "passage": passage,
+                    "at": datetime.now(UTC).isoformat(timespec="seconds"),
+                }
+            )
         self.action(
             bot, "write", "note", f"id={created['noteId']} {note['classification']} url={article.url}"
         )
@@ -202,8 +256,9 @@ class Runner:
         room = int(bot.persona.rates_per_hour) - within_hour(bot.rates, time.monotonic())
         if room <= 0:
             return
-        own = {n["id"] for n in bot.record["notes"]}
-        rated = {r["note"] for r in bot.record["ratings"]}
+        with self.state.lock:
+            own = {n["id"] for n in bot.record["notes"]}
+            rated = {r["note"] for r in bot.record["ratings"]}
         try:
             notes = [n for n in self.api.recent_notes(100) if n["id"] not in own | rated]
         except ApiError as err:
@@ -243,23 +298,25 @@ class Runner:
                 self.action(bot, "rate", "rejected", f"note={note_id} {err}")
                 continue
             bot.rates.append(time.monotonic())
-            bot.record["ratings"].append(
-                {
-                    "note": note_id,
-                    "helpfulness": helpfulness,
-                    "at": datetime.now(UTC).isoformat(timespec="seconds"),
-                }
-            )
+            with self.state.lock:
+                bot.record["ratings"].append(
+                    {
+                        "note": note_id,
+                        "helpfulness": helpfulness,
+                        "at": datetime.now(UTC).isoformat(timespec="seconds"),
+                    }
+                )
             self.action(bot, "rate", helpfulness, f"note={note_id}")
 
     def _brigade_ratings(self, bot: Bot, notes: list[dict], n: int) -> list[tuple[str, str]]:
         """Members' notes helpful first, then everyone else's not helpful: the group's coordination."""
-        members = {
-            note["id"]
-            for name, record in self.state.data["personas"].items()
-            if record.get("behaviour") == "brigade" and name != bot.persona.name
-            for note in record["notes"]
-        }
+        with self.state.lock:
+            members = {
+                note["id"]
+                for name, record in self.state.data["personas"].items()
+                if record.get("behaviour") == "brigade" and name != bot.persona.name
+                for note in record["notes"]
+            }
         ours = [note for note in notes if note["id"] in members]
         theirs = [note for note in notes if note["id"] not in members]
         random.shuffle(theirs)

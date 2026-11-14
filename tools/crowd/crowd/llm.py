@@ -7,7 +7,11 @@ output:input price ratio).
 """
 
 import json
+import logging
 import os
+import random
+import threading
+import time
 from dataclasses import dataclass
 
 import anthropic
@@ -16,6 +20,10 @@ ROUTER = "https://router.hostinger.com"
 MODEL = "claude-sonnet-5.5"
 CREDITS_PER_INPUT_TOKEN = 0.00023
 CREDITS_PER_OUTPUT_TOKEN = 0.00117
+RETRIES = 4
+BUSY = (anthropic.RateLimitError, anthropic.OverloadedError, anthropic.ServiceUnavailableError)
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -25,15 +33,34 @@ class Call:
 
 
 class Llm:
-    def __init__(self, model: str = MODEL):
+    def __init__(self, model: str = MODEL, concurrency: int = 16):
         key = os.environ.get("HOSTINGER_ROUTER_KEY")
         if not key:
             raise SystemExit("HOSTINGER_ROUTER_KEY is not set")
-        self.client = anthropic.Anthropic(api_key=key, base_url=os.environ.get("CROWD_ROUTER_URL", ROUTER))
+        # call() retries a busy router itself, waiting outside the concurrency slots.
+        self.client = anthropic.Anthropic(
+            api_key=key, base_url=os.environ.get("CROWD_ROUTER_URL", ROUTER), max_retries=0
+        )
         self.model = model
+        self.slots = threading.BoundedSemaphore(concurrency)
 
     def call(self, system: str, user: dict, tool: dict, max_tokens: int = 1200) -> Call:
-        """Ask for one call of the tool; the tool input is None when the model answered without it."""
+        """Ask for one call of the tool; the tool input is None when the model answered without it.
+        At most `concurrency` calls run at once, and one the router turns away as busy is retried with
+        jittered exponential backoff."""
+        for attempt in range(RETRIES + 1):
+            try:
+                with self.slots:
+                    return self._call(system, user, tool, max_tokens)
+            except BUSY as err:
+                if attempt == RETRIES:
+                    raise
+                delay = 2 ** (attempt + 1) * random.uniform(0.5, 1.5)
+                log.warning("router busy (%s); retrying in %.0f s", err.status_code, delay)
+                time.sleep(delay)
+        raise AssertionError("unreachable")
+
+    def _call(self, system: str, user: dict, tool: dict, max_tokens: int) -> Call:
         credits = None
         with self.client.messages.stream(
             model=self.model,
