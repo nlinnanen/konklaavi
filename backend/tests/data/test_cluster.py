@@ -91,6 +91,17 @@ def test_cluster_near_a_narrative_joins_it_as_a_new_variant(conn):
     assert conn.execute("SELECT count(*) FROM narrative WHERE source = 'cluster'").fetchone()[0] == 1
 
 
+def test_loose_cluster_centred_near_a_narrative_stays_apart_from_it(conn):
+    known = add_narrative(conn, [direction(0), direction(0) + 0.05 * direction(200)])
+    loose = add_group(conn, group(direction(0), 100, size=6, spread=1.0), "Loose news")
+    add_group(conn, group(direction(1), 110), "Beta claim")
+
+    handle(conn, {})
+
+    assert known not in narrative_of(conn, loose)
+    assert conn.execute("SELECT count(*) FROM variant WHERE narrative_id = %s", (known,)).fetchone()[0] == 1
+
+
 def test_cluster_resembling_an_earlier_one_evolves_from_it(conn):
     add_group(conn, group(direction(0), 100), "Alpha claim")
     add_group(conn, group(direction(1), 110), "Beta claim")

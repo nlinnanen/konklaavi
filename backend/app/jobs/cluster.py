@@ -18,7 +18,9 @@ from app.jobs import register
 # Bounds the run's cost; the newest unassigned embeddings are clustered first.
 MAX_EMBEDDINGS = 2000
 MIN_CLUSTER_SIZE = 3
-# Cosine similarity of a cluster's centroid to a narrative's centroid at which the cluster joins the narrative.
+# A cluster's similarity to a narrative is the mean cosine of its members to the narrative's centroid, so a
+# loose cluster whose centroid happens to lie near a narrative's stays apart from it.
+# The similarity at which a cluster joins the narrative.
 EXTEND_SIMILARITY = 0.9
 # From here up to EXTEND_SIMILARITY, the cluster becomes a new narrative the nearest one evolved into.
 EVOLVE_SIMILARITY = 0.75
@@ -34,6 +36,7 @@ class Cluster:
     fingerprint_ids: list[int]
     centroid: list[float]  # unit length
     central_id: int  # the member closest to the centroid
+    cohesion: float  # length of the members' mean: their mean cosine to the centroid
 
 
 def _unit(x: np.ndarray) -> np.ndarray:
@@ -51,9 +54,12 @@ def find_clusters(ids: list[int], embeddings: np.ndarray) -> list[Cluster]:
     clusters = []
     for label in sorted(set(labels.tolist()) - {-1}):
         members = np.flatnonzero(labels == label)
-        centroid = _unit(points[members].mean(axis=0))
+        mean = points[members].mean(axis=0)
+        centroid = _unit(mean)
         central = members[int(np.argmax(points[members] @ centroid))]
-        clusters.append(Cluster([ids[i] for i in members], centroid.tolist(), ids[central]))
+        clusters.append(
+            Cluster([ids[i] for i in members], centroid.tolist(), ids[central], float(np.linalg.norm(mean)))
+        )
     return clusters
 
 
@@ -152,6 +158,9 @@ def handle(conn: Connection, payload: dict) -> None:
     for cluster in clusters:
         # Narratives created in this run are left out, so a run's clusters never join or evolve from each other.
         nearest = nearest_narrative(conn, cluster.centroid, created)
+        if nearest is not None:
+            # The mean of the members' cosines equals the centroid cosine scaled by the cohesion.
+            nearest = (nearest[0], nearest[1] * cluster.cohesion)
         if nearest is not None and nearest[1] >= EXTEND_SIMILARITY:
             add_variant(conn, nearest[0], cluster.fingerprint_ids)
             extended.append(nearest[0])
