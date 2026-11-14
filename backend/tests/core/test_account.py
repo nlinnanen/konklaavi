@@ -51,3 +51,11 @@ def test_reputation_follows_helpful_notes_and_early_agreeing_ratings(client, con
     assert me(client, writer)["reputation"] > 0.25
     assert me(client, writer)["notes"][0]["status"] == "helpful"
     assert me(client, rater)["ratings"] == {"count": 1, "agreed": 1}
+
+
+def test_successful_sign_ins_are_not_rate_limited(client):
+    user = uuid.uuid4()
+    client.post("/auth/register", json=credentials(user))
+
+    for _ in range(15):
+        assert client.post("/auth/login", json=credentials(user)).status_code == 200
