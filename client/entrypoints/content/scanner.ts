@@ -1,5 +1,8 @@
-import { hashNormalized, splitSentences } from '@/lib/fingerprint';
+import type { LookupBlock } from '@/lib/api';
+import { fingerprintSentences, hashNormalized, splitSentences, type Sentence } from '@/lib/fingerprint';
 import { callBackground } from '@/lib/messages';
+import { bands, minhash } from '@/lib/minhash';
+import { normalizeText } from '@/lib/normalize';
 import type { LookupResult } from '@/lib/types';
 import type { Highlighter, FlaggedRange } from './highlighter';
 import { buildModel, collectBlocks, rangeFor, type BlockModel } from './textModel';
@@ -14,7 +17,18 @@ interface ScannedSentence {
 interface ScannedBlock {
   model: BlockModel;
   sentences: ScannedSentence[];
+  /** Content hash and LSH bands of the whole block; null when it has no sentence. */
+  fingerprint: LookupBlock | null;
 }
+
+/** The block's content hash and bands, computed as the fingerprint service does for a block. */
+async function blockFingerprint(text: string, sentences: Sentence[]): Promise<LookupBlock | null> {
+  if (!sentences.length) return null;
+  const { contentHash } = await fingerprintSentences(sentences);
+  return { hash: contentHash, bands: bands(minhash(normalizeText(text))) };
+}
+
+const isVariant = (result: LookupResult) => result.signature?.matchLevel === 'variant';
 
 /** Cap per scan pass so huge pages don't stall the tab. */
 const MAX_SENTENCES_PER_PASS = 5000;
@@ -78,13 +92,12 @@ export class PageScanner {
       const model = buildModel(block, nodes);
       const prev = this.blocks.get(block);
       if (prev && !force && prev.model.text === model.text) continue;
+      const split = splitSentences(model.text).slice(0, budget);
       const sentences = await Promise.all(
-        splitSentences(model.text)
-          .slice(0, budget)
-          .map(async (s) => ({ hash: await hashNormalized(s.normalized), start: s.start, end: s.end, text: s.text })),
+        split.map(async (s) => ({ hash: await hashNormalized(s.normalized), start: s.start, end: s.end, text: s.text })),
       );
       budget -= sentences.length;
-      const scanned = { model, sentences };
+      const scanned = { model, sentences, fingerprint: await blockFingerprint(model.text, split) };
       this.blocks.set(block, scanned);
       touched.push(scanned);
     }
@@ -92,21 +105,38 @@ export class PageScanner {
     this.highlighter.prune();
     if (!touched.length) return;
 
-    const unknown = [...new Set(touched.flatMap((b) => b.sentences.map((s) => s.hash)))].filter((h) => !this.results.has(h));
-    if (unknown.length) {
-      const found = await callBackground('lookup', unknown);
-      unknown.forEach((h) => this.results.set(h, null));
+    const hashes = [...new Set(touched.flatMap((b) => b.sentences.map((s) => s.hash)))].filter((h) => !this.results.has(h));
+    const blocks = [
+      ...new Map(touched.flatMap((b) => (b.fingerprint ? [[b.fingerprint.hash, b.fingerprint] as const] : []))).values(),
+    ].filter((b) => !this.results.has(b.hash));
+    if (hashes.length || blocks.length) {
+      const found = await callBackground('lookup', { hashes, blocks });
+      [...hashes, ...blocks.map((b) => b.hash)].forEach((h) => this.results.set(h, null));
       found.forEach((r) => this.results.set(r.hash, r));
     }
 
-    for (const { model, sentences } of touched) {
-      const flagged: FlaggedRange[] = [];
-      for (const s of sentences) {
-        const result = this.results.get(s.hash);
-        if (result?.flagged) flagged.push({ range: rangeFor(model, s.start, s.end), text: s.text, result });
+    for (const block of touched) this.highlighter.setBlock(block.model.block, this.flaggedRanges(block));
+  }
+
+  /**
+   * Exact sentence matches, or, when the block has none, the whole block if
+   * it matches a narrative as an edited copy.
+   */
+  private flaggedRanges({ model, sentences, fingerprint }: ScannedBlock): FlaggedRange[] {
+    const flagged: FlaggedRange[] = [];
+    for (const s of sentences) {
+      const result = this.results.get(s.hash);
+      if (result?.flagged && !isVariant(result)) {
+        flagged.push({ range: rangeFor(model, s.start, s.end), text: s.text, result });
       }
-      this.highlighter.setBlock(model.block, flagged);
     }
+    const block = fingerprint && this.results.get(fingerprint.hash);
+    if (!flagged.length && block?.flagged && isVariant(block)) {
+      const start = sentences[0]!.start;
+      const end = sentences.at(-1)!.end;
+      flagged.push({ range: rangeFor(model, start, end), text: model.text.slice(start, end), result: block });
+    }
+    return flagged;
   }
 
   get sentenceCount(): number {

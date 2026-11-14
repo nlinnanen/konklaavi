@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { summarize } from './aggregate';
-import { MOCK_NARRATIVES, MockApi, type KeyValueStore } from './api';
+import { MAX_LOOKUP_BATCH, MOCK_NARRATIVES, MockApi, RemoteApi, type KeyValueStore } from './api';
 import { hashNormalized } from './fingerprint';
 import { normalizeText } from './normalize';
 import type { VoteRequest } from './types';
@@ -90,5 +90,24 @@ describe('MockApi narratives', () => {
     const hash = await hashNormalized(normalizeText(narrative!.sentence));
     const [r] = await api.lookup([hash, 'unknown']);
     expect(r).toMatchObject({ hash, total: 0, flagged: true, signature: narrative!.signature });
+  });
+});
+
+describe('RemoteApi.lookup', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('sends sentence hashes and blocks in batches the backend accepts', async () => {
+    const bodies: { hashes: string[]; blocks: { hash: string; bands: string[] }[] }[] = [];
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string);
+      bodies.push(body);
+      return new Response(JSON.stringify({ results: [] }));
+    });
+    const hashes = Array.from({ length: MAX_LOOKUP_BATCH + 1 }, (_, i) => `s${i}`);
+    const blocks = [{ hash: 'b0', bands: ['00000000'] }];
+    await new RemoteApi('http://backend').lookup(hashes, blocks);
+    expect(bodies.flatMap((b) => b.hashes)).toEqual(hashes);
+    expect(bodies.flatMap((b) => b.blocks)).toEqual(blocks);
+    expect(bodies.every((b) => b.hashes.length <= MAX_LOOKUP_BATCH && b.blocks.length <= MAX_LOOKUP_BATCH)).toBe(true);
   });
 });
