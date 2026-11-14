@@ -29,6 +29,8 @@ class Settings:
     narrative_match_threshold: float
     # Cosine at which a block is related to a narrative, below the match threshold.
     related_match_threshold: float
+    # Lowercased hostnames HashTrust serves from, its demo proxy included; never tracked as pages.
+    own_hosts: frozenset[str]
     # Commit the image was built from; CI bakes it in, and the deploy waits until /health reports it.
     version: str
 
@@ -52,6 +54,9 @@ def load() -> Settings:
         agreement_not_helpful=float(_env("AGREEMENT_NOT_HELPFUL") or "0.25"),
         narrative_match_threshold=float(_env("NARRATIVE_MATCH_THRESHOLD") or "0.825"),
         related_match_threshold=float(_env("RELATED_MATCH_THRESHOLD") or "0.70"),
+        own_hosts=frozenset(
+            host.strip().lower() for host in (_env("OWN_HOSTS") or "").split(",") if host.strip()
+        ),
         version=_env("APP_VERSION") or "dev",
     )
 
