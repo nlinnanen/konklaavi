@@ -1,39 +1,24 @@
-import { displayVerdict } from '@/lib/messages';
-import { NEGATIVE_VERDICTS, type LookupResult, type NegativeVerdict } from '@/lib/types';
+import { TIER_STYLES, TIERS, type Tier } from '@/lib/tier';
+import type { LookupResult } from '@/lib/types';
 
 export interface FlaggedRange {
   range: Range;
   text: string;
   result: LookupResult;
+  tier: Tier;
+  /** The content a vote from the tooltip is about: the matched sentence, block or unit. */
+  contentHash: string;
+  sentenceHashes: string[];
 }
 
 export const highlightSupported = typeof CSS !== 'undefined' && 'highlights' in CSS;
 
 const STYLE_ID = 'hashtrust-highlight-style';
-const COLORS: Record<NegativeVerdict, [string, string]> = {
-  misinformation: ['rgba(239, 68, 68, 0.22)', '#dc2626'],
-  manipulative: ['rgba(168, 85, 247, 0.22)', '#9333ea'],
-  misleading: ['rgba(245, 158, 11, 0.25)', '#d97706'],
-};
 
-/**
- * Registered highlight name: exact matches as `tv-<verdict>`, edited copies as
- * `tv-<verdict>-variant` and the same claim in other words as `tv-<verdict>-narrative`.
- */
-function highlightName(result: LookupResult): string {
-  const verdict = displayVerdict(result) as NegativeVerdict;
-  const level = result.signature?.matchLevel;
-  return level === 'variant' || level === 'narrative' ? `tv-${verdict}-${level}` : `tv-${verdict}`;
-}
+/** Registered highlight name per tier. */
+export const highlightName = (tier: Tier) => `tv-${tier}`;
 
-const STYLES = NEGATIVE_VERDICTS.flatMap((v) => {
-  const [bg, line] = COLORS[v];
-  return [
-    `::highlight(tv-${v}) { background-color: ${bg}; text-decoration: underline wavy ${line}; text-decoration-thickness: 1px; }`,
-    `::highlight(tv-${v}-variant) { text-decoration: underline dashed ${line}; text-decoration-thickness: 2px; }`,
-    `::highlight(tv-${v}-narrative) { text-decoration: underline dotted ${line}; text-decoration-thickness: 1px; }`,
-  ];
-});
+const STYLES = TIERS.map((t) => `::highlight(${highlightName(t)}) { ${TIER_STYLES[t]} }`);
 
 /**
  * Highlights flagged text with the CSS Custom Highlight API, which paints
@@ -46,11 +31,7 @@ export class Highlighter {
 
   constructor() {
     if (!highlightSupported) return;
-    for (const v of NEGATIVE_VERDICTS) {
-      this.highlights.set(`tv-${v}`, new Highlight());
-      this.highlights.set(`tv-${v}-variant`, new Highlight());
-      this.highlights.set(`tv-${v}-narrative`, new Highlight());
-    }
+    for (const t of TIERS) this.highlights.set(highlightName(t), new Highlight());
     this.injectStyle();
     this.register();
   }
@@ -82,8 +63,9 @@ export class Highlighter {
   }
 
   private highlightFor(item: FlaggedRange): Highlight | undefined {
-    return this.highlights.get(highlightName(item.result));
+    return this.highlights.get(highlightName(item.tier));
   }
+
   /** Drop blocks that were removed from the page. */
   prune() {
     for (const block of this.byBlock.keys()) if (!block.isConnected) this.setBlock(block, []);

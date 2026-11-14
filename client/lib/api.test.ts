@@ -17,6 +17,7 @@ import {
 import { EMBEDDING_DIM } from './embed';
 import { hashNormalized } from './fingerprint';
 import { normalizeText } from './normalize';
+import { tierOf } from './tier';
 import type { LookupResult, Signature, VoteRequest } from './types';
 
 function memoryStore(): KeyValueStore {
@@ -137,6 +138,7 @@ function signature(narrativeId: string, state: Signature['state'] = 'active'): S
     sourceUrl: null,
     state,
     matchLevel: 'exact',
+    settled: true,
   };
 }
 
@@ -148,6 +150,7 @@ function index(over: Partial<IndexResponse> = {}): IndexResponse {
     sentences: [],
     fingerprints: [],
     narrativeThreshold: 0.85,
+    relatedThreshold: 0.7,
     narrativeVectors: [],
     removed: [],
     ...over,
@@ -271,6 +274,7 @@ describe('applyIndexUpdate', () => {
       sentences: [],
       fingerprints: [],
       narrativeThreshold: 0.85,
+      relatedThreshold: 0.7,
       narrativeVectors: [],
     });
   });
@@ -304,34 +308,38 @@ describe('LocalIndexApi', () => {
     expect(requests).toEqual(['GET http://backend/index', 'GET http://backend/index?since=1']);
   });
 
-  it('matches blocks of 8+ words to the narrative whose vector is within the threshold, embedding each once', async () => {
+  it('matches units to narratives at the narrative level and as related, embedding each once', async () => {
     backend([
       index({
-        signatures: [signature('n1'), signature('n2')],
+        signatures: [signature('n1'), signature('n2'), { ...signature('n3', 'disputed'), source: 'report' }],
         narrativeVectors: [
           { narrativeId: 'n1', vectors: [encodeVector(unit(1, 0))] },
           { narrativeId: 'n2', vectors: [encodeVector(unit(0, 1))] },
+          { narrativeId: 'n3', vectors: [encodeVector(unit(-1, 0))] },
         ],
       }),
     ]);
     const vectors: Record<string, number[]> = {
-      'close to the first narrative in other words': unit(0.9, Math.sqrt(1 - 0.81)),
-      'about something else that sits between the two narratives': unit(0.8, 0.6),
+      close: unit(0.9, Math.sqrt(1 - 0.81)),
+      between: unit(0.6, 0.8),
+      far: unit(0.6, -0.8),
+      opposite: unit(-0.8, 0.6),
     };
     const embedded: string[] = [];
     const embed = async (texts: string[]) => texts.map((t) => (embedded.push(t), vectors[t]!));
     const api = new LocalIndexApi('http://backend', memoryStore(), () => 0, embed);
-    const blocks = [
-      { hash: 'close', text: 'close to the first narrative in other words' },
-      { hash: 'between', text: 'about something else that sits between the two narratives' },
-      { hash: 'short', text: 'a block of seven words in it' },
-    ];
+    const units = Object.keys(vectors).map((text) => ({ hash: text, text }));
 
-    const results = await api.matchNarratives(blocks);
-    expect(results.map((r) => [r.hash, r.flagged, r.signature?.narrativeId, r.signature?.matchLevel])).toEqual([
-      ['close', true, 'n1', 'narrative'],
+    const results = await api.matchNarratives(units);
+    expect(
+      results.map((r) => [r.hash, r.flagged, r.signature?.narrativeId, r.signature?.matchLevel, tierOf(r)]),
+    ).toEqual([
+      ['close', true, 'n1', 'narrative', 'likely'],
+      ['between', false, 'n2', 'related', 'related'],
+      ['opposite', false, 'n3', 'related', 'disputed'],
     ]);
-    await api.matchNarratives(blocks.slice(0, 1));
+    expect(results[1]?.signature?.similarity).toBeCloseTo(0.8, 2);
+    await api.matchNarratives(units.slice(0, 1));
     expect(embedded).toEqual(Object.keys(vectors));
   });
 

@@ -91,3 +91,30 @@ export function cosine(a: ArrayLike<number>, b: ArrayLike<number>): number {
   }
   return aa === 0 || bb === 0 ? 0 : dot / Math.sqrt(aa * bb);
 }
+
+/** Consecutive sentences per window unit. */
+export const UNIT_WINDOW = 3;
+
+/** An embedding unit: sentences `from` to `to` (exclusive) of a block, and the text that is embedded. */
+export interface EmbeddingUnit {
+  from: number;
+  to: number;
+  text: string;
+}
+
+/**
+ * The units of a block whose sentences come from `splitSentences`: every
+ * sentence, then every run of UNIT_WINDOW consecutive sentences. A unit's text
+ * is its sentences' text joined by a space. The extension and POST /check
+ * embed the same units.
+ */
+export function embeddingUnits(sentences: { text: string }[]): EmbeddingUnit[] {
+  const unit = (from: number, to: number) => ({
+    from,
+    to,
+    text: sentences.slice(from, to).map((s) => s.text).join(' '),
+  });
+  const units = sentences.map((_, i) => unit(i, i + 1));
+  for (let i = 0; i + UNIT_WINDOW <= sentences.length; i++) units.push(unit(i, i + UNIT_WINDOW));
+  return units;
+}

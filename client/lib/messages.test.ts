@@ -12,6 +12,7 @@ const signature = (sourceUrl: string | null): Signature => ({
   sourceUrl,
   state: 'active',
   matchLevel: 'exact',
+  settled: true,
 });
 
 describe('sourceHref', () => {
