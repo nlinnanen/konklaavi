@@ -89,6 +89,39 @@ def allowed(url: str) -> bool:
     host = (urlparse(url).hostname or "").lower()
     return ALLOWED is None or any(host == d or host.endswith("." + d) for d in ALLOWED)
 
+
+def normalize_url(raw: str) -> str | None:
+    """A URL as typed (`yle.fi/a`, `www.hs.fi`, `HTTPS://BBC.com/x`) as a canonical https/http URL, or
+    None when it is not a plain web address. This only cleans the input up; private_reason still decides
+    whether the proxy may open it, against the allowlist and the host's addresses.
+
+    Refused rather than repaired, so the host checked here is the host Chromium and httpx connect to:
+    backslashes, which browsers read as slashes (`https://evil.example\\@yle.fi` is evil.example to
+    Chromium but yle.fi to urlparse), whitespace and control characters inside the URL, user info
+    (`user@host`), and ports other than the scheme's default."""
+    url = raw.strip()
+    if not url or "\\" in url or any(c.isspace() or ord(c) < 0x20 or ord(c) == 0x7F for c in url):
+        return None
+    if url.startswith("//"):
+        url = "https:" + url
+    elif not re.match(r"[A-Za-z][A-Za-z0-9+.-]*://", url):
+        url = "https://" + url
+    try:
+        parsed = urlparse(url)
+        port = parsed.port
+    except ValueError:  # a port that isn't a number, or a malformed IPv6 literal
+        return None
+    scheme = parsed.scheme.lower()
+    if scheme not in ("http", "https") or not parsed.hostname or "@" in parsed.netloc:
+        return None
+    if port is not None and port != (443 if scheme == "https" else 80):
+        return None
+    host = parsed.hostname.rstrip(".")  # hostname is already lowercase
+    if not host or "%" in host:  # nothing but dots, or an IPv6 zone id
+        return None
+    netloc = f"[{host}]" if ":" in host else host
+    return parsed._replace(scheme=scheme, netloc=netloc).geturl()
+
 # Rendered pages are kept this long, so opening one again only runs the check.
 CACHE_SECONDS = 60 * float(os.environ.get("CACHE_MINUTES", "15"))
 CACHE_SIZE = 50
@@ -171,7 +204,10 @@ def private_reason(url: str) -> str | None:
 
 def form(url: str = "") -> str:
     return (
-        "<form action=view target=_top><input name=url type=url required placeholder='https://… article URL' "
+        # type=text, not url: the browser's url check refuses addresses without a scheme, such as
+        # yle.fi/uutiset/…, which normalize_url accepts.
+        "<form action=view target=_top><input name=url type=text inputmode=url autocapitalize=off "
+        "autocorrect=off spellcheck=false required placeholder='yle.fi/… or https://… article URL' "
         f"value='{html.escape(url, quote=True)}' autofocus><button>Scan</button></form>"
     )
 
@@ -305,7 +341,8 @@ document.getElementById('ht-frame').addEventListener('load', (e) => {{
 @app.get("/view", response_class=HTMLResponse)
 def view(url: str, test: bool = False, fresh: bool = False):
     """The shell: the page in a same-origin frame left of the panel, so its layout gets the real width."""
-    src = "frame?url=" + quote(url, safe="") + ("&test=1" if test else "") + ("&fresh=1" if fresh else "")
+    url = normalize_url(url) or url  # an invalid URL is refused, with its reason, by the frame
+    src ="frame?url=" + quote(url, safe="") + ("&test=1" if test else "") + ("&fresh=1" if fresh else "")
     return SHELL.format(
         src=html.escape(src, quote=True),
         host=html.escape(urlparse(url).hostname or url),
@@ -338,8 +375,10 @@ def fetch(url: str) -> render.Rendered | HTMLResponse:
 
 @app.get("/frame")
 async def frame(request: Request, url: str, test: bool = False, fresh: bool = False):
-    if not url.startswith(("http://", "https://")):
-        url = "https://" + url
+    normalized = normalize_url(url)
+    if normalized is None:
+        return error(url, "That is not a web address this demo can open, such as yle.fi/uutiset/… or https://….", 400)
+    url = normalized
     if reason := await asyncio.to_thread(private_reason, url):
         return error(url, reason, 400)
     return await frame_page(request, url, test, fresh)
