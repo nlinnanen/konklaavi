@@ -63,7 +63,6 @@ export function safeHref(url: string): string | null {
 export function noteProblem(note: Pick<NoteInput, 'body' | 'sources'>): string | null {
   if (!note.body.trim()) return 'Write the context readers need.';
   if (note.body.length > MAX_NOTE_LENGTH) return `Keep the context under ${MAX_NOTE_LENGTH} characters.`;
-  if (!note.sources.length) return 'Add at least one source link.';
   const bad = note.sources.find((s) => !safeHref(s));
   if (bad) return `"${bad}" is not an http(s) link.`;
   return null;

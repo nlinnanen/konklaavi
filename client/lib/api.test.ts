@@ -38,6 +38,7 @@ describe('safeHref', () => {
     expect(safeHref('not a url')).toBeNull();
     expect(noteProblem({ body: 'Context.', sources: ['javascript:alert(1)'] })).toMatch(/not an http/);
     expect(noteProblem({ body: 'Context.', sources: ['https://example.org/'] })).toBeNull();
+    expect(noteProblem({ body: 'Context.', sources: [] })).toBeNull();
   });
 });
 
