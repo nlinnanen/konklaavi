@@ -55,6 +55,9 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - ext: the e2e test sets remote mode by writing settings from the service worker and asserts on `CSS.highlights`.
 - ext: Playwright runs from `client/e2e/playwright.config.ts`; `npm run test:e2e` builds first.
 - ext: `client/e2e/Dockerfile` runs the e2e test where Chromium's system libraries are missing, including the VM.
+- integrator: A fetched page joins a narrative only through blocks that are relevant to the claim by embedding similarity and that are not boilerplate (seen on 2+ pages of one domain).
+- integrator: Production runs behind Caddy on the VPS's free domain, with `/` routed to the dashboard and `/api/*` to the API, because the extension needs an HTTPS API URL.
+- integrator: The core workstream owns the job lease change in `backend/app/jobs/__init__.py`.
 
 ## Deferred
 
@@ -80,3 +83,5 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - ext: `npm install` drops optional peer entries (detect-libc, lightningcss) from `client/package-lock.json`.
 - ext: `sourceHref`, `SOURCE_LABELS` and `displayVerdict` sit in `client/lib/messages.ts`; a `client/lib/signature.ts` would fit them better.
 - pipeline: `splitSentences` treats a newline in DOM text as a sentence break, so a sentence wrapped in the HTML source never matches; replacing line breaks with spaces before segmenting keeps offsets but may change stored hashes.
+- integrator: `splitSentences` treats a newline as a sentence break; changing it changes stored hashes, so it waits for a parity check across the extension and the service.
+- integrator: The unique index on `narrative(source, source_url)` and moving signature helpers to `client/lib/signature.ts` wait until they are needed.
