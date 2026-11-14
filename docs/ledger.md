@@ -169,6 +169,8 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: Active fact-checker (`factcheck`) narratives count as settled truth for user reputation, like active EUvsDisinfo cases.
 - integrator: Users can sign in with an optional email magic link that keeps their reputation; anonymous install IDs still vote at low weight.
 - integrator: The crowdsourcing slice follows the seed-data work: reputation for reports of new content that later settle as misinformation, a penalty for flagging settled-good content, and reputation shown to the user.
+- integrator: Deployment and CI/CD belong to another team member; the build workflows don't touch them.
+- integrator: The crowdsourcing backend works in its own worktree `~/code/junction26/ws-crowd` on `ws/crowd`, because the core worktree was still busy with paraphrase anchors.
 
 ## Deferred
 
