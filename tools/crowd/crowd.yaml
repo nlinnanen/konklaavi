@@ -1,0 +1,30 @@
+# The 30-minute trial: mostly honest readers, one troll and a two-member brigade.
+domain: crowd.hashtrust.test
+
+sites:
+  rt:
+    feeds:
+      - https://www.rt.com/rss/news/
+      - https://www.rt.com/rss/russia/
+      - https://www.rt.com/rss/business/
+      - https://www.rt.com/rss/op-ed/
+  sputnik:
+    feeds:
+      - https://sputnikglobe.com/export/rss2/archive/index.xml
+  yle:
+    feeds:
+      - https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_NEWS
+  bbc:
+    feeds:
+      - https://feeds.bbci.co.uk/news/world/rss.xml
+      - https://feeds.bbci.co.uk/news/rss.xml
+
+personas:
+  - {name: maija, behaviour: careful_fact_checker, logged_in: true, sites: [rt, sputnik], writes_per_hour: 4, rates_per_hour: 12}
+  - {name: tom, behaviour: careful_fact_checker, logged_in: true, sites: [sputnik, bbc], writes_per_hour: 3, rates_per_hour: 12}
+  - {name: anna, behaviour: casual_reader, logged_in: false, sites: [yle, bbc, rt], writes_per_hour: 2, rates_per_hour: 10}
+  - {name: lauri, behaviour: camp_a, logged_in: true, sites: [rt, yle], writes_per_hour: 3, rates_per_hour: 12}
+  - {name: kate, behaviour: camp_b, logged_in: true, sites: [bbc, sputnik], writes_per_hour: 3, rates_per_hour: 12}
+  - {name: grim, behaviour: troll, logged_in: true, sites: [bbc, yle], writes_per_hour: 3, rates_per_hour: 12}
+  - {name: vlad1, behaviour: brigade, logged_in: true, sites: [bbc, yle, rt], writes_per_hour: 3, rates_per_hour: 15}
+  - {name: vlad2, behaviour: brigade, logged_in: false, sites: [bbc, sputnik], writes_per_hour: 3, rates_per_hour: 15}
