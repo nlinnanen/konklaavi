@@ -21,6 +21,8 @@ export default defineConfig({
     host_permissions: ['https://huggingface.co/*', 'https://*.hf.co/*'],
     // The ONNX runtime compiles WebAssembly.
     content_security_policy: { extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';" },
+    // Firefox keys an add-on's storage on its id; the highlights need the CSS Custom Highlight API of Firefox 140.
+    browser_specific_settings: { gecko: { id: 'hashtrust@junction26', strict_min_version: '140.0' } },
   }),
   hooks: {
     'build:publicAssets': (_wxt, files) => {

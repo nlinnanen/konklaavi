@@ -35,15 +35,22 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           npm run test:e2e
-      # The zip defaults to the local index from this backend.
+      # The zips default to the local index from this backend.
       - name: Package the extension
-        run: npm run zip
+        run: |
+          npm run zip
+          npm run zip:firefox
         env:
           WXT_API_URL: ${{ vars.PUBLIC_API_URL || 'https://srv2160986.hstgr.cloud/api' }}
       - uses: actions/upload-artifact@v4
         with:
           name: extension-chrome
-          path: client/dist/*.zip
+          path: client/dist/*-chrome.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-firefox
+          path: client/dist/*-firefox.zip
           if-no-files-found: error
 
   fingerprint-service:
