@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HashTrust embedding benchmark</title>
+    <style>
+      :root { color-scheme: light dark; font: 14px/1.5 system-ui, sans-serif; }
+      body { max-width: 44rem; margin: 2rem auto; padding: 0 1rem; }
+      table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+      th, td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid color-mix(in oklch, currentColor 20%, transparent); }
+      td.num { text-align: right; font-variant-numeric: tabular-nums; }
+      .muted { opacity: 0.7; }
+      iframe { display: none; }
+    </style>
+  </head>
+  <body>
+    <h1>Embedding benchmark</h1>
+    <p id="summary" class="muted">Detecting…</p>
+    <table hidden>
+      <thead>
+        <tr><th>Path</th><th>Weights</th><th>Load (ms)</th><th>64 sentences (ms)</th><th>Per sentence (ms)</th></tr>
+      </thead>
+      <tbody id="results"></tbody>
+    </table>
+    <p class="muted">Load includes downloading the weights the first time a path runs. The 64-sentence time is the median of 3 runs after a warm-up.</p>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

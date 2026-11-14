@@ -16,23 +16,46 @@ interface Tensor {
   data: ArrayLike<number | bigint>;
 }
 type FeatureExtractor = (texts: string[], options: { pooling: 'mean'; normalize: boolean }) => Promise<Tensor>;
+/** How the model loads: transformers.js's `pipeline` options. */
+export interface ModelOptions {
+  dtype: typeof EMBEDDING_DTYPE | 'fp16' | 'fp32';
+  device?: 'webgpu' | 'wasm';
+}
 /** The shape of transformers.js's `pipeline` used here. */
 export type PipelineFactory = (
   task: 'feature-extraction',
   model: string,
-  options: { dtype: typeof EMBEDDING_DTYPE },
+  options: ModelOptions,
 ) => Promise<FeatureExtractor>;
 
 export type Embedder = (texts: string[]) => Promise<number[][]>;
 
+/** Loads the model with the first of `candidates` that loads, rethrowing the last failure when none does. */
+async function loadFirst(pipeline: PipelineFactory, candidates: ModelOptions[]): Promise<FeatureExtractor> {
+  let failure: unknown;
+  for (const options of candidates) {
+    try {
+      return await pipeline('feature-extraction', EMBEDDING_MODEL, options);
+    } catch (error) {
+      failure = error;
+      if (candidates.length > 1) console.warn('[hashtrust] loading the embedding model failed', options, error);
+    }
+  }
+  throw failure;
+}
+
 /**
- * An embedder that loads the model on first use and returns one mean-pooled,
- * L2-normalized 384-float vector per text.
+ * An embedder that loads the model on first use, with the first of
+ * `candidates` that loads, and returns one mean-pooled, L2-normalized
+ * 384-float vector per text.
  */
-export function createEmbedder(pipeline: PipelineFactory): Embedder {
+export function createEmbedder(
+  pipeline: PipelineFactory,
+  candidates: ModelOptions[] = [{ dtype: EMBEDDING_DTYPE }],
+): Embedder {
   let extractor: Promise<FeatureExtractor> | null = null;
   return async (texts) => {
-    extractor ??= pipeline('feature-extraction', EMBEDDING_MODEL, { dtype: EMBEDDING_DTYPE });
+    extractor ??= loadFirst(pipeline, candidates);
     let extract: FeatureExtractor;
     try {
       extract = await extractor;

@@ -145,6 +145,7 @@ async function main() {
     await sendToContent({ type: 'rescan' });
     await refreshPage();
   });
+  $('#benchmark').addEventListener('click', () => browser.tabs.create({ url: browser.runtime.getURL('/benchmark.html') }));
   $('#clear-mock').addEventListener('click', () => ($('#clear-confirm').hidden = false));
   $('#clear-no').addEventListener('click', () => ($('#clear-confirm').hidden = true));
   $('#clear-yes').addEventListener('click', async () => {
