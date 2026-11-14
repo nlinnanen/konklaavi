@@ -5,6 +5,7 @@ counts each account once per note and each install without an account on its own
 """
 
 import re
+from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -12,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Query
 from psycopg import Connection
 from pydantic import AfterValidator, Field
 
-from app import trust
+from app import fpclient, trust
 from app.api.narratives import Body
 from app.db import connection
 from app.jobs import enqueue, enqueue_unless_queued
@@ -33,8 +34,9 @@ PageUrl = Annotated[Url, AfterValidator(canonical_page_url)]
 class Passage(Body):
     text: str = Field(min_length=1, max_length=5000)
     url: PageUrl
-    content_hash: str = Field(min_length=1)
-    sentence_hashes: list[str] = Field(min_length=1, max_length=200)
+    # The server computes both when either is missing, as the extension would.
+    content_hash: str | None = Field(default=None, min_length=1)
+    sentence_hashes: list[str] | None = Field(default=None, min_length=1, max_length=200)
 
 
 class NoteRequest(Body):
@@ -77,6 +79,27 @@ def install_account(conn: Connection, user_id: UUID) -> UUID | None:
 def first_sentence(text: str) -> str:
     sentence = re.split(r"(?<=[.!?])\s+", " ".join(text.split()), maxsplit=1)[0]
     return sentence if len(sentence) <= TITLE_LENGTH else sentence[: TITLE_LENGTH - 1].rstrip() + "…"
+
+
+def hashed(passage: Passage) -> Passage:
+    """The passage with its hashes, computed by the fingerprint service when the writer sent none.
+
+    The text becomes its sentences of 5+ words joined by a space, the text the extension sends for a
+    selection, and the hashes are those `fingerprintSentences` gives them; 422 when there is no such sentence.
+    """
+    if passage.content_hash and passage.sentence_hashes:
+        return passage
+    [block] = fpclient.fingerprint([passage.text])["blocks"]
+    if block["contentHash"] is None:
+        raise HTTPException(422, "the passage needs a sentence of 5 or more words")
+    sentences = block["sentences"]
+    return passage.model_copy(
+        update={
+            "text": " ".join(s["text"] for s in sentences),
+            "content_hash": block["contentHash"],
+            "sentence_hashes": list(dict.fromkeys(s["hash"] for s in sentences))[:200],
+        }
+    )
 
 
 def note_narrative(conn: Connection, passage: Passage) -> int | None:
@@ -133,10 +156,11 @@ def post_note(request: NoteRequest) -> dict:
 
     The note waits in pending_review until moderate_note reviews it.
     """
+    passage = hashed(request.passage)
     with connection() as conn:
         account_id = install_account(conn, request.user_id)
         conn.execute("SELECT pg_advisory_xact_lock(%s)", (_CREATE_LOCK_KEY,))
-        narrative_id = note_narrative(conn, request.passage) or create_narrative(conn, request.passage)
+        narrative_id = note_narrative(conn, passage) or create_narrative(conn, passage)
         note_id = conn.execute(
             "INSERT INTO note (narrative_id, author_install, account_id, classification, body, sources)"
             " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
@@ -152,6 +176,43 @@ def post_note(request: NoteRequest) -> dict:
         conn.execute("UPDATE narrative SET updated_at = now() WHERE id = %s", (narrative_id,))
         enqueue(conn, "moderate_note", {"note_id": note_id})
     return {"noteId": str(note_id), "narrativeId": str(narrative_id)}
+
+
+@router.get("/notes/recent")
+def get_recent(
+    limit: Annotated[int, Query(ge=1, le=200)] = 50, since: Annotated[datetime | None, Query()] = None
+) -> dict:
+    """Visible notes, newest first, with the narrative and passage they are on: what raters pick from."""
+    with connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT n.id, n.narrative_id, r.title, r.claim, r.source_url, n.classification, n.body, n.sources,
+                   n.status, n.decided_by, n.created_at
+            FROM note n JOIN narrative r ON r.id = n.narrative_id
+            WHERE n.moderation = 'visible' AND (%(since)s::timestamptz IS NULL OR n.created_at > %(since)s)
+            ORDER BY n.created_at DESC, n.id DESC
+            LIMIT %(limit)s
+            """,
+            {"since": since, "limit": limit},
+        ).fetchall()
+    return {
+        "notes": [
+            {
+                "id": str(id_),
+                "narrativeId": str(narrative_id),
+                "title": title,
+                "passage": claim,
+                "url": url,
+                "classification": classification,
+                "body": body,
+                "sources": sources,
+                "status": status,
+                "decidedBy": decided_by,
+                "createdAt": created.isoformat(),
+            }
+            for id_, narrative_id, title, claim, url, classification, body, sources, status, decided_by, created in rows
+        ]
+    }
 
 
 def note_author(conn: Connection, note_id: int) -> tuple[UUID, UUID | None]:

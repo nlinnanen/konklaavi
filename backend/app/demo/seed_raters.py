@@ -19,6 +19,7 @@ from argon2 import PasswordHasher
 from psycopg import Connection
 
 from app.config import settings
+from app.demo.narratives import delete_narratives
 from app.jobs.score import score
 
 DOMAIN = "hashtrust.demo"
@@ -194,29 +195,9 @@ def remove(conn: Connection) -> None:
             "SELECT id FROM note WHERE narrative_id = ANY(%s) OR account_id = ANY(%s)", (narratives, accounts)
         )
     ]
-    fingerprints = [
-        row[0]
-        for row in conn.execute(
-            "SELECT f.id FROM fingerprint f JOIN variant v ON v.id = f.variant_id WHERE v.narrative_id = ANY(%s)",
-            (narratives,),
-        )
-    ]
-    # Deleting a narrative fires no trigger; the index delta lists it as removed from this change.
-    conn.execute(
-        "INSERT INTO index_change (narrative_id) SELECT unnest(%s::bigint[]) ON CONFLICT DO NOTHING",
-        (narratives,),
-    )
     conn.execute("DELETE FROM note_rating WHERE note_id = ANY(%s) OR install = ANY(%s)", (notes, installs))
     conn.execute("DELETE FROM note WHERE id = ANY(%s)", (notes,))
-    conn.execute("DELETE FROM narrative_vector WHERE narrative_id = ANY(%s)", (narratives,))
-    conn.execute("DELETE FROM narrative_page WHERE narrative_id = ANY(%s)", (narratives,))
-    conn.execute("DELETE FROM sentence WHERE fingerprint_id = ANY(%s)", (fingerprints,))
-    conn.execute("DELETE FROM lsh_band WHERE fingerprint_id = ANY(%s)", (fingerprints,))
-    conn.execute("DELETE FROM fingerprint WHERE id = ANY(%s)", (fingerprints,))
-    conn.execute("DELETE FROM variant WHERE narrative_id = ANY(%s)", (narratives,))
-    conn.execute("UPDATE vote SET narrative_id = NULL WHERE narrative_id = ANY(%s)", (narratives,))
-    conn.execute("UPDATE narrative SET settled_by = NULL WHERE settled_by = ANY(%s)", (narratives,))
-    conn.execute("DELETE FROM narrative WHERE id = ANY(%s)", (narratives,))
+    delete_narratives(conn, narratives)
     conn.execute("DELETE FROM install WHERE id = ANY(%s)", (installs,))
     conn.execute("DELETE FROM user_account WHERE id = ANY(%s)", (accounts,))
     score(conn)

@@ -1,4 +1,5 @@
 import dataclasses
+import hashlib
 import uuid
 
 from app import trust
@@ -129,3 +130,35 @@ def test_a_burst_of_ratings_queues_one_scoring_run(client, conn, narrative, sign
             assert response.status_code == 200
     conn.commit()
     assert conn.execute("SELECT state FROM job WHERE kind = 'score_notes'").fetchall() == [("queued",)]
+
+
+def test_a_passage_sent_without_hashes_is_hashed_as_the_extension_hashes_it(client, conn):
+    # The extension hashes "v1:" + normalizeText(sentence) and joins the normalized sentences for the content.
+    sentences = [
+        "sanctions are destroying europe from within experts say",
+        "the cited study says the opposite",
+    ]
+    passage = {
+        "text": "Sanctions are destroying Europe from within, experts say. Not so. The cited study says the opposite!",
+        "url": "https://news.example/b",
+    }
+    response = post_note(client, uuid.uuid4(), passage)
+    assert response.status_code == 200, response.text
+
+    def sha(text):
+        return hashlib.sha256(f"v1:{text}".encode()).hexdigest()
+
+    content_hash, claim = conn.execute(
+        "SELECT f.content_hash, r.claim FROM fingerprint f JOIN variant v ON v.id = f.variant_id"
+        " JOIN narrative r ON r.id = v.narrative_id"
+    ).fetchone()
+    stored = {row[0] for row in conn.execute("SELECT hash FROM sentence")}
+    assert content_hash == sha(" ".join(sentences))
+    assert stored == {sha(s) for s in sentences}
+    assert (
+        claim
+        == "Sanctions are destroying Europe from within, experts say. The cited study says the opposite!"
+    )
+
+    too_short = post_note(client, uuid.uuid4(), {"text": "Not so. Fine.", "url": "https://news.example/c"})
+    assert too_short.status_code == 422
