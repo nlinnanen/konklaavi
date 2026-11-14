@@ -64,6 +64,8 @@ async function startStub(sentenceHash: string, block: LookupBlock): Promise<Serv
     signatures: [SIGNATURE],
     sentences: [{ hash: sentenceHash, narrativeId: SIGNATURE.narrativeId }],
     fingerprints: [{ narrativeId: SIGNATURE.narrativeId, bands: block.bands }],
+    narrativeThreshold: 0.85,
+    narrativeVectors: [],
     removed: [],
   };
   const server = createServer(async (req, res) => {
