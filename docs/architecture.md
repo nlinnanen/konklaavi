@@ -1,69 +1,85 @@
 # Architecture
 
-The goals are in [north-star.md](north-star.md), the data model in [data-model.md](data-model.md) and the technology choices in [decisions.md](decisions.md).
+The goals are in [north-star.md](north-star.md), the contracts in [api.md](api.md), the tables in [data-model.md](data-model.md) and the containers in [components.md](components.md).
 
-The system has two halves. The extension fingerprints and matches content locally against a downloaded signature index. The backend builds that index from user votes and reports, EUvsDisinfo cases, fact-checks, the Pravda network and the public pages it fetches, and keeps the narrative graph. The C4 diagrams and the component list are in [components.md](components.md).
+HashTrust has two halves. Fingerprint tracking recognises that a passage belongs to a narrative and records where the narrative has spread, without judging it. Context notes attach readers' judgements to a narrative, and a scoring job decides which of them are shown. A narrative exists because a reader wrote a note on one of its passages.
 
 ## Scanning a page
 
-Everything up to the telemetry call runs in the browser.
+The content script splits the page into blocks, hashes every sentence and computes each block's content hash and MinHash LSH bands. In remote mode it sends those hashes to `/lookup`. In local index mode the background keeps the downloaded index and matches there, and the offscreen document embeds sentences and three-sentence windows for narrative-level matching. Page text stays in the browser in both modes.
 
 ```mermaid
 sequenceDiagram
   participant Page
-  participant Ext as Extension
-  participant Tel as Telemetry API
+  participant CS as Content script
+  participant BG as Background
+  participant API
 
-  Ext->>Ext: fetch index delta on a timer
-  Page->>Ext: DOM rendered or mutated
-  Ext->>Ext: chunk new content, normalise text
-  Ext->>Ext: sentence hashes + LSH bands per chunk
-  Ext->>Ext: look up sentence hashes and bands in the index
-  Ext->>Ext: embed unmatched chunks, compare with narrative vectors
-  opt match
-    Ext->>Page: highlight with verdict and explanation
-    Ext->>Tel: narrative id, public url, timestamp
+  opt local index mode
+    BG->>API: GET /index?since=version
+    API-->>BG: narratives, hashes, bands, vectors
   end
+  Page->>CS: DOM rendered or mutated
+  CS->>CS: blocks, sentence hashes, LSH bands
+  CS->>BG: lookup
+  alt remote mode
+    BG->>API: POST /lookup (hashes, bands)
+    API-->>BG: matches with narrative and notes
+  else local index mode
+    BG->>BG: match hashes and bands, embed unmatched units, compare vectors
+  end
+  BG-->>CS: LookupResults
+  CS->>Page: highlight by narrative state
+  BG->>API: POST /hits (narrative id, hash, public url)
 ```
 
-## Reporting
+Each detection hit enqueues at most one fetch of its URL per day. The fetch job fingerprints the page and attaches the blocks that carry the narrative, so a narrative's spread grows wherever extension users meet it.
 
-A report is the only path through which text a user reads reaches the backend.
+## Adding a note
+
+Selecting a passage and adding a note is the only way page text reaches the backend.
 
 ```mermaid
 sequenceDiagram
-  actor User
+  actor Reader
   participant Ext as Extension
-  participant API as Report API
-  participant A as Analysis worker
+  participant API
   participant DB as Postgres
+  participant W as Worker
 
-  User->>Ext: select text, choose verdict, add a comment
-  Ext->>API: text, url, verdict, comment
-  API->>DB: store report, enqueue fetch job
-  A->>DB: claim report and fetch job
-  A->>A: fetch url anonymously, confirm it is public
-  A->>A: LLM: core claim, techniques, explanation
-  A->>DB: search fetched pages for variants
-  A->>DB: create or extend candidate narrative
+  Reader->>Ext: select passage, Add context
+  Ext->>API: POST /notes (passage, classification, body, sources)
+  API->>DB: join the narrative holding a passage hash, or create one
+  API->>DB: note in pending_review, enqueue moderate_note, fetch, narrative_vectors
+  W->>DB: moderate_note: LLM review, visible or held
+  W->>DB: fetch: page fingerprints, attach blocks carrying the narrative
+  W->>DB: narrative_vectors: claim and block vectors
 ```
 
-## Signature lifecycle
+## Rating and scoring
+
+Signed-in readers rate notes from the highlight card. Every five minutes `score_notes` fits the Community Notes matrix factorisation over the ratings of verified accounts and sets each note's status. The narrative's display state follows its shown notes, and every change marks the narrative changed for the next `/index` delta.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Candidate: cluster job
-  [*] --> UnderReview: analysed report
-  [*] --> Active: EUvsDisinfo, fact-check or network import
-  UnderReview --> Active: votes confirm, or settlement matches a case
-  UnderReview --> Retired: settlement finds a reliable outlet
-  UnderReview --> Disputed: trustworthy votes
-  Active --> Disputed: trustworthy votes
-  Disputed --> Active: negative votes confirm
-  Disputed --> UnderReview: votes no longer dispute
-  Disputed --> Retired: trustworthy majority
-  Active --> Retired: trustworthy majority
-  Retired --> [*]
+  [*] --> needs_more_ratings: note visible
+  needs_more_ratings --> helpful: raters across the factor agree
+  needs_more_ratings --> not_helpful: raters agree it is not helpful
+  needs_more_ratings --> controversial: raters split along the factor
 ```
 
-Clients receive Active signatures as verdicts and UnderReview and Disputed signatures as soft warnings. A Candidate narrative is not shipped. Votes never move EUvsDisinfo or fact-checker narratives, and a narrative with `settled_at` set keeps its state.
+Each run fits the model afresh, so a decided note moves to another status when new ratings change the fit.
+
+A narrative is misleading when a misleading note is helpful, context when a not-misleading note is helpful, controversial, needs ratings, or tracked when no note is shown. Reputation is recomputed from the same decisions.
+
+## Moderation
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending_review: note submitted
+  pending_review --> visible: LLM review passes, or a moderator approves
+  pending_review --> hidden: a moderator hides
+  visible --> pending_review: a reader reports
+```
+
+Held and reported notes wait in the dashboard's moderation queue. A narrative whose every note is hidden is not shipped.

@@ -1,36 +1,33 @@
 # North star
 
-Network-level security such as WAFs and bot filtering stops bad requests before they reach a site. It cannot see bad content that arrives through valid requests, because that content is encrypted in transit and only exists in readable form inside the browser. We add the layer that sits there: a browser extension that recognises known propaganda narratives as the user reads, and a backend that tracks how those narratives spread and mutate across the web.
+Network security such as WAFs and bot filtering stops bad requests before they reach a site. It cannot see bad content that arrives through valid, encrypted requests, because that content only exists in readable form inside the browser. HashTrust is the content layer that sits there: a browser extension that recognises passages belonging to a tracked narrative as the user reads, and shows what other readers have said about that narrative.
 
-## How it works
+## Fingerprints as antivirus for narratives
 
-The system works like antimalware, applied to narratives instead of programs.
+Antivirus software recognises a known program by its signature wherever it turns up, without deciding anew each time what the program does. HashTrust does the same for narratives. A sentence hash catches copies, MinHash bands catch edited copies, and multilingual embeddings catch the same claim in other words, so one narrative is recognised on every site and in every rewording. The backend fetches the public pages where the narrative is seen and records where it appeared first and how far it has spread.
 
-- The backend keeps an index of known narrative signatures, each with a verdict, the manipulation techniques it uses and a plain-language explanation.
-- The extension splits every page into chunks (posts, comments, paragraphs) and fingerprints each one locally.
-- The extension downloads the signature index and matches against it locally. Page content never leaves the browser.
-- On a match, the content is highlighted with the explanation and a link to the narrative's history: where it first appeared, how it was edited, and which accounts and domains spread it.
-- Users report content they find manipulative. A report is an explicit act, and only then is the selected text sent to the backend.
-- The backend analyses reports with an LLM, finds the narrative's other variants in the public pages it has fetched, and promotes it into the index once enough evidence agrees.
+Recognition is not a judgement. HashTrust says that a passage belongs to a narrative seen on N sites since a given date, and nothing more on its own authority.
 
-## What makes it different
+## Context notes
 
-Fingerprints work at three levels. An exact hash catches copies, shingles catch edited copies, and embeddings catch the same claim in different words. Together they let one report cover every copy and paraphrase of a narrative on every site.
+The judgement comes from readers. A signed-in reader selects a passage and adds a note that says whether the narrative is misleading or not misleading, explains the context and links sources. That act creates the narrative, and from then on the fingerprints carry the note to every copy of the passage.
 
-The narrative graph is the product, and verdicts are labels on it. It records which account posted a narrative first, how each variant derives from the one before, and how narratives split and merge over time. That lets a reader see where a claim came from, not just that it was flagged.
+Other signed-in readers rate notes as helpful, somewhat helpful or not helpful. The open-source Community Notes bridging algorithm decides which notes are shown: a note becomes helpful only when raters who usually disagree with each other both find it helpful, and a note that splits raters along that divide is shown as controversial. The highlight on a page follows the shown note, so readers see a misleading warning, added context, a dispute, or just the tracking line.
 
-Each verdict explains itself. The highlight names the techniques used, such as loaded language, fear appeals or fabricated authority, so readers learn why something is propaganda.
+## Reputation
+
+Reputation belongs to a verified account and follows its track record. Writers gain it when their notes become helpful and lose it when they become not helpful. Raters gain it when their early ratings agree with the eventual outcome. Moderator rights come from high reputation or from being named by the operators.
+
+## Moderation and its limits
+
+Every submitted note goes through an LLM review for abuse, spam, off-topic content and factual claims without sources, and a flagged note waits for a human. Readers can report a note, which sends it back to the review queue. Volunteer moderators work through that queue in the dashboard and approve or hide notes.
+
+These measures have limits, and we state them openly. The bridging algorithm resists one-sided brigades but needs enough raters with different views before any note is shown, so a new narrative often has none. Verified accounts make mass sign-ups slower, not impossible. The LLM review catches abuse and missing sources, not subtle falsehoods. Moderators are volunteers and can be wrong or slow. HashTrust shows what a broad set of readers found helpful, which is a signal about a narrative, not a verdict on truth.
 
 ## Privacy
 
-The client never uploads fingerprints of what it renders, because embeddings and shingle hashes can be inverted back into text. The server builds the graph from content it can fetch itself and from explicit reports. Detection telemetry only says that a known variant was seen at a public URL, which the server verifies by fetching that URL.
-
-## Who it serves
-
-- Readers get an in-place warning with an explanation and a source trail.
-- Site owners such as news sites and blogs get a dashboard of which flagged narratives land in their comment sections, from which accounts, and when a brigade arrives.
-- Researchers and journalists get a queryable graph of narrative spread.
+Page text leaves the browser only as the passage a user submits with a note. In remote mode the extension sends sentence hashes and LSH bands; in local index mode it downloads the index and matches on the device, embeddings included. Detection hits say only that a tracked narrative was seen at a public URL, which the backend checks by fetching that URL itself.
 
 ## How we know it works
 
-We report precision and false-positive rate, not just a demo. Ground truth comes from documented disinformation cases such as the EUvsDisinfo database and the Pravda network, and from reliable outlets, which serve as negatives. A simulation of honest, lazy, partisan and coordinated users measures how much a brigade can move a verdict, and how often reliable content gets flagged.
+An offline benchmark built from EUvsDisinfo cases measures narrative recognition: how often the fingerprints and embeddings recognise articles carrying the same claim on other sites, and how often they match reliable reporting by mistake. It measures recognition only. Whether a narrative is misleading is for the notes to say. The method and numbers are in [evaluation.md](evaluation.md).
