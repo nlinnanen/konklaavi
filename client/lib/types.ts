@@ -63,10 +63,10 @@ export interface Signature {
   verdict: NegativeVerdict;
   techniques: string[];
   explanation: string | null;
-  source: 'euvsdisinfo' | 'report' | 'cluster';
+  source: 'euvsdisinfo' | 'report' | 'cluster' | 'network' | 'factcheck';
   sourceUrl: string | null;
   state: 'under_review' | 'active';
-  matchLevel: 'exact' | 'variant';
+  matchLevel: 'exact' | 'variant' | 'narrative';
 }
 
 /** A signature as GET /index ships it; the match level is the client's to set. */
@@ -76,6 +76,12 @@ export type IndexSignature = Omit<Signature, 'matchLevel'>;
 export interface IndexFingerprint {
   narrativeId: string;
   bands: (string | null)[];
+}
+
+/** A narrative's representative unit vectors, each 384 int8 values round(v * 127), base64-encoded. */
+export interface NarrativeVectors {
+  narrativeId: string;
+  vectors: string[];
 }
 
 /**
@@ -90,6 +96,9 @@ export interface IndexResponse {
   signatures: IndexSignature[];
   sentences: { hash: string; narrativeId: string }[];
   fingerprints: IndexFingerprint[];
+  /** Cosine at or above which a block matches a narrative's vectors. */
+  narrativeThreshold: number;
+  narrativeVectors: NarrativeVectors[];
   removed: string[];
 }
 
@@ -128,3 +137,32 @@ export const DEFAULT_SETTINGS: Settings = {
   highlight: true,
   sendHits: true,
 };
+
+/** Body of POST /auth/magic-link: emails a sign-in link that links this install to an account. */
+export interface MagicLinkRequest {
+  userId: string;
+  email: string;
+}
+
+/** A narrative the user reported, as GET /me lists it. */
+export interface AccountReport {
+  narrativeId: string;
+  title: string;
+  state: string;
+  outcome: 'pending' | 'confirmed' | 'rejected';
+  /** The settled-bad narrative that confirmed the report. */
+  settledBy: { source: Signature['source']; title: string; sourceUrl: string | null } | null;
+  reportedAt: string;
+  settledAt: string | null;
+}
+
+/** Response of GET /me?userId=...: reputation is per account when the install is linked, else per install. */
+export interface MeResponse {
+  userId: string;
+  email: string | null;
+  reputation: number;
+  weight: number;
+  agreed: number;
+  disagreed: number;
+  reports: AccountReport[];
+}

@@ -1,7 +1,8 @@
 import { browser, type Browser } from 'wxt/browser';
 import { HitReporter, LocalIndexApi, MockApi, RemoteApi, type KeyValueStore, type TrustApi } from '@/lib/api';
+import type { Embedder } from '@/lib/embed';
 import { getExtensionSettings, type ExtensionSettings } from '@/lib/extensionSettings';
-import type { BackgroundRequest, Envelope } from '@/lib/messages';
+import type { BackgroundRequest, EmbedRequest, Envelope } from '@/lib/messages';
 import type { LookupResult } from '@/lib/types';
 
 const localStore: KeyValueStore = {
@@ -36,8 +37,42 @@ function indexedDbStore(name: string): KeyValueStore {
   };
 }
 
+/**
+ * Embeds texts on the device, off any page's main thread: in an offscreen
+ * document in Chrome, whose service worker can't load the ONNX runtime, and in
+ * the background page in Firefox.
+ */
+function deviceEmbedder(): Embedder {
+  if (import.meta.env.FIREFOX) {
+    let embedder: Promise<Embedder> | undefined;
+    return async (texts) => (await (embedder ??= import('./offscreen/embedder').then((m) => m.createDeviceEmbedder())))(texts);
+  }
+  let offscreen: Promise<void> | undefined;
+  const ensureOffscreen = () =>
+    (offscreen ??= (async () => {
+      if (await browser.offscreen.hasDocument()) return;
+      await browser.offscreen.createDocument({
+        url: '/offscreen.html',
+        reasons: ['WORKERS'],
+        justification: 'Embeds page text on the device to match it against known narratives.',
+      });
+    })().catch((e) => {
+      offscreen = undefined;
+      throw e;
+    }));
+  return async (texts) => {
+    await ensureOffscreen();
+    const req: EmbedRequest = { target: 'offscreen', type: 'embed', texts };
+    const res = (await browser.runtime.sendMessage(req)) as Envelope<number[][]> | undefined;
+    if (!res) throw new Error('No response from the offscreen embedder');
+    if (!res.ok) throw new Error(res.error);
+    return res.data;
+  };
+}
+
 const mockApi = new MockApi(localStore);
-const indexStore = indexedDbStore('trust-verifier');
+const embedder = deviceEmbedder();
+const indexStore = indexedDbStore('hashtrust');
 let localApi: LocalIndexApi | undefined;
 
 function getApi(settings: ExtensionSettings): TrustApi {
@@ -45,7 +80,9 @@ function getApi(settings: ExtensionSettings): TrustApi {
     case 'remote':
       return new RemoteApi(settings.backendUrl);
     case 'local':
-      if (localApi?.baseUrl !== settings.backendUrl) localApi = new LocalIndexApi(settings.backendUrl, indexStore);
+      if (localApi?.baseUrl !== settings.backendUrl) {
+        localApi = new LocalIndexApi(settings.backendUrl, indexStore, Date.now, embedder);
+      }
       return localApi;
     case 'mock':
       return mockApi;
@@ -63,7 +100,7 @@ function reportHits(settings: ExtensionSettings, pageUrl: string | undefined, re
     reporter = new HitReporter((hits) => remote.submitHits(hits));
     hitReporters.set(settings.backendUrl, reporter);
   }
-  reporter.report(pageUrl, results).catch((e) => console.warn('[trust-verifier] sending detection hits failed', e));
+  reporter.report(pageUrl, results).catch((e) => console.warn('[hashtrust] sending detection hits failed', e));
 }
 
 async function getUserId(): Promise<string> {
@@ -92,11 +129,26 @@ async function handle(msg: BackgroundRequest, sender: Browser.runtime.MessageSen
       reportHits(settings, sender.url, results);
       return results;
     }
+    case 'matchNarratives': {
+      const results = (await api.matchNarratives?.(msg.payload)) ?? [];
+      reportHits(settings, sender.url, results);
+      return results;
+    }
     case 'domainStats':
       return api.domainStats(msg.payload);
     case 'clearMock':
       await mockApi.clear();
       return null;
+    case 'requestMagicLink': {
+      if (settings.backendMode === 'mock') throw new Error('Accounts need a backend');
+      await new RemoteApi(settings.backendUrl).requestMagicLink({ userId: await getUserId(), email: msg.payload });
+      return null;
+    }
+    case 'me':
+      if (settings.backendMode === 'mock') return null;
+      return new RemoteApi(settings.backendUrl).me(await getUserId());
+    default:
+      throw new Error(`Unknown request ${(msg as { type?: unknown }).type}`);
   }
 }
 

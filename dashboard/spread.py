@@ -1,7 +1,7 @@
 import streamlit as st
 
 from common import query
-from queries import HAS_OBSERVATION_DAILY, NARRATIVES, spread_domains, spread_per_day
+from queries import NARRATIVES, SPREAD_DOMAINS, SPREAD_HITS_PER_DAY, SPREAD_PER_DAY
 
 st.title("Spread")
 
@@ -22,14 +22,7 @@ narrative_id = st.selectbox(
 st.query_params["id"] = str(narrative_id)
 params = {"id": narrative_id}
 
-aggregate = bool(query(HAS_OBSERVATION_DAILY).iloc[0, 0])
-st.caption(
-    "Daily counts from the observation_daily continuous aggregate."
-    if aggregate
-    else "Daily counts from the observation table; the observation_daily continuous aggregate is absent."
-)
-
-per_day = query(spread_per_day(aggregate), params)
+per_day = query(SPREAD_PER_DAY, params)
 if per_day.empty:
     st.caption("No observations.")
     st.stop()
@@ -41,18 +34,20 @@ cols[2].metric("Observations", int(per_day["observations"].sum()))
 
 st.subheader("Domains reached")
 st.line_chart(per_day, x="day", y="domains_so_far")
-st.subheader("Pages and domains per day")
-st.bar_chart(per_day, x="day", y=["pages", "domains"], stack=False)
+st.subheader("Domains per day")
+st.bar_chart(per_day, x="day", y="domains")
+st.subheader("Observations per day")
+st.caption("fetch: pages the pipeline fetched; detection: matches reported by extensions.")
+st.bar_chart(query(SPREAD_HITS_PER_DAY, params), x="day", y="hits", color="source")
 
 st.subheader("Domains")
 st.dataframe(
-    query(spread_domains(aggregate), params),
+    query(SPREAD_DOMAINS, params),
     hide_index=True,
     column_config={
         "domain": "Domain",
         "first_day": st.column_config.DateColumn("First seen"),
         "last_day": st.column_config.DateColumn("Last seen"),
-        "pages": "Pages",
         "observations": "Observations",
     },
 )

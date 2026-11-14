@@ -119,8 +119,17 @@ class FakeAnthropic:
     def __call__(self, **_client_options):
         return self
 
-    def create(self, **request):
+    def stream(self, **request):
         self.requests.append(request)
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def get_final_message(self):
         return SimpleNamespace(stop_reason="tool_use", content=list(self.content))
 
 
@@ -140,7 +149,7 @@ def tool_call(analysis):
     return SimpleNamespace(type="tool_use", name="record_analysis", input=analysis)
 
 
-def test_claude_analysis_is_read_from_a_plain_messages_api_tool_call(anthropic_answers):
+def test_claude_analysis_is_read_from_a_streamed_messages_api_tool_call(anthropic_answers):
     fake = anthropic_answers(SimpleNamespace(type="text", text="Here it is."), tool_call(ANALYSIS))
     assert analyze.claude_analyze("Excerpt.", "misleading", None, "https://example.com") == ANALYSIS
     [request] = fake.requests

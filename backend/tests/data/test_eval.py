@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.api.main import app
 from app.eval import run
-from app.eval.metrics import Match, Page, metrics, report
+from app.eval.metrics import Match, Page, best_threshold, metrics, report, sweep
 from app.seed.euvsdisinfo import import_cases, load_cases, split_urls
 
 FIXTURE = Path(__file__).parent / "fixtures" / "euvsdisinfo.jsonl"
@@ -70,6 +70,24 @@ def test_a_page_matched_only_by_other_narratives_is_not_flagged_by_its_own():
     assert (other.flagged_by_own_narrative, own.flagged_by_own_narrative) == (False, True)
 
 
+def near(cosine: float) -> list[Match]:
+    return [Match("Sanctions hurt Europe more than Russia.", "7", "Sanctions", cosine)]
+
+
+def test_sweep_flags_narrative_level_matches_at_or_above_each_threshold_and_picks_the_best():
+    known = [Page("p1", True, [MATCH]), Page("p2", True, near=near(0.8)), Page("p3", True, near=near(0.6))]
+    negatives = [Page("n1", False, near=near(0.75)), Page("n2", False)]
+
+    rows = sweep({"known": known}, negatives, [0.7, 0.8, 0.9])
+
+    assert rows == [
+        {"threshold": 0.7, "false_positive_rate": 0.5, "known_precision": 2 / 3, "known_recall": 2 / 3},
+        {"threshold": 0.8, "false_positive_rate": 0.0, "known_precision": 1.0, "known_recall": 2 / 3},
+        {"threshold": 0.9, "false_positive_rate": 0.0, "known_precision": 1.0, "known_recall": 1 / 3},
+    ]
+    assert best_threshold(rows, "known_recall", 0.01) == 0.8
+
+
 def test_lookup_requests_stay_within_the_hash_limit_and_cover_every_block(monkeypatch):
     monkeypatch.setattr(run, "MAX_LOOKUP_HASHES", 3)
     blocks = [
@@ -130,9 +148,10 @@ def test_fetched_page_gets_one_match_per_flagged_block_with_its_narrative(conn, 
     blocks = run.page_blocks(conn, "https://news.example/a")
 
     with TestClient(app) as client:
-        matches = run.page_matches(client, blocks)
+        matches, flagged = run.page_matches(client, blocks)
 
     assert matches == [Match("Sanctions only hurt Europe.", str(fetched_page), "Sanctions backfire")]
+    assert flagged == {"flagged"}
 
 
 def test_page_that_was_not_fetched_has_no_blocks(conn):

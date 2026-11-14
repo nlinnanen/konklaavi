@@ -9,7 +9,7 @@ from app import trust
 from app.config import settings
 from app.jobs import register
 
-DEFAULT_MODEL = "claude-opus-5-5"
+DEFAULT_MODEL = "claude-opus-5.5"
 TECHNIQUES = [
     "loaded_language",
     "fear_appeal",
@@ -80,15 +80,16 @@ def claude_analyze(excerpt: str, verdict: str, comment: str | None, url: str) ->
         raise RuntimeError("ANTHROPIC_API_KEY is not set")
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key, base_url=settings.anthropic_base_url)
     report = {"url": url, "reader_verdict": verdict, "reader_comment": comment, "excerpt": excerpt}
-    # Plain tool use, which the Hostinger AI Router passes through. Forced tool_choice is rejected by
-    # current models, so the prompt asks for the tool call.
-    response = client.messages.create(
+    # Plain tool use, streamed: the Hostinger AI Router returns an empty tool input to a non-streaming
+    # request. Forced tool_choice is rejected by current models, so the prompt asks for the tool call.
+    with client.messages.stream(
         model=settings.analysis_model or DEFAULT_MODEL,
         max_tokens=16000,
         system=SYSTEM,
         messages=[{"role": "user", "content": json.dumps(report, ensure_ascii=False)}],
         tools=[TOOL],
-    )
+    ) as stream:
+        response = stream.get_final_message()
     call = next((block for block in response.content if block.type == "tool_use"), None)
     if call is None:
         raise RuntimeError(f"analysis ended with {response.stop_reason} and no {TOOL['name']} call")

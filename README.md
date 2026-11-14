@@ -1,4 +1,4 @@
-# junction26 — Content Trust Layer
+# HashTrust
 
 > Context document for humans and LLMs working on this repo. Keep it up to date as decisions are made.
 
@@ -12,6 +12,7 @@ Built for Junction 2026, on the "Trust the source" challenge direction.
 - [Architecture](docs/architecture.md): page scanning, reporting and the signature lifecycle.
 - [Components](docs/components.md): C4 diagrams, component list, contracts and workstreams.
 - [Data model](docs/data-model.md): fingerprint levels, the narrative graph and the storage schema.
+- [Evaluation](docs/evaluation.md): precision, recall and false-positive rate on EUvsDisinfo cases and reliable outlets.
 - [Technical decisions](docs/decisions.md): fingerprinting, client-side matching, storage and the stack.
 
 ## Repository layout

@@ -6,13 +6,10 @@ import {
   type BackendMode,
   type ExtensionSettings,
 } from '@/lib/extensionSettings';
+import { escapeHtml, renderAccount } from '@/lib/account';
 import { VERDICTS, VERDICT_LABELS, type DomainStats } from '@/lib/types';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-}
 
 async function activeTabId(): Promise<number | undefined> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
@@ -82,6 +79,23 @@ function renderDomain(stats: DomainStats | null, error?: string) {
     <div class="legend">${legend}</div>`;
 }
 
+/** Shows the account in remote and local modes; mock mode has no accounts, so the section stays hidden. */
+async function refreshAccount() {
+  let me;
+  try {
+    me = await callBackground('me', null);
+  } catch (e) {
+    $('#account-section').hidden = false;
+    $('#account').innerHTML = `<p class="muted">Could not load account: ${escapeHtml(e instanceof Error ? e.message : String(e))}</p>`;
+    $('#sign-in').hidden = true;
+    return;
+  }
+  $('#account-section').hidden = me === null;
+  if (!me) return;
+  $('#account').innerHTML = renderAccount(me);
+  $('#sign-in').hidden = me.email !== null;
+}
+
 const MODE_BADGES: Record<BackendMode, string> = {
   mock: 'mock backend',
   remote: 'remote backend',
@@ -131,6 +145,7 @@ async function main() {
       sendHits: (form.elements.namedItem('sendHits') as HTMLInputElement).checked,
     });
     await loadSettingsForm();
+    void refreshAccount();
     setTimeout(refresh, 300); // give the content script a moment to rescan
   });
   $('#rescan').addEventListener('click', async () => {
@@ -143,6 +158,19 @@ async function main() {
     await sendToContent({ type: 'rescan' });
     await refresh();
   });
+  const signIn = $('#sign-in') as HTMLFormElement;
+  signIn.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = String(new FormData(signIn).get('email') ?? '').trim();
+    const status = $('#sign-in-status');
+    try {
+      await callBackground('requestMagicLink', email);
+      status.textContent = `Check your email: we sent a sign-in link to ${email}.`;
+    } catch (err) {
+      status.textContent = `Could not send the link: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
+  void refreshAccount();
   await refresh();
 }
 

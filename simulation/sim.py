@@ -231,11 +231,11 @@ def pick_targets(api, given: list[str]) -> list[tuple[str, str | None]]:
 
 
 def save(path: Path, label: str, result: dict) -> None:
-    """Store the run under its label, keeping the other labels' runs."""
-    runs = json.loads(path.read_text())["runs"] if path.is_file() else {}
-    runs[label] = result
+    """Store the run under its label, keeping the other labels' runs and the file's other keys."""
+    results = json.loads(path.read_text()) if path.is_file() else {}
+    results.setdefault("runs", {})[label] = result
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"runs": runs}, indent=2) + "\n")
+    path.write_text(json.dumps(results, indent=2) + "\n")
 
 
 def _needed(n: int | None, cap: int) -> str:

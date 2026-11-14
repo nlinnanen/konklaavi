@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createEmbedder, EMBEDDING_DIM, type PipelineFactory } from './embed';
+import { cosine, createEmbedder, dequantize, EMBEDDING_DIM, type PipelineFactory, quantize } from './embed';
 
 /** A fake transformers.js pipeline whose vector for text t is filled with t's length. */
 function fakePipeline(): PipelineFactory {
@@ -31,5 +31,20 @@ describe('createEmbedder', () => {
     const embed = createEmbedder(pipeline);
     await expect(embed(['a'])).rejects.toThrow('offline');
     expect(await embed(['a'])).toHaveLength(1);
+  });
+});
+
+describe('quantize', () => {
+  // backend/tests/pipeline/test_vectors.py expects the same encoding.
+  it('encodes round(v * 127) as base64 int8, as the backend does', () => {
+    expect(quantize([1, -1, 0.5, -0.25, 0, 0.01])).toBe('f4FA4AAB');
+  });
+
+  it('keeps cosine within 0.01 through dequantize', () => {
+    const a = Array.from({ length: EMBEDDING_DIM }, (_, i) => Math.sin(i));
+    const b = Array.from({ length: EMBEDDING_DIM }, (_, i) => Math.sin(i + 0.3));
+    const unit = (v: number[]) => v.map((x) => x / Math.hypot(...v));
+    const [ua, ub] = [unit(a), unit(b)];
+    expect(cosine(dequantize(quantize(ua)), dequantize(quantize(ub)))).toBeCloseTo(cosine(ua, ub), 2);
   });
 });

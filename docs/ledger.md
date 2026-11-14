@@ -102,7 +102,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: evaluation fetches carry reason `eval`.
 - integrator: in compose, the dashboard reaches the API at `http://api:8000` and reads eval results from `backend/app/eval/results`, mounted read-only.
 - integrator: The main evaluation splits each EUvsDisinfo case's article URLs into seed and held-out URLs, because the system detects copies and variants of known narratives; held-out whole cases are reported separately as unseen narratives.
-- integrator: Votes are weighted by user reputation and discounted in coordinated bursts, and the simulation compares raw and weighted votes.
+- integrator: Votes are weighted by user reputation and discounted in coordinated bursts.
 - integrator: Testing is the minimum necessary: tests only for logic that would fail silently or that the demo depends on, and agents run only the test file they touch while iterating, with one full run before a commit.
 - integrator: Workstreams start in parallel against contracts and mocks; nothing waits on another workstream's branch. Stacks start with `docker compose up --wait` instead of polling loops.
 - integrator: No build or merge step runs a full-scale import or evaluation. Full-scale runs happen only as separate background jobs that nothing waits on, and their results are read when they finish.
@@ -124,7 +124,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - core: the production stack and Caddyfile are validated locally with DOMAIN=localhost.
 - ext: the local index refreshes on lookup: an index 5 minutes old answers while a `?since` delta downloads in the background, so nothing polls while the browser is idle.
 - ext: LocalIndexApi waits for the first full download; a failed first download fails the lookup.
-- ext: the index is stored in IndexedDB (`trust-verifier`, store `kv`, key `index`) with its baseUrl and last check time; an index for another backend URL is ignored.
+- ext: the index is stored in IndexedDB (`hashtrust`, store `kv`, key `index`) with its baseUrl and last check time; an index for another backend URL is ignored.
 - ext: local lookup results have zero vote counts, are flagged only when the narrative is active, and carry the narrative's verdict.
 - ext: detection hits go out after each local lookup as one POST /hits batch of the flagged results with a signature, each hash once per page (URL without fragment, last 500 pages remembered), for http(s) pages only, when `sendHits` is on; failures are logged and dropped.
 - ext: a build with `WXT_API_URL` set defaults to Local index with that URL.
@@ -139,6 +139,64 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: a periodic `lifecycle` job re-evaluates every shipped narrative every 10 minutes.
 - integrator: the cluster job leaves out fingerprints that are not prose or that `variants.boilerplate` marks.
 - core: the database runs without timescaledb-tune (`NO_TS_TUNE`), since the tune script panics where the container has no cgroup `memory.max` and aborts initdb before the toolkit extension is installed.
+- integrator: Narrative-level matching runs only where the text stays with its owner: the extension's local index mode and `/check`. `/lookup` stays exact and variant, because sending embeddings would leak page text.
+- integrator: The app is named HashTrust.
+- pipeline: int8 quantization is floor(v * 127 + 0.5) clamped to [-127, 127] in TypeScript and Python, so both encode the same bytes; Python's round() would round halves to even.
+- pipeline: a narrative's block vectors are its up to 5 attached prose, non-boilerplate fingerprints with an embedding, ranked by cosine distance to the mean of those blocks' embeddings, ties by id.
+- pipeline: the claim vector embeds `narrative_text` (title and claim joined by a newline) through the fingerprint service; a narrative with no 5-word sentence gets no claim vector.
+- pipeline: `narrative_vectors` rewrites block rows only when the central set changes and computes the claim vector only when missing, so a sweep causes no `/index` deltas for unchanged narratives.
+- pipeline: fetch enqueues `narrative_vectors` for the narratives it changed plus its payload narrative even when the page failed; `match_variants` enqueues it for the narratives it joined.
+- pipeline: migration 202 adds a row trigger on `narrative_vector` that writes `index_change`, and enqueues one `narrative_vectors` sweep for existing narratives.
+- pipeline: `narrative_text` lives in `variants.py`.
+- integrator: `narrative_vectors` runs every 5 minutes without ids, so narratives that `analyze` or the cluster job create or extend get vectors.
+- core: every narrative in a full index or a delta gets a `narrativeVectors` entry, empty when it has no vectors, so replacing it clears stale vectors; the claim vector comes first, then block vectors by fingerprint_id.
+- core: /check encodes vectors with `app.vectors.quantize`, sends `embed=true` for every block and counts whitespace words of the raw block text.
+- core: when several narratives pass the threshold, a block's narrative match prefers an active narrative, then the highest cosine; a narrative match carries zero vote counts.
+- ext: in local index mode the extension embeds blocks of 8+ words with transformers.js in an offscreen document in Chrome and in the background page in Firefox; the build copies onnxruntime-web's asyncify .mjs/.wasm (about 27 MB) into `ort/`, and the extension CSP adds 'wasm-unsafe-eval'.
+- ext: the q8 model weights (about 120 MB) download on first use from the Hugging Face hub into the browser cache; the backend serves no model files.
+- ext: narrative matching runs as a second `matchNarratives` message after exact and variant highlights are painted, only for blocks where neither the block nor any of its sentences got a result; an embedding failure leaves those highlights unchanged.
+- ext: block embeddings are cached in background memory by block content hash, up to 2000 entries.
+- ext: narrative matches are sent as detection hits; the backend records no observation for them but fetches the page for the narrative.
+- ext: a stored index without `narrativeVectors` is downloaded again in full.
+- ext: narrative matches get a 1px dotted underline in the verdict colour and the tooltip line "Same claim, different wording".
+- ext: `SignatureIndex` keeps narrative vectors as one Int8Array matrix with a norm per row instead of dequantized floats, for memory and speed.
+- data: the eval's narrative-level match flags only blocks against active narratives, as /lookup flags only active narratives.
+- data: the eval sweeps thresholds 0.70 to 0.95 in steps of 0.025 and reports `best_threshold`, the best known recall at a false-positive rate of at most 1%, the higher threshold on a tie.
+- data: the eval leaves out narrative candidates for blocks /lookup flagged through their block hash or any sentence hash.
+- data: the negatives are 313 reliable-outlet articles in nine languages; Reuters, AP, Le Monde, France 24 and LSM refuse anonymous fetches and are left out.
+- integrator: The narrative match threshold is 0.825. The team accepts a false-positive rate of 3-5% for recall: in the full evaluation 0.825 gives 2.2% false positives on 312 reliable-outlet pages, 79.5% recall on known narratives and 52.8% on unseen ones.
+- integrator: Text longer than the embedding model's input is chunked into overlapping sentence windows, each embedded on its own, on the client and when building narrative vectors; nothing is truncated.
+- integrator: Active fact-checker (`factcheck`) narratives count as settled truth for user reputation, like active EUvsDisinfo cases.
+- integrator: Users can sign in with an optional email magic link that keeps their reputation; anonymous install IDs still vote at low weight.
+- integrator: The crowdsourcing slice follows the seed-data work: reputation for reports of new content that later settle as misinformation, a penalty for flagging settled-good content, and reputation shown to the user.
+- integrator: Deployment and CI/CD belong to another team member; the build workflows don't touch them.
+- integrator: The crowdsourcing backend works in its own worktree `~/code/junction26/ws-crowd` on `ws/crowd`, because the core worktree was still busy with paraphrase anchors.
+- core: reputation counts per account when the install is linked, otherwise per install; of several installs of one account voting on the same content, one vote counts.
+- core: reuters.com, apnews.com, lemonde.fr, france24.com and lsm.lv count as reliable outlets alongside the eval negatives' domains, because the eval leaves them out only since they refuse anonymous fetches. A URL is reliable when its host or a parent domain is in the list, with `www.` stripped.
+- core: an agreement on a reliable-outlet page counts once per content hash, an agreement on a narrative once per narrative, and the higher value wins when one is early and one is not.
+- core: the early bonus compares the vote's `received_at` with the narrative's `settled_at`, so editing a vote after confirmation loses the bonus.
+- core: votes move neither factcheck nor euvsdisinfo narratives; the lifecycle leaves narratives with `settled_at` set in their settled state.
+- core: `/me` returns `weight` equal to `reputation`, because burst division happens per content.
+- core: `/me` lists a report when one of the account's installs cast a negative vote whose `narrative_id` is a report narrative.
+- core: the magic-link limit is 5 links per email and 5 per install per hour, with 429 beyond; the install row is created when a link is requested.
+- core: compose.yaml's `x-backend` environment is a mapping anchor that the api service merges with `SMTP_URL`, `MAIL_FROM` and `PUBLIC_API_URL`.
+- pipeline: the reported page is `narrative.source_url`, which analyze sets from the creating vote's URL; votes attaching later from other pages do not affect rejection.
+- pipeline: the reliable-URL check runs before matching, so a report on a reliable outlet's page is rejected even when it matches a fact-check case, such as Reuters quoting a disinformation claim.
+- pipeline: "shared fingerprint/variant" means a shared sentence hash or a near-duplicate block, because a fingerprint row belongs to one variant and so to one narrative.
+- pipeline: report narratives that the lifecycle retires through votes get `settled_at = updated_at` from the next settle run, with `settled_by` null.
+- pipeline: settlement runs only periodically, not after imports, because the vectors and blocks it matches exist only after fetch and `narrative_vectors` finish.
+- ext: the popup reaches the account endpoints through the background worker's `requestMagicLink` and `me` messages, because the worker holds the userId and backend URL.
+- ext: in mock mode `me` returns null and the popup hides the Account section; `requestMagicLink` throws there. Local and remote modes both use the backend for account calls.
+- ext: the sign-in form hides once `/me` returns an email; there is no sign-out.
+- ext: reputation shows as a percentage and weight as `weight.toFixed(2)` with a multiplication sign; a confirmed report with no `settledBy` shows plain "Confirmed".
+- data: the crowd simulation (`simulation/crowd.py`) files reports as report narratives and confirms them itself, so it measures the reputation rules, not how settlement matches reports, and needs no LLM key or job timing.
+- data: the simulation's groups are early reporters, late followers on long-settled cases and a 10-account bot farm flagging one reliable-outlet article per round; `bots_below_honest_after` is the number of reports per bot after which the bots' mean weight stays below both honest groups'.
+- data: the crowd simulation is stored under a top-level `crowd` key of `backend/app/eval/results/simulation.json`, beside the brigade runs under `runs`.
+- data: the Crowd page ranks only the 25 most active reporters, because reputation comes from one `/me` call each; a reporter shows as the email's local part or `anon-` plus 8 characters of the install id.
+- data: the spread page reads `narrative_domain_daily`, `narrative_new_domains_daily` and `narrative_hits_hourly` and shows no per-page counts.
+- integrator: Simulation belongs to another team member (built with Bevy); the build workflows write no simulation code and run no simulations.
+- integrator: Local development sends magic-link email to Mailpit (`axllent/mailpit`, compose profile `dev`, enabled by `COMPOSE_PROFILES=dev` in the worktree `.env`); production needs `SMTP_URL` and `MAIL_FROM` in the VPS `.env`, and without them sending fails.
+- integrator: Paraphrase anchors stay shipped (6 per narrative) until the background evaluation shows whether they raise recall or false positives; on two headline tests they scored below the claim vectors.
 - integrator: Deployment supersedes the hand-set-up VPS: GitHub Actions builds the app images and pushes them to GHCR as `sha-<commit>`; Ansible in `infra/ansible` hardens and configures the VPS; the release job deploys over SSH as an unprivileged `deploy` user whose key can only run `sudo /usr/local/sbin/junction26-release <sha>`. Every push to `main` releases. See [deployment.md](deployment.md).
 
 ## Deferred
@@ -193,5 +251,29 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - ext: open pages are not rescanned when a delta arrives.
 - ext: the whole index record is rewritten to IndexedDB on every refresh, empty deltas included.
 - ext: `client/lib/extensionSettings.ts` duplicates `client/lib/settings.ts`; with `Settings` widened, the two fold into one.
-- data: the spread page reads per-page `observation_daily`, which no migration creates; core's aggregates are per narrative and domain, so the page always buckets the raw table.
 - integrator: the cluster job runs `variants.boilerplate` over every unassigned prose fingerprint; its cost at full scale is unmeasured.
+- pipeline: a narrative whose claim cannot be embedded calls the fingerprint service again on every sweep.
+- pipeline: a changed claim text does not refresh the claim vector; only a missing one is computed.
+- ext: the embedding cache is lost when Chrome stops the service worker.
+- ext: narrative matching scans every narrative vector per block; a full EUvsDisinfo index of about 90k vectors is unmeasured in the browser.
+- ext: the popup's flagged list does not distinguish narrative matches from exact ones.
+- ext: real paraphrases of a claim scored cosine 0.59 to 0.69 against its claim embedding in a probe, under the 0.85 default threshold.
+- ext: onnxruntime-web's location is resolved through Node's require in `wxt.config.ts`; a nested onnxruntime-web version in transformers would make the copied files mismatch.
+- core: /check embeds every block in one fingerprint call, matched or short.
+- data: the 313 negatives are recent RSS items from one day, heavy on Russia/Ukraine news.
+- data: commit 336fff6 says ten languages; the negatives cover nine.
+- integrator: `NARRATIVE_MATCH_THRESHOLD` stays at 0.85 until a full evaluation picks `best_threshold`.
+- core: the magic-link rate limit counts and then inserts without a lock, so parallel requests can exceed it slightly.
+- core: `GET /me` needs only the install id, so anyone who knows a userId can read the linked email.
+- core: email is sent inside the request; a slow SMTP server holds a worker thread for up to 20 seconds.
+- pipeline: `settle_reports` runs an unindexed nearest-neighbour scan over every settled narrative vector per open report vector; its cost against a full EUvsDisinfo index is unmeasured.
+- ext: the popup reads `/me` only when it opens; after the emailed link is clicked the popup must be reopened.
+- ext: the `me` and `requestMagicLink` handlers in background.ts have no unit test.
+- data: the crowd simulation's votes, report narratives and bot flags on real reliable-outlet URLs stay in the stack's database, and the bot votes enqueue fetch jobs for those URLs.
+- data: the Crowd page shows email local parts, which can still identify a person.
+- Author handles and "who posted first" attribution.
+- The site-owner view of narrative spread.
+- A heuristic classifier for manipulative style without a narrative match.
+- Allowlists that suppress a narrative on debunking sites.
+- A signed Bloom-filter signature index.
+- A posts-per-account continuous aggregate.

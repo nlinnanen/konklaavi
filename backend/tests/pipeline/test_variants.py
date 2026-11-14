@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 import numpy as np
 
 from app import fpclient
-from app.jobs.variants import handle
+from app.jobs.variants import MAX_BLOCK_VECTORS, handle, refresh_narrative_vectors
 
 ORIGINAL = (
     "Western sanctions against Russia have backfired and are destroying the European economy, while ordinary "
@@ -140,3 +140,48 @@ def test_boilerplate_joins_no_variant_but_still_derives(conn):
 
     assert variant_of(conn, copy) is None
     assert [(src, dst) for src, dst, *_ in edges(conn)] == [(copy, original)]
+
+
+SANCTIONS = [
+    ORIGINAL,
+    CLOSE_COPY,
+    "Sanctions on Russian energy hurt Europe far more than Russia, and European industry is collapsing as a result.",
+    "European households cannot afford heating this winter because Brussels imposed sanctions that backfired on Europe.",
+    "The sanctions policy dictated by Washington is ruining German factories and pushing France into recession.",
+    "Russia sells its gas elsewhere while Europeans pay the bill for sanctions their leaders were ordered to adopt.",
+]
+
+
+def vectors(conn, narrative_id):
+    return conn.execute(
+        "SELECT kind, fingerprint_id FROM narrative_vector WHERE narrative_id = %s", (narrative_id,)
+    ).fetchall()
+
+
+def test_narrative_vectors_hold_the_central_blocks_and_the_claim(conn):
+    narrative_id, variant_id = add_variant(conn)
+    conn.execute(
+        "UPDATE narrative SET claim = 'Sanctions against Russia destroy the European economy.' WHERE id = %s",
+        (narrative_id,),
+    )
+    related = [add_fingerprint(conn, text, T0, variant_id, embed=True) for text in SANCTIONS]
+    off_topic = add_fingerprint(conn, UNRELATED, T0, variant_id, embed=True)
+    unfetched = conn.execute(
+        "INSERT INTO narrative (title, claim, source) VALUES"
+        " ('Vaccines', 'Vaccines alter human DNA and the authorities hide it from the public.', 'euvsdisinfo')"
+        " RETURNING id"
+    ).fetchone()[0]
+
+    refresh_narrative_vectors(conn, [narrative_id, unfetched])
+
+    kept = vectors(conn, narrative_id)
+    assert ("claim", None) in kept
+    blocks = {fingerprint_id for kind, fingerprint_id in kept if kind == "block"}
+    assert len(blocks) == MAX_BLOCK_VECTORS and blocks < set(related) and off_topic not in blocks
+    assert vectors(conn, unfetched) == [("claim", None)]
+
+    # Unchanged vectors are not rewritten, so the index sends no delta for them.
+    conn.commit()
+    changes = conn.execute("SELECT count(*) FROM index_change").fetchone()[0]
+    refresh_narrative_vectors(conn, [narrative_id, unfetched])
+    assert conn.execute("SELECT count(*) FROM index_change").fetchone()[0] == changes

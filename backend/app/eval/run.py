@@ -6,6 +6,10 @@ Known narratives: the URLs each seed case held out of the import, and mirrors of
 domains. Unseen narratives: the URLs of the test cases, which were held out whole, so nothing was seeded
 for them and low recall is expected.
 
+Narrative-level matching flags a block of MIN_WORDS or more words, with no exact or variant match, whose
+cosine to one of an active narrative's vectors reaches a threshold. The evaluation sweeps THRESHOLDS and
+picks the one with the best known recall within MAX_FALSE_POSITIVE_RATE on the negatives.
+
 Fetches go through the worker's fetch job, so the worker must be running. Lookups go to the API at
 --api, or to the API app in-process.
 """
@@ -20,12 +24,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
+import numpy as np
 from fastapi.testclient import TestClient
 from psycopg import Connection
 
 from app.api.main import app
 from app.db import connection
-from app.eval.metrics import Match, Page, report
+from app.eval.metrics import Match, Page, at_threshold, best_threshold, entry, report, sweep
 from app.jobs import enqueue
 from app.jobs.cluster import is_chrome
 from app.migrate import migrate
@@ -40,6 +45,9 @@ POLL_SECONDS = 5
 # Share of a held-out page's blocks another page must repeat to count as its mirror.
 MIRROR_SHARE = 0.5
 UNSEEN_REASON = "no narrative was seeded from this case"
+MIN_WORDS = 8
+THRESHOLDS = [round(0.7 + 0.025 * i, 3) for i in range(11)]
+MAX_FALSE_POSITIVE_RATE = 0.01
 
 log = logging.getLogger(__name__)
 
@@ -191,10 +199,11 @@ def fetch_all(urls: list[str], timeout: float) -> None:
 
 
 def page_blocks(conn: Connection, url: str) -> list[dict] | None:
-    """The fetched page's blocks as {hash, content, sentences, bands}, or None when it was not fetched."""
+    """The fetched page's blocks as {hash, content, embedding, sentences, bands}, or None when it was not
+    fetched."""
     rows = conn.execute(
         """
-        SELECT DISTINCT f.id, f.content_hash, f.content
+        SELECT DISTINCT f.id, f.content_hash, f.content, f.embedding::real[]
         FROM page p JOIN observation o ON o.page_id = p.id JOIN fingerprint f ON f.id = o.fingerprint_id
         WHERE p.url = %s AND p.status = 'ok'
         ORDER BY f.id
@@ -216,8 +225,14 @@ def page_blocks(conn: Connection, url: str) -> list[dict] | None:
     ):
         bands.setdefault(fingerprint_id, []).append(hash)
     return [
-        {"hash": content_hash, "content": content, "sentences": sentences.get(id, []), "bands": bands.get(id)}
-        for id, content_hash, content in rows
+        {
+            "hash": content_hash,
+            "content": content,
+            "embedding": embedding,
+            "sentences": sentences.get(id, []),
+            "bands": bands.get(id),
+        }
+        for id, content_hash, content, embedding in rows
     ]
 
 
@@ -236,26 +251,73 @@ def lookup_requests(blocks: list[dict]) -> Iterator[dict]:
         yield {"hashes": hashes, "blocks": with_bands}
 
 
-def page_matches(client: httpx.Client, blocks: list[dict]) -> list[Match]:
-    """One match per flagged block and narrative, carrying the block's text."""
-    content = {block["hash"]: block["content"] for block in blocks}
-    content.update({h: block["content"] for block in blocks for h in block["sentences"]})
+def page_matches(client: httpx.Client, blocks: list[dict]) -> tuple[list[Match], set[str]]:
+    """One match per flagged block and narrative, carrying the block's text, and the flagged blocks' hashes."""
+    block_of = {block["hash"]: block for block in blocks}
+    block_of.update({h: block for block in blocks for h in block["sentences"]})
     matches = []
+    flagged = set()
     for body in lookup_requests(blocks):
         response = client.post("/lookup", json=body)
         response.raise_for_status()
         for result in response.json()["results"]:
             if not result["flagged"]:
                 continue
+            block = block_of[result["hash"]]
+            flagged.add(block["hash"])
             signature = result.get("signature") or {}
             matches.append(
                 Match(
-                    text=content[result["hash"]][:MATCH_TEXT_CHARS],
+                    text=block["content"][:MATCH_TEXT_CHARS],
                     narrative_id=signature.get("narrativeId"),
                     narrative=signature.get("title"),
                 )
             )
-    return list(dict.fromkeys(matches))
+    return list(dict.fromkeys(matches)), flagged
+
+
+@dataclass(frozen=True)
+class NarrativeVectors:
+    narratives: list[tuple[str, str]]  # (id, title) per row of vectors
+    vectors: np.ndarray  # unit vectors, one per row
+
+
+def narrative_vectors(conn: Connection) -> NarrativeVectors:
+    """The vectors of the active narratives."""
+    rows = conn.execute(
+        """
+        SELECT n.id, n.title, nv.embedding::real[]
+        FROM narrative_vector nv JOIN narrative n ON n.id = nv.narrative_id
+        WHERE n.state = 'active'
+        """
+    ).fetchall()
+    return NarrativeVectors(
+        [(str(id), title) for id, title, _ in rows],
+        np.array([embedding for _, _, embedding in rows], dtype=np.float32).reshape(len(rows), -1),
+    )
+
+
+def near_matches(blocks: list[dict], flagged: set[str], narratives: NarrativeVectors) -> list[Match]:
+    """For each block of MIN_WORDS or more words with an embedding and no exact or variant match, its
+    closest narrative and the cosine to that narrative's closest vector."""
+    eligible = [
+        b
+        for b in blocks
+        if b["hash"] not in flagged and b["embedding"] is not None and len(b["content"].split()) >= MIN_WORDS
+    ]
+    if not eligible or not len(narratives.vectors):
+        return []
+    cosines = np.array([b["embedding"] for b in eligible], dtype=np.float32) @ narratives.vectors.T
+    closest = cosines.argmax(axis=1)
+    return [
+        Match(
+            text=block["content"][:MATCH_TEXT_CHARS],
+            narrative_id=narratives.narratives[j][0],
+            narrative=narratives.narratives[j][1],
+            cosine=round(float(cosines[i, j]), 4),
+        )
+        for i, (block, j) in enumerate(zip(eligible, closest, strict=True))
+    ]
 
 
 def page_status(conn: Connection, url: str) -> str:
@@ -269,6 +331,7 @@ def evaluate(client: httpx.Client, timeout: float) -> dict:
     migrate()
     with connection() as conn:
         labels = label_urls(conn, load_cases())
+        narratives = narrative_vectors(conn)
     negatives = [url for url in load_negatives() if url not in labels.known and url not in labels.unseen]
     fetch_all([*labels.known, *labels.unseen, *negatives], timeout)
     with connection() as conn:
@@ -299,7 +362,8 @@ def evaluate(client: httpx.Client, timeout: float) -> dict:
                 if blocks is None:
                     unreachable.append({"url": page.url, "set": name, "status": page_status(conn, page.url)})
                     continue
-            page = replace(page, matches=page_matches(client, blocks))
+            matches, flagged = page_matches(client, blocks)
+            page = replace(page, matches=matches, near=near_matches(blocks, flagged, narratives))
             if page.positive and not page.flagged:
                 with connection() as conn:
                     page = replace(page, reason=miss_reason(conn, page.url, page.narrative_id))
@@ -307,6 +371,8 @@ def evaluate(client: httpx.Client, timeout: float) -> dict:
 
     known_report = report(pages["known"] + pages["negative"])
     unseen_report = report(pages["unseen"] + pages["negative"])
+    rows = sweep({"known": pages["known"], "unseen": pages["unseen"]}, pages["negative"], THRESHOLDS)
+    best = best_threshold(rows, "known_recall", MAX_FALSE_POSITIVE_RATE)
     return {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "known": {
@@ -334,8 +400,26 @@ def evaluate(client: httpx.Client, timeout: float) -> dict:
             "pages": len(pages["negative"]),
             "false_positives": known_report["false_positives"],
         },
+        "narrative": {
+            "narratives": len({id for id, _ in narratives.narratives}),
+            "vectors": len(narratives.narratives),
+            "min_words": MIN_WORDS,
+            "max_false_positive_rate": MAX_FALSE_POSITIVE_RATE,
+            "sweep": rows,
+            "best_threshold": best,
+            "false_positives": narrative_only(pages["negative"], best),
+            "true_positives": narrative_only(pages["known"] + pages["unseen"], best),
+        },
         "unreachable": unreachable,
     }
+
+
+def narrative_only(pages: list[Page], threshold: float | None) -> list[dict]:
+    """The pages that only narrative-level matches at the threshold flag."""
+    if threshold is None:
+        return []
+    flagged = (at_threshold(p, threshold) for p in pages if not p.flagged)
+    return [entry(p) for p in flagged if p.flagged]
 
 
 def _percent(value: float | None) -> str:
@@ -376,6 +460,26 @@ def print_table(results: dict) -> None:
             print(f"  [{match['narrative'] or 'votes'}] {match['text']}")
     for page in known["false_negatives"]:
         print(f"\nfalse negative: {page['url']}\n  {page['reason']}")
+    print_sweep(results["narrative"])
+
+
+def print_sweep(section: dict) -> None:
+    print(
+        f"\nNarrative-level matching: {section['vectors']} vectors of {section['narratives']} active"
+        f" narratives, blocks of {section['min_words']}+ words"
+    )
+    print(f"{'threshold':>10}{'FPR':>8}{'known P':>10}{'known R':>10}{'unseen P':>10}{'unseen R':>10}")
+    for r in section["sweep"]:
+        print(
+            f"{r['threshold']:>10.3f}{_percent(r['false_positive_rate']):>8}"
+            f"{_percent(r['known_precision']):>10}{_percent(r['known_recall']):>10}"
+            f"{_percent(r['unseen_precision']):>10}{_percent(r['unseen_recall']):>10}"
+        )
+    limit = _percent(section["max_false_positive_rate"])
+    if section["best_threshold"] is None:
+        print(f"no threshold keeps the false-positive rate at or below {limit}")
+    else:
+        print(f"best known recall at a false-positive rate of at most {limit}: {section['best_threshold']}")
 
 
 def main() -> None:

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
@@ -5,11 +6,16 @@ from datetime import datetime
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
-from app.jobs import register
+from app import fpclient
+from app.jobs import enqueue, register
 
 # Candidates share at least this many LSH bands; a match is confirmed at this estimated Jaccard.
 MIN_SHARED_BANDS = 2
 MIN_JACCARD = 0.5
+# A narrative's vectors hold at most this many of its attached blocks besides its claim.
+MAX_BLOCK_VECTORS = 5
+# Narrative sources that label whole pages of a source, such as a documented network, rather than one claim.
+SOURCE_LEVEL = ("network",)
 
 
 @dataclass(frozen=True)
@@ -119,6 +125,121 @@ def update_centroids(conn: Connection, narrative_ids: set[int]) -> None:
     )
 
 
+def narrative_text(conn: Connection, narrative_id: int) -> str | None:
+    """The narrative's title and claim, the title once when the claim repeats it, or None when there is no
+    such narrative."""
+    row = conn.execute("SELECT title, claim FROM narrative WHERE id = %s", (narrative_id,)).fetchone()
+    return None if row is None else "\n".join(dict.fromkeys(part for part in row if part))
+
+
+def central_blocks(conn: Connection, narrative_ids: list[int]) -> dict[int, set[int]]:
+    """Per narrative, its MAX_BLOCK_VECTORS attached prose, non-boilerplate blocks closest to their mean."""
+    attached = [
+        row[0]
+        for row in conn.execute(
+            "SELECT f.id FROM fingerprint f JOIN variant v ON v.id = f.variant_id"
+            " WHERE v.narrative_id = ANY(%s) AND f.prose AND f.embedding IS NOT NULL",
+            (narrative_ids,),
+        )
+    ]
+    keep = list(set(attached) - boilerplate(conn, attached))
+    rows = conn.execute(
+        """
+        WITH block AS (
+          SELECT v.narrative_id, f.id, f.embedding FROM fingerprint f JOIN variant v ON v.id = f.variant_id
+          WHERE f.id = ANY(%s)
+        ), centre AS (
+          SELECT narrative_id, avg(embedding) AS mean FROM block GROUP BY narrative_id
+        )
+        SELECT narrative_id, id FROM (
+          SELECT b.narrative_id, b.id,
+                 row_number() OVER (PARTITION BY b.narrative_id ORDER BY b.embedding <=> c.mean, b.id) AS rank
+          FROM block b JOIN centre c USING (narrative_id)
+        ) ranked
+        WHERE rank <= %s
+        """,
+        (keep, MAX_BLOCK_VECTORS),
+    )
+    central = defaultdict(set)
+    for narrative_id, fingerprint_id in rows:
+        central[narrative_id].add(fingerprint_id)
+    return central
+
+
+def refresh_narrative_vectors(conn: Connection, narrative_ids: Iterable[int]) -> None:
+    """Bring each narrative's vectors up to date: its central blocks, and its claim when it has none.
+
+    A narrative whose central blocks are unchanged keeps its rows, so GET /index sends it no delta.
+    """
+    # A source-level narrative holds no single claim, so it gets no vectors for narrative-level matching.
+    ids = [
+        row[0]
+        for row in conn.execute(
+            "SELECT id FROM narrative WHERE id = ANY(%s) AND source <> ALL(%s) ORDER BY id",
+            (sorted(set(narrative_ids)), list(SOURCE_LEVEL)),
+        )
+    ]
+    if not ids:
+        return
+    central = central_blocks(conn, ids)
+    stored = defaultdict(set)
+    for narrative_id, fingerprint_id in conn.execute(
+        "SELECT narrative_id, fingerprint_id FROM narrative_vector WHERE narrative_id = ANY(%s) AND kind = 'block'",
+        (ids,),
+    ):
+        stored[narrative_id].add(fingerprint_id)
+    changed = [id_ for id_ in ids if central[id_] != stored[id_]]
+    if changed:
+        conn.execute(
+            "DELETE FROM narrative_vector WHERE narrative_id = ANY(%s) AND kind = 'block'", (changed,)
+        )
+        conn.execute(
+            """
+            INSERT INTO narrative_vector (narrative_id, kind, fingerprint_id, embedding)
+            SELECT v.narrative_id, 'block', f.id, f.embedding FROM fingerprint f JOIN variant v ON v.id = f.variant_id
+            WHERE v.narrative_id = ANY(%s) AND f.id = ANY(%s)
+            ON CONFLICT DO NOTHING
+            """,
+            (changed, [fingerprint_id for id_ in changed for fingerprint_id in central[id_]]),
+        )
+
+    without_claim = [
+        row[0]
+        for row in conn.execute(
+            "SELECT n.id FROM narrative n WHERE n.id = ANY(%s) AND NOT EXISTS ("
+            " SELECT 1 FROM narrative_vector nv WHERE nv.narrative_id = n.id AND nv.kind = 'claim'"
+            ") ORDER BY n.id",
+            (ids,),
+        )
+    ]
+    if not without_claim:
+        return
+    texts = [narrative_text(conn, id_) for id_ in without_claim]
+    embedded = fpclient.fingerprint(texts, embed=True)["blocks"]
+    with conn.cursor() as cur:
+        cur.executemany(
+            "INSERT INTO narrative_vector (narrative_id, kind, embedding) VALUES (%s, 'claim', %s::vector)"
+            " ON CONFLICT DO NOTHING",
+            [
+                (id_, str(block["embedding"]))
+                for id_, block in zip(without_claim, embedded, strict=True)
+                if block["embedding"] is not None
+            ],
+        )
+
+
+@register("narrative_vectors")
+def handle_narrative_vectors(conn: Connection, payload: dict) -> None:
+    """Refresh the given narratives' vectors, or every narrative's that is not retired or rejected."""
+    narrative_ids = payload.get("narrative_ids")
+    if narrative_ids is None:
+        narrative_ids = [
+            row[0]
+            for row in conn.execute("SELECT id FROM narrative WHERE state NOT IN ('retired', 'rejected')")
+        ]
+    refresh_narrative_vectors(conn, narrative_ids)
+
+
 def match(conn: Connection, fingerprint_id: int) -> int | None:
     """Join the closest matching variant and link to the closest earlier copy; return a narrative it joined."""
     row = conn.execute(
@@ -159,5 +280,7 @@ def match(conn: Connection, fingerprint_id: int) -> int | None:
 
 @register("match_variants")
 def handle(conn: Connection, payload: dict) -> None:
-    joined = {match(conn, fingerprint_id) for fingerprint_id in payload["fingerprint_ids"]}
-    update_centroids(conn, joined - {None})
+    joined = {match(conn, fingerprint_id) for fingerprint_id in payload["fingerprint_ids"]} - {None}
+    update_centroids(conn, joined)
+    if joined:
+        enqueue(conn, "narrative_vectors", {"narrative_ids": sorted(joined)})

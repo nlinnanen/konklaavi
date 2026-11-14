@@ -76,73 +76,68 @@ FROM edges e JOIN labels pl ON pl.id = e.parent JOIN labels cl ON cl.id = e.chil
 ORDER BY e.parent, e.child
 """
 
-# The continuous aggregate of observations the spread page reads when it exists:
-# observation_daily(day, fingerprint_id, page_id, observations).
-OBSERVATION_DAILY = "observation_daily"
-
-HAS_OBSERVATION_DAILY = """
-SELECT EXISTS (
-  SELECT 1 FROM timescaledb_information.continuous_aggregates WHERE view_name = 'observation_daily'
+# Spread reads core's continuous aggregates (migration 101), which file each observation under the
+# narrative its fingerprint had when the bucket was materialised.
+SPREAD_PER_DAY = """
+WITH daily AS (
+  SELECT day, sum(observations)::bigint AS observations, count(*) AS domains
+  FROM narrative_domain_daily WHERE narrative_id = %(id)s GROUP BY day
 )
+SELECT d.day,
+       d.observations,
+       d.domains,
+       sum(coalesce(n.new_domains, 0)) OVER (ORDER BY d.day)::bigint AS domains_so_far
+FROM daily d
+LEFT JOIN narrative_new_domains_daily n ON n.day = d.day AND n.narrative_id = %(id)s
+ORDER BY d.day
 """
 
-_FROM_AGGREGATE = """
-SELECT d.day, d.fingerprint_id, d.page_id, d.observations
-FROM observation_daily d JOIN members m ON m.id = d.fingerprint_id
+# Observations per day by how they were made: fetched pages, or detections reported by extensions.
+SPREAD_HITS_PER_DAY = """
+SELECT time_bucket('1 day', hour) AS day, source, sum(hits)::bigint AS hits
+FROM narrative_hits_hourly WHERE narrative_id = %(id)s
+GROUP BY 1, 2
+ORDER BY 1, 2
 """
 
-_FROM_OBSERVATIONS = """
-SELECT time_bucket('1 day', o.seen_at) AS day, o.fingerprint_id, o.page_id, count(*) AS observations
-FROM observation o JOIN members m ON m.id = o.fingerprint_id
-GROUP BY 1, 2, 3
-"""
-
-_SPREAD = """
-WITH members AS (
-  SELECT f.id FROM fingerprint f JOIN variant v ON v.id = f.variant_id WHERE v.narrative_id = %(id)s
-),
-daily AS ({daily}),
-by_domain AS (
-  SELECT d.day, p.domain_id, d.page_id, d.observations FROM daily d JOIN page p ON p.id = d.page_id
-)
-"""
-
-_SPREAD_PER_DAY = """
-, first_seen AS (SELECT domain_id, min(day) AS day FROM by_domain GROUP BY domain_id)
-SELECT b.day,
-       sum(b.observations)::bigint AS observations,
-       count(DISTINCT b.page_id) AS pages,
-       count(DISTINCT b.domain_id) AS domains,
-       (SELECT count(*) FROM first_seen f WHERE f.day <= b.day) AS domains_so_far
-FROM by_domain b
-GROUP BY b.day
-ORDER BY b.day
-"""
-
-_SPREAD_DOMAINS = """
+SPREAD_DOMAINS = """
 SELECT dm.name AS domain,
-       min(b.day) AS first_day,
-       max(b.day) AS last_day,
-       count(DISTINCT b.page_id) AS pages,
-       sum(b.observations)::bigint AS observations
-FROM by_domain b JOIN domain dm ON dm.id = b.domain_id
+       min(a.day) AS first_day,
+       max(a.day) AS last_day,
+       sum(a.observations)::bigint AS observations
+FROM narrative_domain_daily a JOIN domain dm ON dm.id = a.domain_id
+WHERE a.narrative_id = %(id)s
 GROUP BY dm.name
 ORDER BY first_day, domain
 """
 
+# The most active reporters, one row per account, or per install without one, with one of their install
+# ids for GET /me, which computes reputation.
+REPORTERS = """
+SELECT min(v.user_id::text) AS user_id, count(*) AS reports, max(v.received_at) AS last_report
+FROM vote v
+LEFT JOIN install i ON i.id = v.user_id
+WHERE v.verdict <> 'trustworthy'
+GROUP BY coalesce(i.account_id, v.user_id)
+ORDER BY reports DESC, last_report DESC
+LIMIT %(limit)s
+"""
 
-def _spread(query: str, aggregate: bool) -> str:
-    return _SPREAD.format(daily=_FROM_AGGREGATE if aggregate else _FROM_OBSERVATIONS) + query
-
-
-def spread_per_day(aggregate: bool) -> str:
-    """Per day, a narrative's observations, pages and domains, and the domains it has reached so far.
-
-    Reads the continuous aggregate when `aggregate` is true, else the observation table.
-    """
-    return _spread(_SPREAD_PER_DAY, aggregate)
-
-
-def spread_domains(aggregate: bool) -> str:
-    """Per domain, the first and last day a narrative was seen there, its pages and observations."""
-    return _spread(_SPREAD_DOMAINS, aggregate)
+# Settled report narratives, latest first: the narrative that confirmed each, or none when it was rejected.
+SETTLEMENTS = """
+SELECT r.id AS report_id,
+       r.title AS report,
+       c.id IS NOT NULL AS confirmed,
+       c.title AS settled_by,
+       c.source,
+       c.source_url,
+       first.reported_at,
+       r.settled_at,
+       r.settled_at - first.reported_at AS time_to_settle
+FROM narrative r
+LEFT JOIN narrative c ON c.id = r.settled_by
+LEFT JOIN LATERAL (SELECT min(received_at) AS reported_at FROM vote WHERE narrative_id = r.id) first ON true
+WHERE r.source = 'report' AND r.settled_at IS NOT NULL
+ORDER BY r.settled_at DESC
+LIMIT %(limit)s
+"""
