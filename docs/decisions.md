@@ -10,7 +10,7 @@ Each chunk gets three fingerprints, one per level of the [data model](data-model
 
 Shingles decide the variant level, because shared phrasing is evidence of copying and timestamps give the direction. Embeddings decide the narrative level, because they group rewrites of the same claim.
 
-The extension and the backend must produce identical fingerprints. The backend runs the same ONNX embedding model file as transformers.js through onnxruntime, and a shared JSON file of test vectors checks both MinHash implementations.
+The extension and the backend must produce identical fingerprints, so the TypeScript fingerprint code in `client/lib/` is the only implementation. The backend runs it in a Node fingerprint service that the Python worker calls over HTTP, and transformers.js runs the same embedding model in Node as in the browser.
 
 ## Matching runs on the client
 

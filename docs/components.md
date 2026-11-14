@@ -36,6 +36,7 @@ flowchart LR
     Ext["Extension<br/>TypeScript, WXT, transformers.js"]
     API["API<br/>Python, FastAPI"]
     Worker["Worker<br/>Python"]
+    FPS["Fingerprint service<br/>Node, client/lib"]
     DB[("Postgres<br/>TimescaleDB, pgvector")]
     Dash["Dashboard<br/>React, react-sigma"]
     Seed["Seed importer<br/>Python script"]
@@ -55,6 +56,8 @@ flowchart LR
   DB -->|jobs| Worker
   Worker -->|"fingerprints, variants, narratives, signatures"| DB
   Web -->|page text| Worker
+  Worker -->|page text| FPS
+  FPS -->|"hashes, minhash, embeddings"| Worker
   Worker -->|report text| Claude
   Claude -->|claim, techniques, explanation| Worker
   EU -->|cases| Seed
@@ -110,7 +113,7 @@ The fetch job fetches a URL anonymously, which also confirms it is public, then 
 
 ## Component list
 
-- Fingerprint library: chunk normalisation, SHA-256, MinHash and LSH bands, and the embedding model, implemented in both TypeScript and Python. A shared JSON file of test vectors keeps the two implementations producing identical output.
+- Fingerprint library: normalisation, sentence splitting, SHA-256, MinHash and LSH bands, and the embedding model, written once in TypeScript in `client/lib/`. The extension bundles it, and the fingerprint service runs it in Node for the backend.
 - Extension: chunker, fingerprinter, index sync, local matcher, highlighter, report UI and telemetry sender.
 - API: index deltas, reports, detection hits, and graph and metrics queries for the dashboard.
 - Worker: fetch job, variant matcher, narrative clusterer, analysis job and signature builder.
@@ -124,7 +127,7 @@ The fetch job fetches a URL anonymously, which also confirms it is public, then 
 Parallel work depends on four contracts, written together at the start:
 
 - The SQL schema, including the jobs table.
-- The fingerprint specification and its test vectors.
+- The fingerprint service's request and response shape.
 - The API request and response shapes, including the index format.
 - The job types and their payloads.
 
