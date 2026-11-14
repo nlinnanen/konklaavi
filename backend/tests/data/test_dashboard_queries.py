@@ -15,43 +15,103 @@ def insert(conn, sql, *params):
     return conn.execute(sql + " RETURNING id", params).fetchone()[0]
 
 
+def add_note(conn, narrative, classification, status, moderation="visible"):
+    account = conn.execute(
+        "INSERT INTO user_account (email) VALUES (gen_random_uuid() || '@example.com') RETURNING id"
+    ).fetchone()[0]
+    author = conn.execute(
+        "INSERT INTO install (id, account_id) VALUES (gen_random_uuid(), %s) RETURNING id", (account,)
+    ).fetchone()[0]
+    return insert(
+        conn,
+        "INSERT INTO note (narrative_id, author_install, account_id, classification, body, status, moderation)"
+        " VALUES (%s, %s, %s, %s, 'Context.', %s, %s)",
+        narrative,
+        author,
+        account,
+        classification,
+        status,
+        moderation,
+    )
+
+
+def states(conn):
+    rows = conn.execute(queries.NARRATIVES, {"sources": ["note"]}).fetchall()
+    return {title: (state, visible, pending) for _, title, _, state, visible, pending, *_ in rows}
+
+
+def test_narrative_state_follows_its_strongest_visible_note(conn):
+    notes = {
+        "Misleading": [
+            ("not_misleading", "helpful"),
+            ("misleading", "helpful"),
+            ("misleading", "controversial"),
+        ],
+        "Context": [("not_misleading", "helpful"), ("misleading", "needs_more_ratings")],
+        "Controversial": [("misleading", "controversial"), ("misleading", "needs_more_ratings")],
+        "Needs ratings": [("misleading", "needs_more_ratings"), ("misleading", "not_helpful")],
+        "Not helpful": [("misleading", "not_helpful")],
+        "Held": [],
+        "Tracked": [],
+    }
+    for title, title_notes in notes.items():
+        narrative = insert(conn, "INSERT INTO narrative (title, source) VALUES (%s, 'note')", title)
+        for classification, status in title_notes:
+            add_note(conn, narrative, classification, status)
+        if title == "Held":
+            add_note(conn, narrative, "misleading", "helpful", moderation="pending_review")
+            add_note(conn, narrative, "misleading", "helpful", moderation="hidden")
+    insert(conn, "INSERT INTO narrative (title, source) VALUES ('Candidate', 'cluster')")
+
+    assert states(conn) == {
+        "Misleading": ("misleading", 3, 0),
+        "Context": ("context", 2, 0),
+        "Controversial": ("controversial", 2, 0),
+        "Needs ratings": ("needs_ratings", 2, 0),
+        "Not helpful": ("tracked", 1, 0),
+        "Held": ("tracked", 0, 1),
+        "Tracked": ("tracked", 0, 0),
+    }
+
+
 def test_narrative_row_counts_its_spread(conn):
-    spread = insert(conn, "INSERT INTO narrative (title, source) VALUES ('Spread', 'euvsdisinfo')")
-    insert(conn, "INSERT INTO narrative (title, source) VALUES ('Unseen', 'report')")
-    domains = [
-        insert(conn, "INSERT INTO domain (name) VALUES (%s)", name) for name in ("a.example", "b.example")
-    ]
-    pages = [
-        insert(conn, "INSERT INTO page (url, domain_id) VALUES (%s, %s)", f"https://p/{i}", domain)
-        for i, domain in enumerate([domains[0], domains[0], domains[1]])
-    ]
-    first_seen = datetime(2025, 7, 1, tzinfo=UTC)
-    for i, page_ids in enumerate([pages[:2], pages[1:]]):
-        variant = insert(conn, "INSERT INTO variant (narrative_id) VALUES (%s)", spread)
-        fingerprint = insert(
-            conn,
-            "INSERT INTO fingerprint (content_hash, content, variant_id, first_seen) VALUES (%s, '', %s, %s)",
-            f"h{i}",
-            variant,
-            first_seen.replace(day=1 + i),
+    _, fingerprints = add_spread(conn)
+    add_second_domain(conn, fingerprints[0])
+
+    rows = conn.execute(queries.NARRATIVES, {"sources": ["note"]}).fetchall()
+
+    assert [row[6:9] for row in rows] == [(1, 3, 2)]
+
+
+def test_only_ratings_from_verified_accounts_count(conn):
+    narrative = insert(conn, "INSERT INTO narrative (title, source) VALUES ('Rated', 'note')")
+    note = add_note(conn, narrative, "misleading", "needs_more_ratings")
+    account = insert(conn, "INSERT INTO user_account (email) VALUES ('a@example.com')")
+    for helpfulness, account_id in [("helpful", account), ("somewhat", account), ("not_helpful", None)]:
+        install = conn.execute(
+            "INSERT INTO install (id, account_id) VALUES (gen_random_uuid(), %s) RETURNING id", (account_id,)
+        ).fetchone()[0]
+        conn.execute(
+            "INSERT INTO note_rating (note_id, install, helpfulness) VALUES (%s, %s, %s)",
+            (note, install, helpfulness),
         )
-        for page in page_ids:
-            conn.execute(
-                "INSERT INTO observation (seen_at, fingerprint_id, page_id, source) VALUES (now(), %s, %s, 'fetch')",
-                (fingerprint, page),
-            )
 
-    rows = conn.execute(queries.NARRATIVES).fetchall()
+    row = conn.execute(queries.RECENT_NOTES, {"limit": 10}).fetchone()
+    columns = [c.name for c in conn.execute(queries.RECENT_NOTES, {"limit": 10}).description]
+    counts = dict(zip(columns, row, strict=True))
 
-    assert [row[1:] for row in rows] == [
-        ("Spread", "euvsdisinfo", "candidate", 2, 3, 2, first_seen),
-        ("Unseen", "report", "candidate", 0, 0, 0, None),
+    assert [counts[k] for k in ("ratings", "counted", "helpful", "somewhat", "not_helpful")] == [
+        3,
+        2,
+        1,
+        1,
+        0,
     ]
 
 
 def add_spread(conn):
     """A narrative with two fingerprints, the second derived from the first, seen on two pages."""
-    narrative = insert(conn, "INSERT INTO narrative (title, source) VALUES ('Spread', 'euvsdisinfo')")
+    narrative = insert(conn, "INSERT INTO narrative (title, source) VALUES ('Spread', 'note')")
     variant = insert(conn, "INSERT INTO variant (narrative_id) VALUES (%s)", narrative)
     domain = insert(conn, "INSERT INTO domain (name) VALUES ('a.example')")
     pages = [
@@ -93,14 +153,6 @@ def test_narrative_pages_count_observations_per_page(conn):
     ]
 
 
-def test_narrative_observations_are_bucketed_by_day(conn):
-    narrative, _ = add_spread(conn)
-
-    rows = conn.execute(queries.NARRATIVE_OBSERVATIONS_PER_DAY, {"id": narrative}).fetchall()
-
-    assert [(day.day, count) for day, count in rows] == [(1, 2), (2, 1)]
-
-
 def test_narrative_lineage_points_from_parent_to_derived_block(conn):
     narrative, (first, second) = add_spread(conn)
 
@@ -128,10 +180,5 @@ def test_spread_counts_observations_and_domains_reached_per_day(conn, database_u
         admin.execute("CALL refresh_continuous_aggregate('narrative_domain_daily', NULL, NULL)")
 
     per_day = conn.execute(queries.SPREAD_PER_DAY, {"id": narrative}).fetchall()
-    domains = conn.execute(queries.SPREAD_DOMAINS, {"id": narrative}).fetchall()
 
     assert [(day.day, *counts) for day, *counts in per_day] == [(1, 2, 1, 1), (2, 1, 1, 1), (3, 1, 1, 2)]
-    assert [(name, first.day, last.day, n) for name, first, last, n in domains] == [
-        ("a.example", 1, 2, 3),
-        ("b.example", 3, 3, 1),
-    ]

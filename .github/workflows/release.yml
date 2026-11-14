@@ -51,7 +51,6 @@ jobs:
           - image: dashboard
             context: dashboard
             file: dashboard/Dockerfile
-            build-contexts: eval=backend/app/eval/results
     steps:
       - uses: actions/checkout@v5
       - name: Image name

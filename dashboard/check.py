@@ -3,10 +3,12 @@ import pandas as pd
 import streamlit as st
 
 from common import API_URL
-from tiers import label, legend, mark, tier
+from states import label, legend, mark
 
 st.title("Check text")
-st.caption(f"Fingerprints the text or page through the API at {API_URL} and lists the sentences it knows.")
+st.caption(
+    f"Fingerprints the text or page through the API at {API_URL} and lists the passages it recognises."
+)
 
 with st.form("check"):
     text = st.text_area("Text", height=200, help="Paragraphs separated by blank lines")
@@ -26,44 +28,46 @@ if submitted:
     if response.status_code != 200:
         st.error(f"The API answered {response.status_code}: {response.text}")
         st.stop()
-    matches = response.json()["matches"]
-    flagged = sum(m["result"]["flagged"] for m in matches)
-    st.subheader(f"{flagged} flagged of {len(matches)} known sentences")
-    if matches:
+    rows = []
+    for match in response.json()["matches"]:
+        result = match["result"]
+        narrative = result.get("narrative")
+        if not narrative:
+            continue
+        notes = narrative.get("notes") or []
+        spread = narrative.get("spread") or {}
+        rows.append(
+            {
+                "state": narrative.get("state"),
+                "passage": match["text"],
+                "match": result.get("matchLevel"),
+                "similarity": result.get("similarity"),
+                "narrative": narrative.get("title"),
+                "sites": spread.get("sites"),
+                "first seen": spread.get("firstSeen"),
+                "note": notes[0].get("body") if notes else None,
+            }
+        )
+    st.subheader(f"{len(rows)} recognised passages")
+    if rows:
         legend()
-        rows = []
-        for match in matches:
-            result = match["result"]
-            signature = result.get("signature") or {}
-            reports = signature.get("reports") or {}
-            rows.append(
-                {
-                    "tier": tier(result),
-                    "sentence": match["text"],
-                    "flagged": result["flagged"],
-                    "verdict": result["topVerdict"],
-                    "votes": result["total"],
-                    "narrative": signature.get("title"),
-                    "match": signature.get("matchLevel"),
-                    "similarity": signature.get("similarity"),
-                    "state": signature.get("state"),
-                    "settled": signature.get("settled"),
-                    "reporters": reports.get("count"),
-                    "report weight": reports.get("weight"),
-                    "source": signature.get("sourceUrl"),
-                }
-            )
-        st.markdown("<br>".join(mark(row["sentence"], row["tier"]) for row in rows), unsafe_allow_html=True)
+        st.markdown(
+            "<br>".join(mark(row["passage"], row["state"], row["match"]) for row in rows),
+            unsafe_allow_html=True,
+        )
         frame = pd.DataFrame(rows)
-        frame["tier"] = frame["tier"].map(label)
+        frame["state"] = frame["state"].map(label)
         st.dataframe(
             frame,
             hide_index=True,
             column_config={
-                "tier": "Tier",
-                "sentence": st.column_config.TextColumn("Sentence", width="large"),
+                "state": "State",
+                "passage": st.column_config.TextColumn("Passage", width="large"),
+                "match": "Match",
                 "similarity": st.column_config.NumberColumn(format="%.3f"),
-                "report weight": st.column_config.NumberColumn(format="%.2f"),
-                "source": st.column_config.LinkColumn("Source"),
+                "narrative": "Narrative",
+                "sites": "Sites",
+                "first seen": "First seen",
+                "note": st.column_config.TextColumn("Top note", width="large"),
             },
         )

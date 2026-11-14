@@ -1,40 +1,46 @@
 # HashTrust
 
-> Context document for humans and LLMs working on this repo. Keep it up to date as decisions are made.
-
-Network-level security such as WAFs stops bad requests, but it cannot see bad content that arrives through valid, encrypted requests. This project adds the layer inside the browser: an extension that recognises known propaganda narratives as the user reads, and a backend that tracks how those narratives spread and mutate across the web. It works like antimalware for narratives. The backend keeps an index of known narrative signatures, the extension fingerprints page content and matches it locally against that index, and user reports feed new narratives into the index.
+HashTrust is a content layer for the browser. Its extension recognises passages that belong to a tracked narrative, by sentence hashes, MinHash bands and on-device embeddings, and highlights them with the state that crowdsourced context notes give the narrative. Signed-in readers add notes to a selected passage and rate other readers' notes, and the Community Notes bridging algorithm decides which note is shown. The backend tracks where each narrative spreads by fetching the public pages it is seen on.
 
 Built for Junction 2026, on the "Trust the source" challenge direction.
 
 ## Documentation
 
-- [North star](docs/north-star.md): what we are building and why.
-- [Architecture](docs/architecture.md): page scanning, reporting and the signature lifecycle.
-- [Components](docs/components.md): C4 diagrams, component list, contracts and workstreams.
+- [North star](docs/north-star.md): what HashTrust is for and where its limits lie.
+- [Architecture](docs/architecture.md): scanning a page, adding and rating notes, scoring and moderation.
+- [Components](docs/components.md): container and component diagrams and what each part does.
 - [Data model](docs/data-model.md): fingerprint levels, the narrative graph and the storage schema.
-- [Evaluation](docs/evaluation.md): precision, recall and false-positive rate on EUvsDisinfo cases and reliable outlets.
-- [Technical decisions](docs/decisions.md): fingerprinting, client-side matching, storage and the stack.
+- [API contracts](docs/api.md): HTTP API, fingerprint service, jobs and configuration.
+- [Technical decisions](docs/decisions.md): the choices behind fingerprinting, matching, scoring and storage.
+- [Evaluation](docs/evaluation.md): the offline narrative recognition benchmark.
+- [Deployment](docs/deployment.md): images, the VPS and releases.
 
-## Repository layout
+## Layout
 
-- `client/`: browser extension that chunks, fingerprints and matches page content, highlights matches and sends reports.
-- `backend/`: API, worker, seed importer and the Postgres database.
-- `simulation/`: synthetic users, reports and content for measuring precision, false-positive rate and resistance to brigading.
+- `client/`: the browser extension (WXT, TypeScript) and the fingerprint library in `client/lib/` that the extension and the fingerprint service share. Its [README](client/README.md) covers development.
+- `fingerprint-service/`: a Node service that runs the fingerprint library and the embedding model for the backend.
+- `backend/`: the FastAPI API, the job worker, SQL migrations and the offline benchmark in `backend/app/eval/benchmark/`.
+- `dashboard/`: a Streamlit app for narratives, notes, the moderation queue and reputation.
+- `simulation/`: synthetic crowd runs against the API. They post to `/votes`, which the notes API does not serve.
+- `deploy/` and `infra/ansible/`: the production compose file and the VPS configuration.
 
-## Key concepts
+## Running locally
 
-- Fingerprint: how a chunk of content is identified. SHA-256 catches exact copies, MinHash over shingles catches edited copies and an embedding catches paraphrases.
-- Variant: a group of fingerprints that are edited copies of each other.
-- Narrative: a group of variants that make the same claim.
-- Signature: the shipped form of a narrative, with its verdict, techniques, explanation and match data.
-- Report: a user's explicit submission of content they find manipulative. It is the only path through which text a user reads reaches the backend.
+The stack runs with Docker Compose: Postgres with TimescaleDB and pgvector, the fingerprint service, the API, the worker, the dashboard and, under the `dev` profile, Mailpit to catch sign-in emails.
 
-## Open questions
+```sh
+cp .env.example .env
+docker compose up -d --build
+```
 
-- Which threshold of reports and LLM verdicts promotes a candidate narrative to an active signature.
-- Which multilingual embedding model fits the extension's size and speed budget.
-- Which heuristic classifier, if any, runs in the browser for content that matches no signature.
+The API is on `http://localhost:8000`, the dashboard on `http://localhost:8501` and Mailpit on `http://localhost:8025`. The first start downloads the embedding model into the `models` volume. LLM moderation of notes needs `ANTHROPIC_API_KEY` in `.env`; without it new notes wait in the moderation queue.
 
-## Status
+To load the extension against the local backend, build it from `client/` and load `client/dist/chrome-mv3` as an unpacked extension in `chrome://extensions`:
 
-The design is documented. Implementation has not started.
+```sh
+cd client
+npm install
+WXT_API_URL=http://localhost:8000 npm run build
+```
+
+Moderator rights go to the emails in `MODERATOR_EMAILS`. Backend tests run with `uv run pytest` in `backend/`, which recreates a `trust_test` database on the compose Postgres, and extension tests with `npm test` in `client/`.

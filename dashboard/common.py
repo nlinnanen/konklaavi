@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 import httpx
 import pandas as pd
@@ -13,13 +12,6 @@ API_URL = (os.environ.get("API_URL") or f"http://localhost:{os.environ.get('API_
     "/"
 )
 
-RESULTS = Path(
-    os.environ.get("EVAL_RESULTS")
-    or Path(__file__).resolve().parent.parent / "backend" / "app" / "eval" / "results" / "latest.json"
-)
-# The simulations in simulation/ write their runs next to the evaluation results.
-SIMULATION = RESULTS.parent / "simulation.json"
-
 
 @st.cache_data(ttl=10)
 def query(sql: str, params: dict | None = None) -> pd.DataFrame:
@@ -30,7 +22,18 @@ def query(sql: str, params: dict | None = None) -> pd.DataFrame:
 
 @st.cache_data(ttl=10)
 def me(user_id: str) -> dict:
-    """GET /me for an install: its voter's reputation, which is the weight of its votes."""
+    """GET /me for an install: its account's email, verification and reputation."""
     response = httpx.get(f"{API_URL}/me", params={"userId": user_id}, timeout=10)
     response.raise_for_status()
     return response.json()
+
+
+def pick_narrative(narratives: pd.DataFrame) -> int:
+    """A narrative chosen in a select box, kept in the page URL as ?id=."""
+    ids = narratives["id"].tolist()
+    titles = dict(zip(narratives["id"], narratives["title"], strict=True))
+    requested = st.query_params.get("id")
+    default = ids.index(int(requested)) if requested and requested.isdigit() and int(requested) in ids else 0
+    narrative_id = st.selectbox("Narrative", ids, index=default, format_func=lambda i: f"{titles[i]} (#{i})")
+    st.query_params["id"] = str(narrative_id)
+    return narrative_id

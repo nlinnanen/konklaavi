@@ -1,51 +1,48 @@
 # Data model
 
-Content is identified at three levels:
+Content is recognised at three levels:
 
-- Exact: the same text, matched by SHA-256 of the normalised text.
-- Variant: an edited copy, matched by MinHash over word shingles with LSH.
-- Narrative: the same claim in different words, matched by cosine between a block's embedding and the narrative's vectors.
+- Exact: a shared sentence hash, SHA-256 over the normalised sentence.
+- Variant: an edited copy, found by MinHash over word 5-grams with LSH bands and confirmed at an estimated Jaccard of 0.5.
+- Narrative: the same claim in other words, found by cosine between an embedding unit and the narrative's vectors, at the `narrative` level from `NARRATIVE_MATCH_THRESHOLD` and the weaker `related` level from `RELATED_MATCH_THRESHOLD`.
 
-Fingerprints enter the database when the backend fetches a public page. Reports, detection hits from clients and EUvsDisinfo cases each trigger a fetch of the page they point to, so the graph grows wherever known narratives appear. Detection hits also record that a known variant was seen at a public URL, which gives the reach and spread of a narrative.
+Fingerprints enter the database when a note's passage is stored and when the backend fetches a public page. Notes and detection hits each enqueue a fetch of the page they point to, and the fetch attaches the blocks that carry the narrative, so the graph grows wherever the narrative is seen. Observations record each sighting with its time and page and feed the narrative's spread.
 
 ## Graph
 
 ```mermaid
 flowchart LR
-  User((User))
-  Account((Account))
   Domain((Domain))
   Page((Page))
   FP((Fingerprint))
   Var((Variant))
   Nar((Narrative))
+  Note((Note))
+  Acct((Account))
 
   Domain -->|HAS| Page
-  Page -->|"CONTAINS {first_seen, source}"| FP
-  Account -->|"POSTED {t, page}"| FP
+  Page -->|"OBSERVED {seen_at, fetch / detection}"| FP
   FP -->|VARIANT_OF| Var
   Var -->|PART_OF| Nar
-  FP -->|"DERIVED_FROM {edit_dist, dt}"| FP
-  Nar -->|"EVOLVED_INTO {split / merge / continue}"| Nar
-  User -->|"VOTED {verdict, comment}"| FP
+  FP -->|"DERIVED_FROM {jaccard, dt_seconds}"| FP
+  Nar -->|"EVOLVED_INTO"| Nar
+  Note -->|ON| Nar
+  Acct -->|WROTE| Note
+  Acct -->|"RATED {helpfulness}"| Note
 ```
 
-Two edge types describe how narratives evolve:
+`DERIVED_FROM` links a fingerprint to the closest earlier-seen near-duplicate, so the edges form a family tree of edits within a narrative. `EVOLVED_INTO` links a cluster candidate to the earlier narrative it grew out of.
 
-- `DERIVED_FROM` links a fingerprint to the most similar fingerprint seen earlier. The edges form a family tree of mutations within a narrative, showing which accounts and domains introduced each change.
-- `EVOLVED_INTO` links a narrative cluster in one time window to its matching clusters in the next, recording splits, merges and drift.
-
-A signature is the shipped form of a narrative in state `active`, `under_review` or `disputed`: its verdict, techniques, explanation and the match data clients need.
+A narrative has a `source`. A `note` narrative is created by `POST /notes`, its claim the passage, and ships to clients while it has a note that is not hidden. A `cluster` narrative is a candidate the `cluster` job found among unassigned fingerprints; it never ships.
 
 ## Storage schema
 
-All of it lives in Postgres with pgvector. Graph edges that have no table of their own sit in a generic `edge` table. Ids are `bigserial` except the voter and account ids, which are uuids. The migrations in `backend/migrations/` are the source for columns.
+Everything lives in Postgres with TimescaleDB and pgvector. Graph edges sit in a generic `edge` table. Ids are `bigserial` except accounts and installs, which are uuids. The migrations in `backend/migrations/` are the source for columns, and the diagram shows the ones the code reads.
 
 ```mermaid
 erDiagram
   DOMAIN ||--o{ PAGE : has
   PAGE ||--o{ OBSERVATION : on
-  ACCOUNT ||--o{ OBSERVATION : posted
   FINGERPRINT ||--o{ OBSERVATION : seen_as
   FINGERPRINT ||--o{ SENTENCE : split_into
   FINGERPRINT ||--o{ LSH_BAND : indexed_by
@@ -54,16 +51,18 @@ erDiagram
   NARRATIVE ||--o{ NARRATIVE_VECTOR : matched_by
   NARRATIVE ||--o{ NARRATIVE_PAGE : fetched_from
   PAGE ||--o{ NARRATIVE_PAGE : fetched_for
-  NARRATIVE ||--o{ VOTE : attached_to
+  NARRATIVE ||--o{ NOTE : has
   NARRATIVE ||--o{ INDEX_CHANGE : changed
+  NOTE ||--o{ NOTE_RATING : rated_by
   USER_ACCOUNT ||--o{ INSTALL : links
-  INSTALL ||--o{ VOTE : casts
+  USER_ACCOUNT ||--o{ NOTE : writes
+  INSTALL ||--o{ NOTE_RATING : casts
+  INSTALL ||--o{ LOGIN_TOKEN : requests
 
   OBSERVATION {
     timestamptz seen_at
     bigint fingerprint_id
     bigint page_id
-    bigint account_id
     text source
   }
   FINGERPRINT {
@@ -74,6 +73,7 @@ erDiagram
     vector384 embedding
     bigint variant_id FK
     timestamptz first_seen
+    boolean prose
   }
   SENTENCE {
     text hash
@@ -92,15 +92,10 @@ erDiagram
     bigserial id PK
     text title
     text claim
-    text explanation
-    text verdict
-    text_array techniques
     text source
     text source_url
-    text state
     vector384 centroid
-    bigint settled_by FK
-    timestamptz settled_at
+    timestamptz created_at
   }
   NARRATIVE_VECTOR {
     bigint narrative_id FK
@@ -112,15 +107,26 @@ erDiagram
     bigint narrative_id FK
     bigint page_id FK
   }
-  VOTE {
+  NOTE {
     bigserial id PK
-    uuid user_id
-    text content_hash
-    text_array sentence_hashes
-    text verdict
-    text comment
-    text url
     bigint narrative_id FK
+    uuid author_install FK
+    uuid account_id FK
+    text classification
+    text body
+    text_array sources
+    text status
+    float intercept
+    float factor
+    timestamptz decided_at
+    text moderation
+    text moderation_reason
+  }
+  NOTE_RATING {
+    bigint note_id FK
+    uuid install FK
+    uuid account_id FK
+    text helpfulness
   }
   USER_ACCOUNT {
     uuid id PK
@@ -129,6 +135,12 @@ erDiagram
   INSTALL {
     uuid id PK
     uuid account_id FK
+  }
+  LOGIN_TOKEN {
+    bytea token_hash PK
+    uuid install_id FK
+    text email
+    timestamptz expires_at
   }
   INDEX_CHANGE {
     xid8 xid
@@ -144,18 +156,4 @@ erDiagram
   }
 ```
 
-`vote`, `sentence`, `narrative_vector`, `narrative_page`, `index_change` and `install` serve the API and the index. `eval_case` holds the evaluation's held-out EUvsDisinfo cases and `cluster_run` one row per clustering run. `login_token` and `job` support sign-in and the queue.
-
-`observation.source` is `fetch` or `detection`. Detection observations reference existing fingerprints only, and their account is the poster on the page, never the extension user.
-
-## Example lineage
-
-The `DERIVED_FROM` tree of one narrative, read in the direction of spread:
-
-```mermaid
-flowchart LR
-  A["@anon_acct on X<br/>day 0"] --> B["fringe blog<br/>day 1, edited"]
-  B --> C["regional news comments<br/>day 3"]
-  B --> D["Telegram mirror<br/>day 3"]
-  C --> E["mainstream op-ed paraphrase<br/>day 6"]
-```
+`observation` is a TimescaleDB hypertable on `seen_at`, and the continuous aggregates `narrative_hits_hourly` and `narrative_domain_daily` feed the dashboard's spread charts. Triggers on `note`, `note_rating` and `narrative_vector` write `index_change` rows, which `/index` turns into deltas. `job` is the work queue, `cluster_run` holds one row per clustering run, and `eval_case` holds the offline benchmark's cases in the benchmark's own database. `observation.source` is `fetch` or `detection`; a detection observation references an existing fingerprint and never identifies the extension user.

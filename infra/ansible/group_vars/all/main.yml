@@ -47,12 +47,15 @@ ghcr_user: "nlinnanen"
 ghcr_token: "{{ vault_ghcr_token }}"
 
 postgres_password: "{{ vault_postgres_password }}"
-# Hostinger AI Router. Empty values keep compose.yaml's defaults: https://router.hostinger.com,
-# claude-opus-5.5 and claude-haiku-5.5; model ids are listed at https://router.hostinger.com/v1/models.
+# Hostinger AI Router. Empty values keep the defaults: https://router.hostinger.com and
+# claude-haiku-5.5; model ids are listed at https://router.hostinger.com/v1/models.
 hostinger_router_key: "{{ vault_hostinger_router_key | default('') }}"
 anthropic_base_url: "https://router.hostinger.com/v1"
-analysis_model: ""
-paraphrase_model: ""
+moderation_model: ""
+# Comma-separated emails of moderators; accounts above moderator_reputation moderate too.
+moderator_emails: ""
+moderator_reputation: ""
+note_min_ratings: ""
 narrative_match_threshold: ""
 
 # Magic-link sign-in email: smtp[s]://user:pass@host:port. Required in production for sign-in to work.

@@ -1,36 +1,41 @@
-import { emptyCounts, summarize } from './aggregate';
 import { EMBEDDING_DIM, type Embedder } from './embed';
-import { hashNormalized } from './fingerprint';
-import { normalizeText } from './normalize';
-import { tierOf, tierRank } from './tier';
-import {
-  VERDICTS,
-  type DomainStats,
-  type Hit,
-  type IndexResponse,
-  type IndexSignature,
-  type LookupBlock,
-  type LookupResult,
-  type MagicLinkRequest,
-  type MeResponse,
-  type NarrativeVectors,
-  type Signature,
-  type VoteRequest,
+import { displayState, matchRank } from './state';
+import type {
+  Helpfulness,
+  Hit,
+  IndexResponse,
+  LookupBlock,
+  LookupResult,
+  MagicLinkRequest,
+  MatchLevel,
+  MeResponse,
+  Narrative,
+  NarrativeDetail,
+  NarrativeVectors,
+  Note,
+  NoteInput,
+  NoteRequest,
+  NoteResponse,
+  NoteStatus,
 } from './types';
 
-export type { Hit, LookupBlock };
+export type { Hit, IndexResponse, LookupBlock };
 
 /** The backend contract. See docs/api.md. */
 export interface TrustApi {
-  submitVote(vote: VoteRequest): Promise<void>;
   /** Results for sentence hashes (exact matches) and for block hashes (variant matches). */
   lookup(hashes: string[], blocks?: LookupBlock[]): Promise<LookupResult[]>;
   /** Narrative-level and related results for embedding units, embedded on the device; only backends that keep text local have it. */
   matchNarratives?(units: NarrativeBlock[]): Promise<LookupResult[]>;
-  domainStats(domain: string): Promise<DomainStats>;
+  narrative(narrativeId: string): Promise<NarrativeDetail>;
+  addNote(note: NoteRequest): Promise<NoteResponse>;
+  rateNote(noteId: string, userId: string, helpfulness: Helpfulness): Promise<void>;
+  reportNote(noteId: string, userId: string, reason: string): Promise<void>;
+  me(userId: string): Promise<MeResponse>;
 }
 
 export const MAX_LOOKUP_BATCH = 500;
+export const MAX_NOTE_LENGTH = 1000;
 
 /** An embedding unit offered for narrative matching: its content hash and the text `embeddingUnits` gives it. */
 export interface NarrativeBlock {
@@ -38,10 +43,35 @@ export interface NarrativeBlock {
   text: string;
 }
 
-export function validateVote(vote: VoteRequest): void {
-  if (!VERDICTS.includes(vote.verdict)) throw new Error(`Invalid verdict: ${vote.verdict}`);
-  if (!vote.sentenceHashes.length) throw new Error('Vote has no sentence hashes');
-  if (vote.comment && vote.comment.length > 500) throw new Error('Comment too long');
+/** The URL when it is safe to link to (http or https), else null. */
+export function safeHref(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** What keeps a note from being submitted, in words for its writer; null when it can be. */
+export function noteProblem(note: Pick<NoteInput, 'body' | 'sources'>): string | null {
+  if (!note.body.trim()) return 'Write the context readers need.';
+  if (note.body.length > MAX_NOTE_LENGTH) return `Keep the context under ${MAX_NOTE_LENGTH} characters.`;
+  if (!note.sources.length) return 'Add at least one source link.';
+  const bad = note.sources.find((s) => !safeHref(s));
+  if (bad) return `"${bad}" is not an http(s) link.`;
+  return null;
+}
+
+/** A backend error response; `status` 403 on writing a note means the install is not signed in. */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -58,51 +88,70 @@ export class RemoteApi implements TrustApi {
       ...init,
       headers: { 'Content-Type': 'application/json', ...init?.headers },
     });
-    if (!res.ok) throw new Error(`Backend ${res.status} ${res.statusText} for ${path}`);
     const text = await res.text();
+    if (!res.ok) {
+      let detail = `${res.status} ${res.statusText}`;
+      try {
+        const body = JSON.parse(text) as { detail?: unknown };
+        if (typeof body.detail === 'string') detail = body.detail;
+      } catch {
+        // not JSON: keep the status line
+      }
+      throw new ApiError(res.status, detail);
+    }
     return (text ? JSON.parse(text) : undefined) as T;
   }
 
-  async submitVote(vote: VoteRequest): Promise<void> {
-    validateVote(vote);
-    await this.request('/votes', { method: 'POST', body: JSON.stringify(vote) });
+  private post<T>(path: string, body: unknown): Promise<T> {
+    return this.request(path, { method: 'POST', body: JSON.stringify(body) });
   }
 
   async lookup(hashes: string[], blocks: LookupBlock[] = []): Promise<LookupResult[]> {
     const out: LookupResult[] = [];
     for (let i = 0; i < Math.max(hashes.length, blocks.length); i += MAX_LOOKUP_BATCH) {
-      const res = await this.request<{ results: LookupResult[] }>('/lookup', {
-        method: 'POST',
-        body: JSON.stringify({
-          hashes: hashes.slice(i, i + MAX_LOOKUP_BATCH),
-          blocks: blocks.slice(i, i + MAX_LOOKUP_BATCH),
-        }),
+      const res = await this.post<{ results: LookupResult[] }>('/lookup', {
+        hashes: hashes.slice(i, i + MAX_LOOKUP_BATCH),
+        blocks: blocks.slice(i, i + MAX_LOOKUP_BATCH),
       });
       out.push(...(res?.results ?? []));
     }
     return out;
   }
 
-  domainStats(domain: string): Promise<DomainStats> {
-    return this.request(`/domains/${encodeURIComponent(domain)}`);
+  narrative(narrativeId: string): Promise<NarrativeDetail> {
+    return this.request(`/narratives/${encodeURIComponent(narrativeId)}`);
   }
 
-  /** The signature index, as a delta from `since` when the backend still has it. */
+  addNote(note: NoteRequest): Promise<NoteResponse> {
+    const problem = noteProblem(note);
+    if (problem) return Promise.reject(new Error(problem));
+    return this.post('/notes', note);
+  }
+
+  async rateNote(noteId: string, userId: string, helpfulness: Helpfulness): Promise<void> {
+    await this.post(`/notes/${encodeURIComponent(noteId)}/ratings`, { userId, helpfulness });
+  }
+
+  async reportNote(noteId: string, userId: string, reason: string): Promise<void> {
+    await this.post(`/notes/${encodeURIComponent(noteId)}/report`, { userId, reason });
+  }
+
+  me(userId: string): Promise<MeResponse> {
+    return this.request(`/me?userId=${encodeURIComponent(userId)}`);
+  }
+
+  /** The narrative index, as a delta from `since` when the backend still has it. */
   index(since?: number): Promise<IndexResponse> {
     const query = since === undefined ? '' : `?since=${encodeURIComponent(String(since))}`;
     return this.request(`/index${query}`, { signal: AbortSignal.timeout(60_000) });
   }
 
   async submitHits(hits: Hit[]): Promise<void> {
-    await this.request('/hits', { method: 'POST', body: JSON.stringify({ hits }) });
+    await this.post('/hits', { hits });
   }
 
   async requestMagicLink(req: MagicLinkRequest): Promise<void> {
-    await this.request('/auth/magic-link', { method: 'POST', body: JSON.stringify(req) });
-  }
-
-  me(userId: string): Promise<MeResponse> {
-    return this.request(`/me?userId=${encodeURIComponent(userId)}`);
+    await this.post('/auth/magic-link', req);
   }
 }
 
@@ -110,21 +159,19 @@ export class RemoteApi implements TrustApi {
 // Local index (matches in the extension; page hashes stay in the browser)
 // ---------------------------------------------------------------------------
 
-export type { IndexResponse };
-
 export type IndexSnapshot = Omit<IndexResponse, 'full' | 'removed'>;
 
 /** The snapshot after `update`: a full index replaces it, a delta replaces the entries of the narratives it names. */
 export function applyIndexUpdate(snapshot: IndexSnapshot | undefined, update: IndexResponse): IndexSnapshot {
-  const { version, signatures, sentences, fingerprints, narrativeThreshold, relatedThreshold, narrativeVectors } = update;
+  const { version, narratives, sentences, fingerprints, narrativeThreshold, relatedThreshold, narrativeVectors } = update;
   if (update.full || !snapshot) {
-    return { version, signatures, sentences, fingerprints, narrativeThreshold, relatedThreshold, narrativeVectors };
+    return { version, narratives, sentences, fingerprints, narrativeThreshold, relatedThreshold, narrativeVectors };
   }
-  const changed = new Set([...update.removed, ...signatures.map((s) => s.narrativeId)]);
+  const changed = new Set([...update.removed, ...narratives.map((n) => n.narrativeId)]);
   const kept = <T extends { narrativeId: string }>(list: T[]) => list.filter((e) => !changed.has(e.narrativeId));
   return {
     version,
-    signatures: [...kept(snapshot.signatures), ...signatures],
+    narratives: [...kept(snapshot.narratives), ...narratives],
     sentences: [...kept(snapshot.sentences), ...sentences],
     fingerprints: [...kept(snapshot.fingerprints), ...fingerprints],
     narrativeThreshold,
@@ -133,74 +180,84 @@ export function applyIndexUpdate(snapshot: IndexSnapshot | undefined, update: In
   };
 }
 
-/** The 384 int8 values of a base64-encoded narrative vector. */
-function decodeVector(base64: string): Int8Array {
-  return Int8Array.from(atob(base64), (c) => (c.charCodeAt(0) << 24) >> 24);
+/** True when a delta changes nothing, so the stored snapshot need not be rewritten. */
+function isEmptyDelta(update: IndexResponse): boolean {
+  return !update.full && !update.narratives.length && !update.removed.length;
 }
 
-/** Narrative vectors as rows of one int8 matrix, with each row's narrative and length. */
+/** Narrative vectors as rows of one matrix of unit vectors, with each row's narrative. */
 interface VectorTable {
   narrativeIds: string[];
-  rows: Int8Array;
-  norms: Float32Array;
+  rows: Float32Array;
 }
 
 function vectorTable(entries: NarrativeVectors[]): VectorTable {
-  const decoded = entries.flatMap(({ narrativeId, vectors }) =>
-    vectors.map((v) => ({ narrativeId, row: decodeVector(v) })).filter((d) => d.row.length === EMBEDDING_DIM),
-  );
-  const rows = new Int8Array(decoded.length * EMBEDDING_DIM);
-  decoded.forEach((d, i) => rows.set(d.row, i * EMBEDDING_DIM));
-  return {
-    narrativeIds: decoded.map((d) => d.narrativeId),
-    rows,
-    norms: Float32Array.from(decoded, (d) => Math.hypot(...d.row)),
-  };
+  const narrativeIds: string[] = [];
+  const rows = new Float32Array(entries.reduce((n, e) => n + e.vectors.length, 0) * EMBEDDING_DIM);
+  let base = 0;
+  for (const { narrativeId, vectors } of entries) {
+    for (const encoded of vectors) {
+      const binary = atob(encoded);
+      if (binary.length !== EMBEDDING_DIM) continue;
+      let norm = 0;
+      for (let k = 0; k < EMBEDDING_DIM; k++) {
+        const v = (binary.charCodeAt(k) << 24) >> 24;
+        rows[base + k] = v;
+        norm += v * v;
+      }
+      if (!norm) continue;
+      norm = Math.sqrt(norm);
+      for (let k = 0; k < EMBEDDING_DIM; k++) rows[base + k]! /= norm;
+      narrativeIds.push(narrativeId);
+      base += EMBEDDING_DIM;
+    }
+  }
+  return { narrativeIds, rows: rows.subarray(0, base) };
+}
+
+function unitVector(vector: ArrayLike<number>): Float32Array {
+  const out = Float32Array.from(vector);
+  let norm = 0;
+  for (let k = 0; k < out.length; k++) norm += out[k]! * out[k]!;
+  norm = Math.sqrt(norm) || 1;
+  for (let k = 0; k < out.length; k++) out[k]! /= norm;
+  return out;
 }
 
 /**
  * The result a match is reported with, from candidate narratives and their
- * scores (shared bands or cosine): the strongest tier first, then the highest score.
+ * scores (shared bands or cosine): the strongest match first, then the highest score.
  */
 function pick(
   hash: string,
   candidates: Map<string, number>,
-  signatures: Map<string, IndexSignature>,
-  level: (score: number) => Signature['matchLevel'],
+  narratives: Map<string, Narrative>,
+  level: (score: number) => MatchLevel,
   similarity = false,
 ): LookupResult | undefined {
   let best: { result: LookupResult; rank: number; score: number } | undefined;
   for (const [id, score] of candidates) {
-    const signature = signatures.get(id);
-    if (!signature) continue;
-    const result = indexResult(hash, signature, level(score), similarity ? score : undefined);
-    const rank = tierRank(tierOf(result));
+    const narrative = narratives.get(id);
+    if (!narrative) continue;
+    const matchLevel = level(score);
+    const rank = matchRank(matchLevel, narrative.state);
     if (!best || rank > best.rank || (rank === best.rank && score > best.score)) {
+      const result: LookupResult = { hash, matchLevel, narrative, ...(similarity ? { similarity: score } : {}) };
       best = { result, rank, score };
     }
   }
   return best?.result;
 }
 
-function indexResult(
-  hash: string,
-  signature: IndexSignature,
-  matchLevel: Signature['matchLevel'],
-  similarity?: number,
-): LookupResult {
-  return {
-    hash,
-    counts: emptyCounts(),
-    total: 0,
-    flagged: signature.state === 'active' && matchLevel !== 'related',
-    topVerdict: signature.verdict,
-    signature: { ...signature, matchLevel, ...(similarity === undefined ? {} : { similarity }) },
-  };
+function push<K, V>(map: Map<K, V[]>, key: K, value: V) {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
 }
 
-/** Answers lookups from an index snapshot by the rules of POST /lookup, without vote counts. */
-export class SignatureIndex {
-  private signatures: Map<string, IndexSignature>;
+/** Answers lookups from an index snapshot by the rules of POST /lookup. */
+export class NarrativeIndex {
+  private narratives: Map<string, Narrative>;
   private sentences = new Map<string, string[]>();
   /** `${band index}:${hash}` to the positions in `fingerprints` that carry it. */
   private bands = new Map<string, number[]>();
@@ -208,13 +265,12 @@ export class SignatureIndex {
   private vectors?: VectorTable;
 
   constructor(private snapshot: IndexSnapshot) {
-    this.signatures = new Map(snapshot.signatures.map((s) => [s.narrativeId, s]));
+    this.narratives = new Map(snapshot.narratives.map((n) => [n.narrativeId, n]));
     this.fingerprints = snapshot.fingerprints;
-    const add = <T>(m: Map<string, T[]>, key: string, value: T) => m.set(key, [...(m.get(key) ?? []), value]);
-    for (const s of snapshot.sentences) add(this.sentences, s.hash, s.narrativeId);
+    for (const s of snapshot.sentences) push(this.sentences, s.hash, s.narrativeId);
     snapshot.fingerprints.forEach((f, position) =>
       f.bands.forEach((band, i) => {
-        if (band !== null) add(this.bands, `${i}:${band}`, position);
+        if (band !== null) push(this.bands, `${i}:${band}`, position);
       }),
     );
   }
@@ -227,7 +283,7 @@ export class SignatureIndex {
     const out = new Map<string, LookupResult>();
     for (const hash of hashes) {
       const ids = this.sentences.get(hash);
-      const result = ids && pick(hash, new Map(ids.map((id) => [id, 1])), this.signatures, () => 'exact');
+      const result = ids && pick(hash, new Map(ids.map((id) => [id, 1])), this.narratives, () => 'exact');
       if (result) out.set(hash, result);
     }
     for (const block of blocks) {
@@ -243,7 +299,7 @@ export class SignatureIndex {
         const id = this.fingerprints[position]!.narrativeId;
         if (n >= 2) shared.set(id, Math.max(shared.get(id) ?? 0, n));
       }
-      const result = pick(block.hash, shared, this.signatures, () => 'variant');
+      const result = pick(block.hash, shared, this.narratives, () => 'variant');
       if (result) out.set(block.hash, result);
     }
     return [...out.values()];
@@ -258,23 +314,22 @@ export class SignatureIndex {
    * the narrative's vectors reaches `narrativeThreshold`, and is related to it
    * from `relatedThreshold`.
    */
-  matchNarratives(units: { hash: string; vector: number[] }[]): LookupResult[] {
+  matchNarratives(units: { hash: string; vector: ArrayLike<number> }[]): LookupResult[] {
     this.vectors ??= vectorTable(this.snapshot.narrativeVectors);
-    const { narrativeIds, rows, norms } = this.vectors;
+    const { narrativeIds, rows } = this.vectors;
     const { narrativeThreshold, relatedThreshold } = this.snapshot;
-    const level = (cosine: number) => (cosine >= narrativeThreshold ? 'narrative' : 'related');
+    const level = (cosine: number): MatchLevel => (cosine >= narrativeThreshold ? 'narrative' : 'related');
     const out: LookupResult[] = [];
     for (const { hash, vector } of units) {
-      const length = Math.hypot(...vector);
+      const query = unitVector(vector);
       const best = new Map<string, number>();
-      for (let r = 0; r < narrativeIds.length; r++) {
-        let dot = 0;
-        for (let k = 0, base = r * EMBEDDING_DIM; k < EMBEDDING_DIM; k++) dot += vector[k]! * rows[base + k]!;
-        const cosine = dot / (length * norms[r]!);
+      for (let r = 0, base = 0; r < narrativeIds.length; r++, base += EMBEDDING_DIM) {
+        let cosine = 0;
+        for (let k = 0; k < EMBEDDING_DIM; k++) cosine += query[k]! * rows[base + k]!;
         const id = narrativeIds[r]!;
         if (cosine >= relatedThreshold && cosine > (best.get(id) ?? -1)) best.set(id, cosine);
       }
-      const result = pick(hash, best, this.signatures, level, true);
+      const result = pick(hash, best, this.narratives, level, true);
       if (result) out.push(result);
     }
     return out;
@@ -295,15 +350,15 @@ interface StoredIndex {
 }
 
 /**
- * Downloads the signature index from the backend and answers lookups from it,
- * so no page hashes leave the browser. Votes and domain stats go to the backend.
+ * Downloads the narrative index from the backend and answers lookups from it,
+ * so no page hashes leave the browser. Notes, ratings and accounts go to the backend.
  */
 export class LocalIndexApi implements TrustApi {
   private remote: RemoteApi;
   private stored?: StoredIndex;
-  private index?: SignatureIndex;
+  private index?: NarrativeIndex;
   private refreshing?: Promise<void>;
-  private embeddings = new Map<string, number[]>();
+  private embeddings = new Map<string, Float32Array>();
 
   constructor(
     readonly baseUrl: string,
@@ -314,12 +369,20 @@ export class LocalIndexApi implements TrustApi {
     this.remote = new RemoteApi(baseUrl);
   }
 
-  submitVote(vote: VoteRequest): Promise<void> {
-    return this.remote.submitVote(vote);
+  narrative(narrativeId: string) {
+    return this.remote.narrative(narrativeId);
   }
-
-  domainStats(domain: string): Promise<DomainStats> {
-    return this.remote.domainStats(domain);
+  addNote(note: NoteRequest) {
+    return this.remote.addNote(note);
+  }
+  rateNote(noteId: string, userId: string, helpfulness: Helpfulness) {
+    return this.remote.rateNote(noteId, userId, helpfulness);
+  }
+  reportNote(noteId: string, userId: string, reason: string) {
+    return this.remote.reportNote(noteId, userId, reason);
+  }
+  me(userId: string) {
+    return this.remote.me(userId);
   }
 
   async lookup(hashes: string[], blocks: LookupBlock[] = []): Promise<LookupResult[]> {
@@ -334,15 +397,13 @@ export class LocalIndexApi implements TrustApi {
     return index.matchNarratives(units.map((u, i) => ({ hash: u.hash, vector: vectors[i]! })));
   }
 
-  private async embedCached(blocks: NarrativeBlock[], embed: Embedder): Promise<number[][]> {
+  private async embedCached(blocks: NarrativeBlock[], embed: Embedder): Promise<Float32Array[]> {
     const missing = [...new Map(blocks.filter((b) => !this.embeddings.has(b.hash)).map((b) => [b.hash, b.text]))];
-    const fresh = new Map<string, number[]>();
     if (missing.length) {
       const vectors = await embed(missing.map(([, text]) => text));
-      missing.forEach(([hash], i) => fresh.set(hash, vectors[i]!));
+      missing.forEach(([hash], i) => this.embeddings.set(hash, Float32Array.from(vectors[i]!)));
     }
-    const out = blocks.map((b) => fresh.get(b.hash) ?? this.embeddings.get(b.hash)!);
-    for (const [hash, vector] of fresh) this.embeddings.set(hash, vector);
+    const out = blocks.map((b) => this.embeddings.get(b.hash)!);
     for (const hash of this.embeddings.keys()) {
       if (this.embeddings.size <= MAX_CACHED_EMBEDDINGS) break;
       this.embeddings.delete(hash);
@@ -351,17 +412,17 @@ export class LocalIndexApi implements TrustApi {
   }
 
   /** Waits for the first download; an index older than INDEX_REFRESH_MS answers while a delta downloads. */
-  private async ready(): Promise<SignatureIndex> {
+  private async ready(): Promise<NarrativeIndex> {
     if (!this.stored) {
       const stored = await this.store.get<StoredIndex>(INDEX_KEY);
-      // A stored index without `relatedThreshold` lacks the tier fields of its signatures.
-      if (stored?.baseUrl === this.baseUrl && stored.snapshot.relatedThreshold !== undefined) this.stored = stored;
+      // A stored index of another shape (without `narratives`) is downloaded again.
+      if (stored?.baseUrl === this.baseUrl && Array.isArray(stored.snapshot.narratives)) this.stored = stored;
     }
     if (!this.stored) await this.refresh();
     else if (this.now() - this.stored.checkedAt >= INDEX_REFRESH_MS) {
       this.refresh().catch((e) => console.warn('[hashtrust] index refresh failed', e));
     }
-    this.index ??= new SignatureIndex(this.stored!.snapshot);
+    this.index ??= new NarrativeIndex(this.stored!.snapshot);
     return this.index;
   }
 
@@ -373,6 +434,10 @@ export class LocalIndexApi implements TrustApi {
 
   private async download(): Promise<void> {
     const update = await this.remote.index(this.stored?.snapshot.version);
+    if (this.stored && isEmptyDelta(update)) {
+      this.stored = { ...this.stored, checkedAt: this.now(), snapshot: { ...this.stored.snapshot, version: update.version } };
+      return;
+    }
     this.stored = {
       baseUrl: this.baseUrl,
       checkedAt: this.now(),
@@ -390,13 +455,13 @@ export class LocalIndexApi implements TrustApi {
 /** Pages whose reported hashes are remembered, so a long session doesn't grow without bound. */
 const MAX_REPORTED_PAGES = 500;
 
-/** Reports flagged narrative matches as detection hits, each hash once per page. */
+/** Reports narrative matches as detection hits, each hash once per page; related matches are too loose to count. */
 export class HitReporter {
   private reported = new Map<string, Set<string>>();
 
   constructor(private send: (hits: Hit[]) => Promise<void>) {}
 
-  /** Sends one batch for the flagged results of a lookup on `pageUrl`; pages other than http(s) are not reported. */
+  /** Sends one batch for the matches of a lookup on `pageUrl`; pages other than http(s) are not reported. */
   async report(pageUrl: string, results: LookupResult[], seenAt = new Date()): Promise<void> {
     let url: URL;
     try {
@@ -414,16 +479,16 @@ export class HitReporter {
 
     const hits: Hit[] = [];
     for (const r of results) {
-      if (!r.flagged || !r.signature || reported.has(r.hash)) continue;
+      if (r.matchLevel === 'related' || reported.has(r.hash)) continue;
       reported.add(r.hash);
-      hits.push({ hash: r.hash, narrativeId: r.signature.narrativeId, url: page, seenAt: seenAt.toISOString() });
+      hits.push({ hash: r.hash, narrativeId: r.narrative.narrativeId, url: page, seenAt: seenAt.toISOString() });
     }
     if (hits.length) await this.send(hits);
   }
 }
 
 // ---------------------------------------------------------------------------
-// Mock (in-extension, for development until the backend exists)
+// Mock (in-extension, for trying the interface without a backend)
 // ---------------------------------------------------------------------------
 
 export interface KeyValueStore {
@@ -431,104 +496,143 @@ export interface KeyValueStore {
   set(key: string, value: unknown): Promise<void>;
 }
 
-const VOTES_KEY = 'mock:votes';
+const MOCK_KEY = 'mock:notes';
+
+interface MockState {
+  narratives: { narrativeId: string; title: string; hashes: string[]; urls: string[]; firstSeen: string }[];
+  notes: (Omit<Note, 'status' | 'ratings'> & { narrativeId: string; author: string })[];
+  ratings: { noteId: string; userId: string; helpfulness: Helpfulness }[];
+}
+
+const HELPFULNESS_SCORE: Record<Helpfulness, number> = { helpful: 1, somewhat: 0.5, not_helpful: 0 };
 
 /**
- * Sentences the mock backend treats as part of an active narrative, so the
- * signature UI can be tried without a backend: put one on any page.
+ * Stores notes and ratings in extension storage, with one signed-in user. A
+ * note's status is the mean of its ratings: helpful from 0.7, not helpful up
+ * to 0.3, controversial between, so a single rating can try each state.
  */
-export const MOCK_NARRATIVES: { sentence: string; signature: Signature }[] = [
-  {
-    sentence: 'The European Union is secretly preparing to ban all private gardens by the end of the decade.',
-    signature: {
-      narrativeId: 'mock-1',
-      title: 'EU plans to ban private gardens',
-      verdict: 'misinformation',
-      techniques: ['fabrication', 'conspiracy framing'],
-      explanation:
-        'No EU institution has proposed restricting private gardens. The claim distorts the Nature Restoration Law, which sets targets for public ecosystems and places no obligations on private households.',
-      source: 'euvsdisinfo',
-      sourceUrl: 'https://euvsdisinfo.eu/',
-      state: 'active',
-      matchLevel: 'exact',
-      settled: true,
-    },
-  },
-];
-
 export class MockApi implements TrustApi {
-  /** minVotes = 1 so a single local vote is enough to see flagging in action. */
-  constructor(
-    private store: KeyValueStore,
-    private minVotes = 1,
-  ) {}
+  constructor(private store: KeyValueStore) {}
 
-  private narratives?: Promise<Map<string, Signature>>;
-
-  private signatures(): Promise<Map<string, Signature>> {
-    this.narratives ??= Promise.all(
-      MOCK_NARRATIVES.map(async (n) => [await hashNormalized(normalizeText(n.sentence)), n.signature] as const),
-    ).then((entries) => new Map(entries));
-    return this.narratives;
+  private async state(): Promise<MockState> {
+    return (await this.store.get<MockState>(MOCK_KEY)) ?? { narratives: [], notes: [], ratings: [] };
   }
 
-  private async votes(): Promise<VoteRequest[]> {
-    return (await this.store.get<VoteRequest[]>(VOTES_KEY)) ?? [];
+  private statusOf(state: MockState, noteId: string): { status: NoteStatus; ratings: Note['ratings'] } {
+    const ratings = { helpful: 0, somewhat: 0, not_helpful: 0 };
+    const own = state.ratings.filter((r) => r.noteId === noteId);
+    for (const r of own) ratings[r.helpfulness]++;
+    if (!own.length) return { status: 'needs_more_ratings', ratings };
+    const mean = own.reduce((s, r) => s + HELPFULNESS_SCORE[r.helpfulness], 0) / own.length;
+    const status = mean >= 0.7 ? 'helpful' : mean <= 0.3 ? 'not_helpful' : 'controversial';
+    return { status, ratings };
   }
 
-  async submitVote(vote: VoteRequest): Promise<void> {
-    validateVote(vote);
-    // One vote per user per piece of content: a new vote replaces the old one.
-    const votes = (await this.votes()).filter(
-      (v) => !(v.userId === vote.userId && v.contentHash === vote.contentHash),
-    );
-    votes.push(vote);
-    await this.store.set(VOTES_KEY, votes);
-  }
-
-  /** Matches sentences only; blocks are ignored. */
-  async lookup(hashes: string[]): Promise<LookupResult[]> {
-    const wanted = new Set(hashes);
-    const counts = new Map<string, ReturnType<typeof emptyCounts>>();
-    for (const vote of await this.votes()) {
-      for (const h of vote.sentenceHashes) {
-        if (!wanted.has(h)) continue;
-        const c = counts.get(h) ?? emptyCounts();
-        c[vote.verdict]++;
-        counts.set(h, c);
-      }
-    }
-    const signatures = await this.signatures();
-    for (const h of wanted) if (signatures.has(h) && !counts.has(h)) counts.set(h, emptyCounts());
-    return [...counts].map(([hash, c]) => {
-      const result = summarize(hash, c, this.minVotes);
-      const signature = signatures.get(hash);
-      if (!signature) return result;
-      return { ...result, flagged: result.flagged || signature.state === 'active', signature };
-    });
-  }
-
-  async domainStats(domain: string): Promise<DomainStats> {
-    const votes = (await this.votes()).filter((v) => v.domain === domain);
-    const counts = emptyCounts();
-    const perContent = new Map<string, ReturnType<typeof emptyCounts>>();
-    for (const v of votes) {
-      counts[v.verdict]++;
-      const c = perContent.get(v.contentHash) ?? emptyCounts();
-      c[v.verdict]++;
-      perContent.set(v.contentHash, c);
-    }
-    const flaggedCount = [...perContent].filter(([h, c]) => summarize(h, c, this.minVotes).flagged).length;
+  private narrativeOf(state: MockState, narrativeId: string): NarrativeDetail {
+    const n = state.narratives.find((x) => x.narrativeId === narrativeId);
+    if (!n) throw new Error(`Unknown narrative ${narrativeId}`);
+    const notes: Note[] = state.notes
+      .filter((x) => x.narrativeId === narrativeId)
+      .map(({ narrativeId: _, author: __, ...note }) => ({ ...note, ...this.statusOf(state, note.id) }))
+      .sort((a, b) => Number(b.status === 'helpful') - Number(a.status === 'helpful'));
+    const sites = new Set(n.urls.map((u) => new URL(u).hostname)).size;
     return {
-      domain,
-      votesCount: votes.length,
-      flaggedCount,
-      counts,
-      topVerdict: votes.length ? summarize(domain, counts, 1).topVerdict : null,
+      narrativeId,
+      title: n.title,
+      state: displayState(notes),
+      notes,
+      spread: { sites, pages: n.urls.length, firstSeen: n.firstSeen },
+    };
+  }
+
+  /** Sentences match exactly and blocks by their content hash, as a variant. */
+  async lookup(hashes: string[], blocks: LookupBlock[] = []): Promise<LookupResult[]> {
+    const state = await this.state();
+    const out: LookupResult[] = [];
+    const find = (hash: string, matchLevel: MatchLevel) => {
+      const n = state.narratives.find((x) => x.hashes.includes(hash));
+      if (n) out.push({ hash, matchLevel, narrative: this.narrativeOf(state, n.narrativeId) });
+    };
+    hashes.forEach((h) => find(h, 'exact'));
+    blocks.forEach((b) => find(b.hash, 'variant'));
+    return out;
+  }
+
+  async narrative(narrativeId: string): Promise<NarrativeDetail> {
+    return this.narrativeOf(await this.state(), narrativeId);
+  }
+
+  async addNote(req: NoteRequest): Promise<NoteResponse> {
+    const problem = noteProblem(req);
+    if (problem) throw new Error(problem);
+    const state = await this.state();
+    const { passage } = req;
+    const hashes = [passage.contentHash, ...passage.sentenceHashes];
+    let narrative = state.narratives.find((n) => n.hashes.some((h) => hashes.includes(h)));
+    if (!narrative) {
+      narrative = {
+        narrativeId: `mock-${state.narratives.length + 1}`,
+        title: passage.text.split(/(?<=[.!?])\s/)[0]!.slice(0, 200),
+        hashes,
+        urls: [],
+        firstSeen: new Date().toISOString(),
+      };
+      state.narratives.push(narrative);
+    }
+    if (!narrative.urls.includes(passage.url)) narrative.urls.push(passage.url);
+    const noteId = `mock-note-${state.notes.length + 1}`;
+    state.notes.push({
+      id: noteId,
+      narrativeId: narrative.narrativeId,
+      author: req.userId,
+      classification: req.classification,
+      body: req.body,
+      sources: req.sources,
+      createdAt: new Date().toISOString(),
+    });
+    await this.store.set(MOCK_KEY, state);
+    return { noteId, narrativeId: narrative.narrativeId };
+  }
+
+  async rateNote(noteId: string, userId: string, helpfulness: Helpfulness): Promise<void> {
+    const state = await this.state();
+    state.ratings = [...state.ratings.filter((r) => !(r.noteId === noteId && r.userId === userId)), { noteId, userId, helpfulness }];
+    await this.store.set(MOCK_KEY, state);
+  }
+
+  /** The mock has no moderation: a report changes nothing. */
+  async reportNote(): Promise<void> {}
+
+  async me(userId: string): Promise<MeResponse> {
+    const state = await this.state();
+    const ratings = state.ratings.filter((r) => r.userId === userId);
+    const agreed = ratings.filter((r) => {
+      const { status } = this.statusOf(state, r.noteId);
+      return status === 'helpful' ? r.helpfulness !== 'not_helpful' : status === 'not_helpful' && r.helpfulness === 'not_helpful';
+    }).length;
+    return {
+      userId,
+      email: 'you@mock.invalid',
+      verified: true,
+      reputation: 0.5,
+      moderator: false,
+      notes: state.notes
+        .filter((n) => n.author === userId)
+        .map((n) => ({
+          id: n.id,
+          classification: n.classification,
+          body: n.body,
+          status: this.statusOf(state, n.id).status,
+          moderation: 'visible',
+          createdAt: n.createdAt,
+          narrativeId: n.narrativeId,
+          title: state.narratives.find((x) => x.narrativeId === n.narrativeId)!.title,
+        })),
+      ratings: { count: ratings.length, agreed },
     };
   }
 
   async clear(): Promise<void> {
-    await this.store.set(VOTES_KEY, []);
+    await this.store.set(MOCK_KEY, undefined);
   }
 }

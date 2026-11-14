@@ -5,16 +5,18 @@ from http.cookiejar import CookieJar, DefaultCookiePolicy
 from urllib.parse import urlsplit
 
 import httpx
-import numpy as np
 import trafilatura
 from psycopg import Connection
 
 from app import fpclient
+from app.config import settings
 from app.jobs import enqueue, register
 from app.jobs.variants import (
-    SOURCE_LEVEL,
+    MIN_JACCARD,
+    MIN_SHARED_BANDS,
+    NEAR_DUPLICATES,
     boilerplate,
-    narrative_text,
+    narrative_passage,
     near_duplicates,
     update_centroids,
 )
@@ -26,8 +28,6 @@ USER_AGENT = (
 )
 TIMEOUT = 20.0
 MAX_BYTES = 5 * 1024 * 1024
-# Cosine between a block and the narrative's title and claim above which the block carries the narrative.
-RELEVANCE_THRESHOLD = 0.5
 # A hit refetches a page fetched longer ago than this.
 HIT_REFETCH_AFTER = timedelta(hours=24)
 
@@ -175,17 +175,6 @@ def detach(conn: Connection, fingerprint_ids: set[int]) -> set[int]:
     return {row[0] for row in rows if row[0] is not None}
 
 
-def relevant(blocks: list[tuple[int, list[float]]], narrative_embedding: list[float]) -> list[int]:
-    """The ids of the (id, embedding) blocks whose cosine to the narrative is at least
-    RELEVANCE_THRESHOLD, and always the closest one."""
-    if not blocks:
-        return []
-    scores = np.array([embedding for _, embedding in blocks]) @ np.array(narrative_embedding)
-    return [id_ for (id_, _), score in zip(blocks, scores, strict=True) if score >= RELEVANCE_THRESHOLD] or [
-        blocks[int(scores.argmax())][0]
-    ]
-
-
 def attach_to_narrative(conn: Connection, narrative_id: int, fingerprint_ids: list[int]) -> None:
     """Put the fingerprints that have no variant yet into one new variant of the narrative."""
     unassigned = [
@@ -202,61 +191,74 @@ def attach_to_narrative(conn: Connection, narrative_id: int, fingerprint_ids: li
     conn.execute("UPDATE fingerprint SET variant_id = %s WHERE id = ANY(%s)", (variant_id, unassigned))
 
 
-def source_level(conn: Connection, narrative_id: int) -> bool:
-    """Whether the narrative labels a source, such as a documented network, rather than one claim."""
-    row = conn.execute("SELECT source FROM narrative WHERE id = %s", (narrative_id,)).fetchone()
-    return row is not None and row[0] in SOURCE_LEVEL
+def matching(
+    conn: Connection, narrative_id: int, fingerprint_ids: list[int], passage_embedding: list[float] | None
+) -> set[int]:
+    """The fingerprints that carry the narrative, at the levels the extension matches on.
 
-
-def attach_relevant(
-    conn: Connection, narrative_id: int, fingerprint_ids: list[int], narrative_embedding: list[float]
-) -> None:
-    """Attach the relevant blocks among the fingerprints that are not boilerplate to the narrative.
-
-    Every such block is relevant to a source-level narrative, since its pages are the source's own.
+    Exact: a sentence shared with one of the narrative's fingerprints. Variant: a near-duplicate of one.
+    Embedding: within NARRATIVE_MATCH_THRESHOLD cosine of the note passage or of a narrative vector.
     """
-    skip = boilerplate(conn, fingerprint_ids)
-    if source_level(conn, narrative_id):
-        attach_to_narrative(conn, narrative_id, [id_ for id_ in fingerprint_ids if id_ not in skip])
-        return
-    blocks = conn.execute(
-        "SELECT id, embedding::real[] FROM fingerprint WHERE id = ANY(%s) AND embedding IS NOT NULL",
-        ([id_ for id_ in fingerprint_ids if id_ not in skip],),
-    ).fetchall()
-    attach_to_narrative(conn, narrative_id, relevant(blocks, narrative_embedding))
-
-
-def repick(conn: Connection, narrative_ids: set[int]) -> None:
-    """Attach relevant blocks of their fetched pages to those of the narratives that have none left."""
-    empty = [
-        row[0]
-        for row in conn.execute(
-            """
-            SELECT n.id FROM narrative n
-            WHERE n.id = ANY(%s) AND NOT EXISTS (
-              SELECT 1 FROM variant v JOIN fingerprint f ON f.variant_id = v.id WHERE v.narrative_id = n.id
-            )
-            ORDER BY n.id
-            """,
-            (list(narrative_ids),),
+    params = {
+        "ids": fingerprint_ids,
+        "narrative": narrative_id,
+        "passage": None if passage_embedding is None else str(passage_embedding),
+        "distance": 1 - settings.narrative_match_threshold,
+        "bands": MIN_SHARED_BANDS,
+        "jaccard": MIN_JACCARD,
+    }
+    rows = conn.execute(
+        f"""
+        WITH near AS ({NEAR_DUPLICATES})
+        SELECT near.id FROM near
+        JOIN fingerprint d ON d.id = near.dup JOIN variant v ON v.id = d.variant_id
+        WHERE v.narrative_id = %(narrative)s
+        UNION
+        SELECT mine.fingerprint_id FROM sentence mine
+        JOIN sentence theirs ON theirs.hash = mine.hash
+        JOIN fingerprint t ON t.id = theirs.fingerprint_id JOIN variant v ON v.id = t.variant_id
+        WHERE mine.fingerprint_id = ANY(%(ids)s) AND v.narrative_id = %(narrative)s
+        UNION
+        SELECT f.id FROM fingerprint f
+        WHERE f.id = ANY(%(ids)s) AND (
+          f.embedding <=> %(passage)s::vector <= %(distance)s
+          OR EXISTS (
+            SELECT 1 FROM narrative_vector nv
+            WHERE nv.narrative_id = %(narrative)s AND nv.embedding <=> f.embedding <= %(distance)s
+          )
         )
-    ]
-    if not empty:
+        """,
+        params,
+    )
+    return {row[0] for row in rows}
+
+
+def fill_signature(conn: Connection, block: dict) -> None:
+    """Give the stored fingerprint with the block's content hash the block's signature, embedding and
+    bands when it lacks them, as a passage stored with a note does."""
+    if block["contentHash"] is None:
         return
-    texts = [narrative_text(conn, narrative_id) for narrative_id in empty]
-    embedded = fpclient.fingerprint(texts, embed=True)["blocks"]
-    for narrative_id, block in zip(empty, embedded, strict=True):
-        if block["embedding"] is None:
-            continue
-        fingerprint_ids = [
-            row[0]
-            for row in conn.execute(
-                "SELECT DISTINCT o.fingerprint_id FROM observation o"
-                " JOIN narrative_page np ON np.page_id = o.page_id WHERE np.narrative_id = %s",
-                (narrative_id,),
-            )
-        ]
-        attach_relevant(conn, narrative_id, fingerprint_ids, block["embedding"])
+    row = conn.execute(
+        """
+        UPDATE fingerprint SET
+          minhash = coalesce(minhash, %s),
+          embedding = coalesce(embedding, %s::vector)
+        WHERE content_hash = %s AND (minhash IS NULL OR embedding IS NULL)
+        RETURNING id
+        """,
+        (
+            block["minhash"],
+            None if block["embedding"] is None else str(block["embedding"]),
+            block["contentHash"],
+        ),
+    ).fetchone()
+    if row is None:
+        return
+    with conn.cursor() as cur:
+        cur.executemany(
+            "INSERT INTO lsh_band (band, hash, fingerprint_id) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+            [(band, hash_, row[0]) for band, hash_ in enumerate(block["bands"])],
+        )
 
 
 def fetched_recently(conn: Connection, url: str) -> bool:
@@ -269,26 +271,29 @@ def fetched_recently(conn: Connection, url: str) -> bool:
 
 
 def ingest(
-    conn: Connection, page_id: int, article: Article, narrative_id: int | None, text: str | None
+    conn: Connection, page_id: int, article: Article, narrative_id: int | None, passage: str | None
 ) -> set[int]:
-    """Store the article's blocks and attach the relevant ones; return the narratives whose blocks changed."""
-    # The narrative's title and claim ride along as one extra block, embedded in the same call.
-    extra = [text] if narrative_id is not None else []
+    """Store the article's blocks and attach those that carry the narrative; return the narratives whose
+    blocks changed."""
+    # The note passage rides along as one extra block, fingerprinted in the same call.
+    extra = [passage] if passage else []
     result = fpclient.fingerprint(article.blocks + extra, embed=True)["blocks"]
     stored = store_fingerprints(conn, page_id, article.blocks, result[: len(article.blocks)])
+    passage_block = result[-1] if extra else None
+    if passage_block is not None:
+        fill_signature(conn, passage_block)
     if not stored:
         return set()
     ids = [s.id for s in stored]
 
     # Near-duplicates on other pages may have become boilerplate through this page.
     changed = detach(conn, boilerplate(conn, near_duplicates(conn, ids)))
-    narrative_embedding = result[-1]["embedding"] if extra else None
-    if narrative_embedding is not None:
-        attach_relevant(conn, narrative_id, ids, narrative_embedding)
+    if narrative_id is not None:
+        skip = boilerplate(conn, ids)
+        candidates = [id_ for id_ in ids if id_ not in skip]
+        embedding = passage_block and passage_block["embedding"]
+        attach_to_narrative(conn, narrative_id, sorted(matching(conn, narrative_id, candidates, embedding)))
         changed.add(narrative_id)
-    elif narrative_id is not None:
-        log.warning("narrative %s has no sentence to embed; nothing attached", narrative_id)
-    repick(conn, changed)
     update_centroids(conn, changed)
 
     new = [s.id for s in stored if s.new]
@@ -299,12 +304,14 @@ def ingest(
 
 @register("fetch")
 def handle(conn: Connection, payload: dict) -> None:
+    """Fetch a public page: a note's page (reason 'note'), a page an extension user matched (reason 'hit'),
+    or any other page; with a narrative_id, attach the page's blocks that carry that narrative."""
     url = payload["url"]
     if payload.get("reason") == "hit" and fetched_recently(conn, url):
         return
     narrative_id = payload.get("narrative_id")
-    text = narrative_text(conn, narrative_id) if narrative_id is not None else None
-    if narrative_id is not None and text is None:
+    passage = narrative_passage(conn, narrative_id) if narrative_id is not None else None
+    if narrative_id is not None and passage is None:
         log.warning("fetch %s: narrative %s does not exist", url, narrative_id)
         narrative_id = None
 
@@ -318,7 +325,12 @@ def handle(conn: Connection, payload: dict) -> None:
             "INSERT INTO narrative_page (narrative_id, page_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
             (narrative_id, page_id),
         )
-    changed = ingest(conn, page_id, article, narrative_id, text) if article is not None else set()
+    if article is not None:
+        changed = ingest(conn, page_id, article, narrative_id, passage)
+    else:
+        changed = set()
+        if passage:
+            fill_signature(conn, fpclient.fingerprint([passage], embed=True)["blocks"][0])
     # The payload's narrative gets its claim vector even when its page failed.
     if narrative_id is not None:
         changed.add(narrative_id)

@@ -1,26 +1,99 @@
 """SQL the dashboard runs. Kept free of Streamlit so the backend tests can run it against the schema."""
 
+# A narrative's display state, from its visible notes, strongest first: a helpful misleading note, a
+# helpful not-misleading note, a controversial note, a note still collecting ratings; tracked otherwise.
 NARRATIVES = """
+WITH notes AS (
+  SELECT narrative_id,
+         CASE
+           WHEN bool_or(visible AND status = 'helpful' AND classification = 'misleading') THEN 'misleading'
+           WHEN bool_or(visible AND status = 'helpful') THEN 'context'
+           WHEN bool_or(visible AND status = 'controversial') THEN 'controversial'
+           WHEN bool_or(visible AND status = 'needs_more_ratings') THEN 'needs_ratings'
+         END AS state,
+         count(*) FILTER (WHERE visible) AS visible_notes,
+         count(*) FILTER (WHERE moderation = 'pending_review') AS pending_notes
+  FROM (SELECT *, moderation = 'visible' AS visible FROM note) note
+  GROUP BY narrative_id
+),
+spread AS (
+  SELECT v.narrative_id,
+         count(DISTINCT v.id) AS variants,
+         count(DISTINCT o.page_id) AS pages,
+         count(DISTINCT p.domain_id) AS sites,
+         min(f.first_seen) AS first_seen
+  FROM variant v
+  JOIN fingerprint f ON f.variant_id = v.id
+  LEFT JOIN observation o ON o.fingerprint_id = f.id
+  LEFT JOIN page p ON p.id = o.page_id
+  GROUP BY v.narrative_id
+)
 SELECT n.id,
        n.title,
        n.source,
-       n.state,
-       count(DISTINCT v.id) AS variants,
-       count(DISTINCT o.page_id) AS pages,
-       count(DISTINCT p.domain_id) AS domains,
-       min(f.first_seen) AS first_seen
+       coalesce(nt.state, 'tracked') AS state,
+       coalesce(nt.visible_notes, 0) AS visible_notes,
+       coalesce(nt.pending_notes, 0) AS pending_notes,
+       coalesce(s.variants, 0) AS variants,
+       coalesce(s.pages, 0) AS pages,
+       coalesce(s.sites, 0) AS sites,
+       s.first_seen,
+       n.claim,
+       n.source_url,
+       n.created_at
 FROM narrative n
-LEFT JOIN variant v ON v.narrative_id = n.id
-LEFT JOIN fingerprint f ON f.variant_id = v.id
-LEFT JOIN observation o ON o.fingerprint_id = f.id
-LEFT JOIN page p ON p.id = o.page_id
-GROUP BY n.id
-ORDER BY pages DESC, first_seen DESC NULLS LAST, n.id DESC
+LEFT JOIN notes nt ON nt.narrative_id = n.id
+LEFT JOIN spread s ON s.narrative_id = n.id
+WHERE n.source = ANY(%(sources)s)
+ORDER BY pages DESC, n.created_at DESC, n.id DESC
 """
 
-NARRATIVE = """
-SELECT id, title, claim, explanation, verdict, techniques, source, source_url, state, created_at
-FROM narrative WHERE id = %(id)s
+# Rating counts of a note: every rating, the ones scoring counts (raters with a verified account), and the
+# counted ones per helpfulness.
+_NOTE_COLUMNS = """
+       nt.id,
+       nt.narrative_id,
+       n.title AS narrative,
+       nt.classification,
+       nt.status,
+       nt.moderation,
+       nt.moderation_reason,
+       nt.body,
+       nt.sources,
+       nt.intercept,
+       nt.factor,
+       count(r.note_id) AS ratings,
+       count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL) AS counted,
+       count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL AND r.helpfulness = 'helpful') AS helpful,
+       count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL AND r.helpfulness = 'somewhat') AS somewhat,
+       count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL AND r.helpfulness = 'not_helpful')
+         AS not_helpful,
+       nt.created_at
+FROM note nt
+JOIN narrative n ON n.id = nt.narrative_id
+LEFT JOIN note_rating r ON r.note_id = nt.id
+LEFT JOIN install i ON i.id = r.install
+"""
+
+RECENT_NOTES = f"""
+SELECT {_NOTE_COLUMNS}
+GROUP BY nt.id, n.title
+ORDER BY nt.created_at DESC, nt.id DESC
+LIMIT %(limit)s
+"""
+
+NARRATIVE_NOTES = f"""
+SELECT {_NOTE_COLUMNS}
+WHERE nt.narrative_id = %(id)s
+GROUP BY nt.id, n.title
+ORDER BY nt.moderation = 'visible' DESC, nt.status = 'helpful' DESC, nt.created_at DESC, nt.id DESC
+"""
+
+MODERATION_QUEUE = f"""
+SELECT {_NOTE_COLUMNS}
+WHERE nt.moderation = 'pending_review'
+GROUP BY nt.id, n.title
+ORDER BY nt.created_at, nt.id
 """
 
 # Every page carrying one of the narrative's fingerprints.
@@ -39,16 +112,6 @@ JOIN domain d ON d.id = p.domain_id
 WHERE v.narrative_id = %(id)s
 GROUP BY p.id, d.name
 ORDER BY first_seen, p.url
-"""
-
-NARRATIVE_OBSERVATIONS_PER_DAY = """
-SELECT time_bucket('1 day', o.seen_at) AS day, count(*) AS observations
-FROM variant v
-JOIN fingerprint f ON f.variant_id = v.id
-JOIN observation o ON o.fingerprint_id = f.id
-WHERE v.narrative_id = %(id)s
-GROUP BY day
-ORDER BY day
 """
 
 # DERIVED_FROM edges touching the narrative's fingerprints, parent first, with a label for each end.
@@ -100,71 +163,22 @@ GROUP BY 1, 2
 ORDER BY 1, 2
 """
 
-SPREAD_DOMAINS = """
-SELECT dm.name AS domain,
-       min(a.day) AS first_day,
-       max(a.day) AS last_day,
-       sum(a.observations)::bigint AS observations
-FROM narrative_domain_daily a JOIN domain dm ON dm.id = a.domain_id
-WHERE a.narrative_id = %(id)s
-GROUP BY dm.name
-ORDER BY first_day, domain
-"""
-
-# The most active reporters, one row per account, or per install without one, with one of their install
-# ids for GET /me, which computes reputation.
-REPORTERS = """
-SELECT min(v.user_id::text) AS user_id, count(*) AS reports, max(v.received_at) AS last_report
-FROM vote v
-LEFT JOIN install i ON i.id = v.user_id
-WHERE v.verdict <> 'trustworthy'
-GROUP BY coalesce(i.account_id, v.user_id)
-ORDER BY reports DESC, last_report DESC
-LIMIT %(limit)s
-"""
-
-# Settled report narratives, latest first: the narrative that confirmed each, or none when it was rejected.
-SETTLEMENTS = """
-SELECT r.id AS report_id,
-       r.title AS report,
-       c.id IS NOT NULL AS confirmed,
-       c.title AS settled_by,
-       c.source,
-       c.source_url,
-       first.reported_at,
-       r.settled_at,
-       r.settled_at - first.reported_at AS time_to_settle
-FROM narrative r
-LEFT JOIN narrative c ON c.id = r.settled_by
-LEFT JOIN LATERAL (SELECT min(received_at) AS reported_at FROM vote WHERE narrative_id = r.id) first ON true
-WHERE r.source = 'report' AND r.settled_at IS NOT NULL
-ORDER BY r.settled_at DESC
-LIMIT %(limit)s
-"""
-
-# Each voter's latest feedback vote per narrative and match level. Feedback votes come from the extension's
-# tooltip buttons, which record the match level they were cast on.
-FEEDBACK_VOTES = """
-SELECT DISTINCT ON (v.narrative_id, v.match_level, v.user_id)
-       v.narrative_id, n.title, n.source, n.state, v.match_level, v.user_id::text AS user_id, v.verdict
-FROM vote v
-JOIN narrative n ON n.id = v.narrative_id
-WHERE v.match_level IS NOT NULL
-ORDER BY v.narrative_id, v.match_level, v.user_id, v.received_at DESC
-"""
-
-# Disputed narratives, most recently changed first, with the feedback votes cast on their matches.
-DISPUTES = """
-SELECT n.id,
-       n.title,
-       n.source,
-       n.updated_at,
-       count(v.id) FILTER (WHERE v.verdict = 'trustworthy') AS not_misinformation,
-       count(v.id) FILTER (WHERE v.verdict <> 'trustworthy') AS misinformation
-FROM narrative n
-LEFT JOIN vote v ON v.narrative_id = n.id AND v.match_level IS NOT NULL
-WHERE n.state = 'disputed'
-GROUP BY n.id
-ORDER BY n.updated_at DESC
+# Accounts with notes or ratings, most active first, with one of their install ids for GET /me, which
+# computes reputation.
+CONTRIBUTORS = """
+WITH activity AS (
+  SELECT a.id,
+         min(i.id::text) AS user_id,
+         (SELECT count(*) FROM note WHERE account_id = a.id) AS notes,
+         (SELECT count(*) FROM note_rating r JOIN install ri ON ri.id = r.install WHERE ri.account_id = a.id)
+           AS ratings
+  FROM user_account a
+  JOIN install i ON i.account_id = a.id
+  GROUP BY a.id
+)
+SELECT id::text AS account_id, user_id, notes, ratings
+FROM activity
+WHERE notes + ratings > 0
+ORDER BY notes + ratings DESC, id
 LIMIT %(limit)s
 """

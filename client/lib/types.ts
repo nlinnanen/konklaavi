@@ -1,43 +1,49 @@
-export const VERDICTS = ['misinformation', 'manipulative', 'misleading', 'trustworthy'] as const;
-export type Verdict = (typeof VERDICTS)[number];
+export const CLASSIFICATIONS = ['misleading', 'not_misleading'] as const;
+/** What a note says about its narrative. */
+export type Classification = (typeof CLASSIFICATIONS)[number];
 
-/** Verdicts that count against content. */
-export const NEGATIVE_VERDICTS = ['misinformation', 'manipulative', 'misleading'] as const;
-export type NegativeVerdict = (typeof NEGATIVE_VERDICTS)[number];
+export const HELPFULNESS = ['helpful', 'somewhat', 'not_helpful'] as const;
+export type Helpfulness = (typeof HELPFULNESS)[number];
+export type RatingCounts = Record<Helpfulness, number>;
 
-export const VERDICT_LABELS: Record<Verdict, string> = {
-  misinformation: 'Misinformation',
-  manipulative: 'Manipulative',
-  misleading: 'Misleading',
-  trustworthy: 'Trustworthy',
-};
+/** A note's status as the scoring job decides it. */
+export type NoteStatus = 'needs_more_ratings' | 'helpful' | 'not_helpful' | 'controversial';
 
-export type VerdictCounts = Record<Verdict, number>;
+/** How a narrative is shown, from its visible notes. */
+export type NarrativeState = 'misleading' | 'context' | 'controversial' | 'needs_ratings' | 'tracked';
 
-/** Body of POST /votes. */
-export interface VoteRequest {
-  /** Anonymous per-install id. */
-  userId: string;
-  /** Hash of the whole (sentence-snapped) selection. */
-  contentHash: string;
-  /** Hashes of each sentence in the selection; used for matching on other pages. */
-  sentenceHashes: string[];
-  verdict: Verdict;
-  comment?: string;
-  url: string;
-  domain: string;
-  /** Human-readable selected text. Omitted when the user disables it. */
-  excerpt?: string;
-  /** ISO 8601 timestamp. */
+/** How strongly a passage matched its narrative, strongest first. */
+export type MatchLevel = 'exact' | 'variant' | 'narrative' | 'related';
+
+/** A visible note. */
+export interface Note {
+  id: string;
+  classification: Classification;
+  /** At most 1000 characters. */
+  body: string;
+  /** Source URLs. */
+  sources: string[];
+  status: NoteStatus;
+  ratings: RatingCounts;
+  /** ISO 8601. */
   createdAt: string;
-  /** The narrative of the highlight voted on from its tooltip. */
-  narrativeId?: string;
-  /** The match level of that highlight. */
-  matchLevel?: Signature['matchLevel'];
 }
 
-/** What the content script sends; background adds userId/createdAt. */
-export type VoteInput = Omit<VoteRequest, 'userId' | 'createdAt'>;
+/** A narrative as lookups and the index ship it. */
+export interface Narrative {
+  narrativeId: string;
+  title: string;
+  state: NarrativeState;
+  /** Visible notes, the decided helpful one first. */
+  notes: Note[];
+  /** `firstSeen` is ISO 8601: the first observation, or the narrative's creation before any. */
+  spread: { sites: number; firstSeen: string };
+}
+
+/** Response of GET /narratives/{id}. */
+export interface NarrativeDetail extends Narrative {
+  spread: { sites: number; pages: number; firstSeen: string };
+}
 
 /** One entry of the POST /lookup `blocks`: a text block's content hash and LSH bands, matched at the variant level. */
 export interface LookupBlock {
@@ -45,43 +51,15 @@ export interface LookupBlock {
   bands: string[];
 }
 
-/** One entry of the POST /lookup response. Only returned for hashes with votes. */
+/** One entry of the POST /lookup response, for hashes that belong to a narrative. */
 export interface LookupResult {
   hash: string;
-  counts: VerdictCounts;
-  total: number;
-  flagged: boolean;
-  /**
-   * When votes flag it: most-voted negative verdict. When only a narrative flags it: the narrative's
-   * verdict. Otherwise: most-voted verdict overall.
-   */
-  topVerdict: Verdict;
-  /** Present when the hash belongs to a narrative in state `under_review`, `active` or `disputed`. */
-  signature?: Signature;
-}
-
-/** The shipped form of a narrative. */
-export interface Signature {
-  narrativeId: string;
-  title: string;
-  verdict: NegativeVerdict;
-  techniques: string[];
-  explanation: string | null;
-  source: 'euvsdisinfo' | 'report' | 'cluster' | 'network' | 'factcheck';
-  sourceUrl: string | null;
-  state: 'under_review' | 'active' | 'disputed';
   /** `related` is a narrative-level cosine below `narrativeThreshold` but at least `relatedThreshold`. */
-  matchLevel: 'exact' | 'variant' | 'narrative' | 'related';
-  /** Active narratives from euvsdisinfo, factcheck or network, and confirmed reports. */
-  settled: boolean;
-  /** Report narratives: distinct reporters and their summed vote weight. */
-  reports?: { count: number; weight: number };
+  matchLevel: MatchLevel;
   /** Cosine of a narrative-level or related match. */
   similarity?: number;
+  narrative: Narrative;
 }
-
-/** A signature as GET /index ships it; the match level and similarity are the client's to set. */
-export type IndexSignature = Omit<Signature, 'matchLevel' | 'similarity'>;
 
 /** One fingerprint of GET /index: `bands[i]` is LSH band i, null where the block has none. */
 export interface IndexFingerprint {
@@ -96,7 +74,7 @@ export interface NarrativeVectors {
 }
 
 /**
- * Body of GET /index. A full index replaces the client's. In a delta, each narrative in `signatures`
+ * Body of GET /index. A full index replaces the client's. In a delta, each narrative in `narratives`
  * comes with all its sentences and fingerprints and replaces the client's entries for it, and
  * `removed` lists the narrativeIds no longer shipped.
  */
@@ -104,10 +82,10 @@ export interface IndexResponse {
   /** Opaque and increasing; sent back as `since`. */
   version: number;
   full: boolean;
-  signatures: IndexSignature[];
+  narratives: Narrative[];
   sentences: { hash: string; narrativeId: string }[];
   fingerprints: IndexFingerprint[];
-  /** Cosine at or above which a block matches a narrative's vectors. */
+  /** Cosine at or above which a unit matches a narrative's vectors. */
   narrativeThreshold: number;
   /** Cosine at or above which a unit is related to a narrative. */
   relatedThreshold: number;
@@ -123,21 +101,48 @@ export interface Hit {
   seenAt: string;
 }
 
-/** Response of GET /domains/:domain. */
-export interface DomainStats {
-  domain: string;
-  votesCount: number;
-  /** Number of distinct pieces of content (contentHash) on this domain that are flagged. */
-  flaggedCount: number;
-  counts: VerdictCounts;
-  topVerdict: Verdict | null;
+/** The passage a note is written on, sent only when the user submits the note. */
+export interface Passage {
+  text: string;
+  url: string;
+  contentHash: string;
+  sentenceHashes: string[];
+}
+
+/** Body of POST /notes. */
+export interface NoteRequest {
+  userId: string;
+  passage: Passage;
+  classification: Classification;
+  body: string;
+  sources: string[];
+}
+
+/** What the content script sends; the background adds userId. */
+export type NoteInput = Omit<NoteRequest, 'userId'>;
+
+/** Response of POST /notes. */
+export interface NoteResponse {
+  noteId: string;
+  narrativeId: string;
+}
+
+/** Body of POST /notes/{id}/ratings. */
+export interface RatingRequest {
+  userId: string;
+  helpfulness: Helpfulness;
+}
+
+/** Body of POST /notes/{id}/report. */
+export interface ReportRequest {
+  userId: string;
+  reason: string;
 }
 
 export interface Settings {
   /** `local` matches against a downloaded GET /index, so page hashes stay in the browser. */
   backendMode: 'mock' | 'remote' | 'local';
   backendUrl: string;
-  sendExcerpt: boolean;
   highlight: boolean;
   /** Send detection hits to the backend in local index mode. */
   sendHits: boolean;
@@ -146,7 +151,6 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   backendMode: 'mock',
   backendUrl: 'http://localhost:8000',
-  sendExcerpt: true,
   highlight: true,
   sendHits: true,
 };
@@ -157,25 +161,27 @@ export interface MagicLinkRequest {
   email: string;
 }
 
-/** A narrative the user reported, as GET /me lists it. */
-export interface AccountReport {
+/** A note the user wrote, as GET /me lists it. */
+export interface AccountNote {
+  id: string;
+  classification: Classification;
+  body: string;
+  status: NoteStatus;
+  moderation: 'visible' | 'pending_review' | 'hidden';
+  createdAt: string;
   narrativeId: string;
   title: string;
-  state: string;
-  outcome: 'pending' | 'confirmed' | 'rejected';
-  /** The settled-bad narrative that confirmed the report. */
-  settledBy: { source: Signature['source']; title: string; sourceUrl: string | null } | null;
-  reportedAt: string;
-  settledAt: string | null;
 }
 
-/** Response of GET /me?userId=...: reputation is per account when the install is linked, else per install. */
+/** Response of GET /me?userId=...; `reputation` is in [0, 1], null for an install not linked to an account. */
 export interface MeResponse {
   userId: string;
   email: string | null;
-  reputation: number;
-  weight: number;
-  agreed: number;
-  disagreed: number;
-  reports: AccountReport[];
+  verified: boolean;
+  reputation: number | null;
+  /** May work the moderation queue: MODERATOR_EMAILS or reputation above MODERATOR_REPUTATION. */
+  moderator: boolean;
+  notes: AccountNote[];
+  /** Ratings cast, and those cast before the note was decided that agree with its status. */
+  ratings: { count: number; agreed: number };
 }
