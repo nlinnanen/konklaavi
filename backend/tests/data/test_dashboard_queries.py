@@ -2,6 +2,8 @@ import importlib.util
 from datetime import UTC, datetime
 from pathlib import Path
 
+import psycopg
+
 _spec = importlib.util.spec_from_file_location(
     "dashboard_queries", Path(__file__).resolve().parents[3] / "dashboard" / "queries.py"
 )
@@ -117,9 +119,13 @@ def add_second_domain(conn, fingerprint):
     )
 
 
-def test_spread_counts_observations_and_domains_reached_per_day(conn):
+def test_spread_counts_observations_and_domains_reached_per_day(conn, database_url):
     narrative, fingerprints = add_spread(conn)
     add_second_domain(conn, fingerprints[0])
+    conn.commit()
+    # Another test's refresh leaves a watermark that hides these older rows from real-time aggregation.
+    with psycopg.connect(database_url, autocommit=True) as admin:
+        admin.execute("CALL refresh_continuous_aggregate('narrative_domain_daily', NULL, NULL)")
 
     per_day = conn.execute(queries.SPREAD_PER_DAY, {"id": narrative}).fetchall()
     domains = conn.execute(queries.SPREAD_DOMAINS, {"id": narrative}).fetchall()

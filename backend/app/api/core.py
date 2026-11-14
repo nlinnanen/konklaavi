@@ -355,12 +355,19 @@ def get_index(since: int | None = None) -> dict:
     """The shipped signatures, in full or as the narratives changed since a version.
 
     The version is the oldest transaction still running at read time: every change from an older
-    transaction is in the response, and a later one is sent again next time. A delta carries each
-    changed narrative's sentences and fingerprints in full, and lists the ones no longer shipped.
+    transaction is in the response, and a later one is sent again next time. Transaction ids are
+    cluster-wide, so transactions seen running in another database are left out; they never write
+    index_change here and would otherwise hold the version back. A delta carries each changed
+    narrative's sentences and fingerprints in full, and lists the ones no longer shipped.
     """
     with connection() as conn:
         conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-        version = conn.execute("SELECT pg_snapshot_xmin(pg_current_snapshot())::text::bigint").fetchone()[0]
+        version = conn.execute(
+            "SELECT coalesce(("
+            "  SELECT min(x) FROM pg_snapshot_xip(s) x WHERE NOT EXISTS ("
+            "   SELECT FROM pg_stat_activity a WHERE a.backend_xid = xid(x) AND a.datname <> current_database())"
+            " ), pg_snapshot_xmax(s))::text::bigint FROM pg_current_snapshot() s"
+        ).fetchone()[0]
         full = since is None or since > version
         changed = None
         if not full:
