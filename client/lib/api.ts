@@ -331,7 +331,7 @@ export class LocalIndexApi implements TrustApi {
     }
     if (!this.stored) await this.refresh();
     else if (this.now() - this.stored.checkedAt >= INDEX_REFRESH_MS) {
-      this.refresh().catch((e) => console.warn('[trust-verifier] index refresh failed', e));
+      this.refresh().catch((e) => console.warn('[hashtrust] index refresh failed', e));
     }
     this.index ??= new SignatureIndex(this.stored!.snapshot);
     return this.index;

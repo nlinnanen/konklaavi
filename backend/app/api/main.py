@@ -16,7 +16,7 @@ async def lifespan(_: FastAPI):
     close_pool()
 
 
-app = FastAPI(title="Content Trust Layer", lifespan=lifespan)
+app = FastAPI(title="HashTrust", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(core.router)
 

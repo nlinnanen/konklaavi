@@ -1,6 +1,6 @@
 {
-  "name": "trust-verifier-extension",
-  "description": "Crowdsourced content trust verifier browser extension",
+  "name": "hashtrust-extension",
+  "description": "HashTrust browser extension for crowdsourced content trust",
   "private": true,
   "version": "0.1.0",
   "type": "module",

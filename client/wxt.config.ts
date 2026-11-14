@@ -13,9 +13,9 @@ export default defineConfig({
   // Visible folder so it shows up in the browser's "Load unpacked" file picker.
   outDir: 'dist',
   manifest: ({ browser }) => ({
-    name: 'Trust Verifier',
+    name: 'HashTrust',
     description:
-      'Crowdsourced content trust verification: flag misinformation and manipulative content, and see what others have flagged.',
+      'HashTrust: flag misinformation and manipulative content, and see what others have flagged.',
     permissions: browser === 'firefox' ? ['storage'] : ['storage', 'offscreen'],
     // The embedding model downloads from the Hugging Face hub, which redirects to its CDN.
     host_permissions: ['https://huggingface.co/*', 'https://*.hf.co/*'],

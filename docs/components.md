@@ -8,7 +8,7 @@ This page breaks the system into components that can be built in parallel. The f
 flowchart LR
   Reader(["Reader<br/>extension user"])
   Owner(["Site owner / analyst"])
-  Sys["Content Trust Layer"]
+  Sys["HashTrust"]
   Web["Public web pages"]
   EU["EUvsDisinfo database"]
   Claude["Claude via Hostinger AI Router"]
@@ -32,7 +32,7 @@ flowchart LR
   Reader(["Reader"])
   Owner(["Site owner / analyst"])
 
-  subgraph Sys["Content Trust Layer"]
+  subgraph Sys["HashTrust"]
     Ext["Extension<br/>TypeScript, WXT, transformers.js"]
     API["API<br/>Python, FastAPI"]
     Worker["Worker<br/>Python"]

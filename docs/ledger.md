@@ -124,7 +124,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - core: the production stack and Caddyfile are validated locally with DOMAIN=localhost.
 - ext: the local index refreshes on lookup: an index 5 minutes old answers while a `?since` delta downloads in the background, so nothing polls while the browser is idle.
 - ext: LocalIndexApi waits for the first full download; a failed first download fails the lookup.
-- ext: the index is stored in IndexedDB (`trust-verifier`, store `kv`, key `index`) with its baseUrl and last check time; an index for another backend URL is ignored.
+- ext: the index is stored in IndexedDB (`hashtrust`, store `kv`, key `index`) with its baseUrl and last check time; an index for another backend URL is ignored.
 - ext: local lookup results have zero vote counts, are flagged only when the narrative is active, and carry the narrative's verdict.
 - ext: detection hits go out after each local lookup as one POST /hits batch of the flagged results with a signature, each hash once per page (URL without fragment, last 500 pages remembered), for http(s) pages only, when `sendHits` is on; failures are logged and dropped.
 - ext: a build with `WXT_API_URL` set defaults to Local index with that URL.

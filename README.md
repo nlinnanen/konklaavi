@@ -1,4 +1,4 @@
-# junction26 — Content Trust Layer
+# HashTrust
 
 > Context document for humans and LLMs working on this repo. Keep it up to date as decisions are made.
 

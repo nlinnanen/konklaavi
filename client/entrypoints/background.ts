@@ -72,7 +72,7 @@ function deviceEmbedder(): Embedder {
 
 const mockApi = new MockApi(localStore);
 const embedder = deviceEmbedder();
-const indexStore = indexedDbStore('trust-verifier');
+const indexStore = indexedDbStore('hashtrust');
 let localApi: LocalIndexApi | undefined;
 
 function getApi(settings: ExtensionSettings): TrustApi {
@@ -100,7 +100,7 @@ function reportHits(settings: ExtensionSettings, pageUrl: string | undefined, re
     reporter = new HitReporter((hits) => remote.submitHits(hits));
     hitReporters.set(settings.backendUrl, reporter);
   }
-  reporter.report(pageUrl, results).catch((e) => console.warn('[trust-verifier] sending detection hits failed', e));
+  reporter.report(pageUrl, results).catch((e) => console.warn('[hashtrust] sending detection hits failed', e));
 }
 
 async function getUserId(): Promise<string> {

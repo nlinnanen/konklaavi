@@ -9,7 +9,7 @@ export interface FlaggedRange {
 
 export const highlightSupported = typeof CSS !== 'undefined' && 'highlights' in CSS;
 
-const STYLE_ID = 'trust-verifier-highlight-style';
+const STYLE_ID = 'hashtrust-highlight-style';
 const COLORS: Record<NegativeVerdict, [string, string]> = {
   misinformation: ['rgba(239, 68, 68, 0.22)', '#dc2626'],
   manipulative: ['rgba(168, 85, 247, 0.22)', '#9333ea'],

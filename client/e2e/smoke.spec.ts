@@ -150,7 +150,7 @@ test.describe('remote backend', () => {
     const box = await page.getByText('Brussels officials').boundingBox();
     await page.mouse.click(box!.x + 20, box!.y + box!.height / 2);
 
-    const tooltip = page.locator('trust-verifier-ui .tooltip');
+    const tooltip = page.locator('hashtrust-ui .tooltip');
     await expect(tooltip).toBeVisible();
     await expect(tooltip).toContainText('Edited copy of a known narrative');
     await expect(tooltip.getByRole('link', { name: 'EUvsDisinfo' })).toHaveAttribute('href', SOURCE_URL);

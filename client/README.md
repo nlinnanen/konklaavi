@@ -1,4 +1,4 @@
-# Trust Verifier: browser extension
+# HashTrust: browser extension
 
 Users select text on a page and rate it (misinformation / manipulative / misleading / trustworthy). The extension fingerprints the text at sentence level, sends the fingerprint and the verdict to the backend, and highlights content on any page that the crowd has flagged.
 
@@ -41,8 +41,8 @@ To load the build manually, go to `chrome://extensions`, turn on Developer mode,
 Chromium needs system libraries that a plain machine or the VM may lack. `e2e/Dockerfile` provides them:
 
 ```bash
-docker build -t trust-verifier-e2e -f e2e/Dockerfile e2e
-docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work trust-verifier-e2e npm run test:e2e
+docker build -t hashtrust-e2e -f e2e/Dockerfile e2e
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/work" -w /work hashtrust-e2e npm run test:e2e
 ```
 
 Run both from `client/` after `npm install`; the container uses the mounted `node_modules`.

@@ -24,7 +24,7 @@ DATASET = "NLP-UniBW/eu_vs_disinfo"
 PAGE_SIZE = 100
 # Pause between requests to the rows API.
 REQUEST_INTERVAL = 1.0
-USER_AGENT = "junction26-trust-layer/0.1 (seed importer)"
+USER_AGENT = "hashtrust/0.1 (seed importer)"
 
 
 class _Paragraphs(HTMLParser):

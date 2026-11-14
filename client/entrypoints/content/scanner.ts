@@ -79,7 +79,7 @@ export class PageScanner {
   /** Scan (or rescan) the blocks containing the given roots. Serialized so passes don't interleave. */
   scan(roots: Iterable<Node>, force = false): Promise<void> {
     const list = [...roots];
-    this.running = this.running.then(() => this.doScan(list, force)).catch((e) => console.warn('[trust-verifier] scan failed', e));
+    this.running = this.running.then(() => this.doScan(list, force)).catch((e) => console.warn('[hashtrust] scan failed', e));
     return this.running;
   }
 
@@ -148,7 +148,7 @@ export class PageScanner {
     try {
       found = await callBackground('matchNarratives', [...pending.values()]);
     } catch (e) {
-      console.warn('[trust-verifier] narrative matching failed', e);
+      console.warn('[hashtrust] narrative matching failed', e);
       return;
     }
     if (!found.length) return;
