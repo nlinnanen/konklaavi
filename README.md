@@ -1,8 +1,8 @@
 # Konklaavi
 
-Konklaavi is a content layer for the browser. Its extension recognises passages that belong to a tracked narrative, by sentence hashes, MinHash bands and on-device embeddings, and highlights them with the state that crowdsourced context notes give the narrative. Signed-in readers add notes to a selected passage and rate other readers' notes, and the Community Notes bridging algorithm decides which note is shown. The backend tracks where each narrative spreads by fetching the public pages it is seen on.
+Konklaavi is a content trust layer for the browser. Its extension recognises passages that belong to a tracked narrative, by sentence embeddings, MinHash bands and on-device embeddings, and highlights them with the state that crowdsourced context notes give the narrative. Readers add notes to a selected passage and rate other readers' notes, and the Community Notes bridging algorithm decides which note is shown. The backend tracks where each narrative spreads by logging where it is seen.
 
-Built for Junction 2026, on the "Trust the source" challenge direction.
+Built for Junction 2026 for Hostinger's "Decode the Noise" challenge.
 
 ## Try it
 
@@ -14,7 +14,7 @@ The extension isn't in a web store, so you load it unpacked. That needs no revie
 
 1. Download the zip from the [`latest-demo` release](https://github.com/nlinnanen/konklaavi/releases/tag/latest-demo). Every deploy rebuilds it against the demo API.
 2. Unzip it into a folder you keep.
-3. Open `chrome://extensions` (or Edge or Brave), turn on **Developer mode** and click **Load unpacked**. Choose the unzipped folder.
+3. Open `chrome://extensions` (or Edge or Brave), turn on **Developer mode** and click **Load unpacked**. Choose the unzipped folder. Firefox: `about:debugging` > This Firefox > Load Temporary Add-on.
 4. Pin Konklaavi from the puzzle-piece menu and open an article.
 
 Using it:
