@@ -11,6 +11,8 @@ HANDLERS: dict[str, Handler] = {}
 # (kind, interval in seconds) for jobs the worker enqueues on a schedule.
 PERIODIC: list[tuple[str, int]] = [("cluster", 300)]
 MAX_ATTEMPTS = 5
+# A job running longer than this is taken to have lost its worker and can be claimed again.
+LEASE = timedelta(minutes=10)
 
 
 def register(kind: str) -> Callable[[Handler], Handler]:
@@ -42,19 +44,28 @@ def enqueue(
 
 
 def claim(conn: Connection) -> Job | None:
-    """Mark the next due job running and count the attempt. Commit before running the handler."""
+    """Mark the next due job running and count the attempt. Commit before running the handler.
+
+    A job whose lease expired is due again, or failed when it is out of attempts.
+    """
+    conn.execute(
+        "UPDATE job SET state = 'failed', last_error = 'lease expired', updated_at = now()"
+        " WHERE state = 'running' AND updated_at < now() - %s AND attempts >= %s",
+        (LEASE, MAX_ATTEMPTS),
+    )
     row = conn.execute(
         """
         UPDATE job SET state = 'running', attempts = attempts + 1, updated_at = now()
         WHERE id = (
           SELECT id FROM job
-          WHERE state = 'queued' AND run_after <= now()
+          WHERE (state = 'queued' AND run_after <= now()) OR (state = 'running' AND updated_at < now() - %s)
           ORDER BY run_after, id
           LIMIT 1
           FOR UPDATE SKIP LOCKED
         )
         RETURNING id, kind, payload, attempts
-        """
+        """,
+        (LEASE,),
     ).fetchone()
     return Job(*row) if row else None
 
