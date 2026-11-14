@@ -273,24 +273,36 @@ def next_state(state: str, source: str, verdict: str, tally: Tally) -> str:
     return "under_review"
 
 
-def narrative_tally(conn: Connection, narrative_id: int) -> Tally:
-    """Weighted votes on the narrative: each user's latest vote attached to it or on one of its sentences."""
+def narrative_tallies(conn: Connection, narrative_ids: Iterable[int]) -> dict[int, Tally]:
+    """Weighted votes per narrative: each user's latest vote on one of its sentences or attached to it.
+
+    A vote is attached to the narrative its report extends or created, or to the narrative of the match
+    it gives feedback on.
+    """
+    ids = list(set(narrative_ids))
     rows = conn.execute(
         """
         WITH hashes AS (
-          SELECT coalesce(array_agg(s.hash), '{}') AS hashes FROM sentence s
+          SELECT va.narrative_id, array_agg(s.hash) AS hashes FROM sentence s
           JOIN fingerprint f ON f.id = s.fingerprint_id
           JOIN variant va ON va.id = f.variant_id
-          WHERE va.narrative_id = %(id)s
+          WHERE va.narrative_id = ANY(%(ids)s)
+          GROUP BY 1
+        ), ids AS (
+          SELECT id, coalesce(h.hashes, '{}') AS hashes FROM unnest(%(ids)s::bigint[]) id
+          LEFT JOIN hashes h ON h.narrative_id = id
         )
-        SELECT DISTINCT ON (v.user_id) '', v.user_id, v.verdict
-        FROM vote v, hashes
-        WHERE v.narrative_id = %(id)s OR v.sentence_hashes && hashes.hashes
-        ORDER BY v.user_id, v.received_at DESC
+        SELECT DISTINCT ON (ids.id, v.user_id) ids.id, v.user_id, v.verdict
+        FROM ids JOIN vote v ON v.narrative_id = ids.id OR v.sentence_hashes && ids.hashes
+        ORDER BY ids.id, v.user_id, v.received_at DESC
         """,
-        {"id": narrative_id},
+        {"ids": ids},
     ).fetchall()
-    return tallies(conn, rows).get("", Tally())
+    return tallies(conn, rows)
+
+
+def narrative_tally(conn: Connection, narrative_id: int) -> Tally:
+    return narrative_tallies(conn, [narrative_id]).get(narrative_id, Tally())
 
 
 def vote_narratives(conn: Connection, vote_id: int) -> list[int]:

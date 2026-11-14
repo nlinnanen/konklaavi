@@ -1,3 +1,5 @@
+import re
+
 from app import fpclient
 
 
@@ -62,6 +64,7 @@ def test_narrative_hash_carries_a_signature_and_is_flagged_when_active(client, n
         "source": "euvsdisinfo",
         "sourceUrl": "https://case",
         "state": "under_review",
+        "settled": False,
         "matchLevel": "exact",
     }
 
@@ -197,39 +200,58 @@ def test_check_reports_a_block_matching_only_at_the_variant_level(client, narrat
     )
 
 
-def test_check_matches_a_long_block_close_in_meaning_to_a_narrative(client, narrative, conn, monkeypatch):
+def unit_vector(cosine):
+    """A unit vector at this cosine to the first axis."""
+    return [cosine, (1 - cosine**2) ** 0.5] + [0.0] * 382
+
+
+def fake_fingerprint(embeddings):
+    """A fingerprint service splitting sentences at periods and embedding a text as `embeddings` says."""
+
+    def fingerprint(blocks, embed=False):
+        result = []
+        for i, block in enumerate(blocks):
+            sentences = [
+                {"text": m.group(), "start": m.start(), "end": m.end(), "hash": f"h:{m.group()}"}
+                for m in re.finditer(r"[^.\s][^.]*\.", block)
+            ]
+            result.append(
+                {
+                    "index": i,
+                    "contentHash": f"h:{block}",
+                    "sentences": sentences,
+                    "minhash": None,
+                    "bands": None,
+                    "embedding": embeddings.get(block, unit_vector(0.0)) if embed else None,
+                }
+            )
+        return {"version": "v1", "blocks": result}
+
+    return fingerprint
+
+
+def test_check_matches_sentences_close_in_meaning_to_a_narrative(client, narrative, conn, monkeypatch):
     narrative_id = narrative([], content_hash="fp-1")
     conn.execute(
         "INSERT INTO narrative_vector (narrative_id, kind, embedding) VALUES (%s, 'claim', %s::vector)",
-        (narrative_id, str([1.0] + [0.0] * 383)),
+        (narrative_id, str(unit_vector(1.0))),
     )
     conn.commit()
-    close = [0.9, (1 - 0.9**2) ** 0.5] + [0.0] * 382
     paraphrase = "Europe is being ruined from the inside by the sanctions of the West."
-    short = "Sanctions ruin Europe."
+    short = "Sanctions are hurting European households."
     monkeypatch.setattr(
-        fpclient,
-        "fingerprint",
-        lambda blocks, embed=False: {
-            "version": "v1",
-            "blocks": [
-                {
-                    "index": i,
-                    "contentHash": f"block-{i}",
-                    "sentences": [{"text": text, "start": 0, "end": len(text), "hash": f"s-{i}"}],
-                    "minhash": None,
-                    "bands": None,
-                    "embedding": close if embed else None,
-                }
-                for i, text in enumerate(blocks)
-            ],
-        },
+        fpclient, "fingerprint", fake_fingerprint({paraphrase: unit_vector(0.9), short: unit_vector(0.75)})
     )
-    response = client.post("/check", json={"text": f"{paraphrase}\n\n{short}"})
+    text = f"{paraphrase}\n\n{short} The weather in Lisbon was mild this week."
+    response = client.post("/check", json={"text": text})
     assert response.status_code == 200, response.text
-    [match] = response.json()["matches"]
-    assert (match["text"], match["result"]["flagged"], match["result"]["signature"]["matchLevel"]) == (
-        paraphrase,
-        True,
-        "narrative",
-    )
+    matches = [
+        (
+            m["text"],
+            m["result"]["flagged"],
+            m["result"]["signature"]["matchLevel"],
+            m["result"]["signature"]["similarity"],
+        )
+        for m in response.json()["matches"]
+    ]
+    assert matches == [(paraphrase, True, "narrative", 0.9), (short, False, "related", 0.75)]

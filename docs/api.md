@@ -7,13 +7,18 @@ The contracts every workstream builds against. Only the integrator changes this 
 FastAPI on `API_PORT`, CORS open to all origins.
 
 - `GET /health` returns `{ok: true}`.
-- `POST /votes` takes a `VoteRequest` and returns `{ok: true}`. A repeat vote by the same `userId` on the same `contentHash` replaces the earlier one. Each vote enqueues a `fetch` job for its URL and an `analyze` job; `analyze` does nothing for a `trustworthy` vote.
+- `POST /votes` takes a `VoteRequest` and returns `{ok: true}`. A repeat vote by the same `userId` on the same `contentHash` replaces the earlier one, keeping its `narrativeId` when the new vote has none. A report (no `narrativeId`) enqueues a `fetch` job for its URL and an `analyze` job; `analyze` does nothing for a `trustworthy` vote. A feedback vote, cast from a highlight's tooltip, carries the matched `narrativeId` and the highlight's `matchLevel` and no `excerpt`: it enqueues no job and moves its narrative's state at once. A feedback vote with an `excerpt`, a `matchLevel` without `narrativeId`, or an unknown `narrativeId` gets a 422. Its `contentHash` is the matched content's hash: the sentence hash for an exact match, the block hash for a variant match, the unit hash for a narrative or related match.
 - `POST /lookup` takes `{hashes: string[], blocks?: LookupBlock[]}`, at most 500 hashes and 500 blocks, and returns `{results: LookupResult[]}` for the hashes that have votes or a signature. `hashes` are sentence hashes and match at the exact level. `blocks` carry a block's content hash and its 32 LSH bands. A block matches at the variant level when it shares at least 2 bands, at the same band index, with a fingerprint in an `active` or `under_review` narrative; the result is keyed by the block hash, has `matchLevel: "variant"` and zero vote counts. When a hash is both a sentence hash and a block hash, the exact signature wins.
 - `GET /domains/{domain}` returns `DomainStats`.
-- `POST /check` takes `{text?: string, url?: string}`, fingerprints the text (or the fetched page) through the fingerprint service, and returns `{matches: {text: string, result: LookupResult}[]}`. A match is a sentence that matches exactly, or a whole block, with the block text as `text`, that matches only at the variant level, or a whole block of 8+ words with no exact or variant match whose embedding matches a narrative at the narrative level (`matchLevel: "narrative"`, zero vote counts). The dashboard and judges use it without the extension.
-- `GET /index?since={version}` returns an `IndexResponse`: the signatures of the shipped narratives with their sentence hashes and fingerprints, in full when `since` is missing or newer than the server's version. `version` is an opaque increasing number the client sends back as `since`. Index signatures leave out `matchLevel`. A fingerprint's `bands[i]` is band i, null where it has none; a block matches at the variant level when it shares at least 2 bands at the same index with one fingerprint, as in `/lookup`. In a delta, each narrative in `signatures` comes with all its sentences and fingerprints and replaces the client's entries for it, and `removed` lists the narrative ids no longer shipped. `narrativeThreshold` is the cosine from `NARRATIVE_MATCH_THRESHOLD`. `narrativeVectors` holds `{narrativeId, vectors}` for every narrative in `signatures`, the claim vector first, with an empty list when it has none; in a delta an entry replaces the client's vectors for that narrative.
+- `POST /check` takes `{text?: string, url?: string}`, fingerprints the text (or the fetched page) through the fingerprint service, and returns `{matches: {text: string, result: LookupResult}[]}`. A match is a sentence that matches exactly, or a whole block, with the block text as `text`, that matches only at the variant level, or an embedding unit of a block with no exact or variant match that is related to a narrative or closer (`matchLevel` `narrative` or `related`, with `similarity`, zero vote counts, the unit text as `text`). Every matching unit is returned, so a sentence and a 3-sentence run holding it can both appear; a consumer shows the strongest tier per range. The dashboard and judges use it without the extension.
+- `GET /index?since={version}` returns an `IndexResponse`: the signatures of the shipped narratives with their sentence hashes and fingerprints, in full when `since` is missing or newer than the server's version. `version` is an opaque increasing number the client sends back as `since`. Index signatures leave out `matchLevel`. A fingerprint's `bands[i]` is band i, null where it has none; a block matches at the variant level when it shares at least 2 bands at the same index with one fingerprint, as in `/lookup`. In a delta, each narrative in `signatures` comes with all its sentences and fingerprints and replaces the client's entries for it, and `removed` lists the narrative ids no longer shipped. `narrativeThreshold` is the cosine from `NARRATIVE_MATCH_THRESHOLD` and `relatedThreshold` the one from `RELATED_MATCH_THRESHOLD`. Index signatures carry `settled` and, for report narratives, `reports`; the narratives shipped are those in state `active`, `under_review` and `disputed`. `narrativeVectors` holds `{narrativeId, vectors}` for every narrative in `signatures`, the claim vector first, with an empty list when it has none; in a delta an entry replaces the client's vectors for that narrative.
 
-Narrative-level matching runs only where the text stays with its owner: in the extension's local index mode, which embeds blocks on the device, and in `POST /check`. `/lookup` matches at the exact and variant levels only. A block of 8+ whitespace words is embedded, and it matches a narrative when its maximum cosine to that narrative's vectors is at least `narrativeThreshold`; exact and variant matches take precedence. When several narratives match, an `active` one wins, then the highest cosine.
+Narrative-level matching runs only where the text stays with its owner: in the extension's local index mode, which embeds on the device, and in `POST /check`. `/lookup` matches at the exact and variant levels only. Page text leaves the browser only in an explicit report (a vote with an excerpt).
+
+What is embedded is the embedding unit. A block's sentences come from `splitSentences` in `client/lib/fingerprint.ts` (which keeps sentences of 5+ words; the fingerprint service returns the same `sentences`). The units are every sentence, plus every run of 3 consecutive sentences of that list (stride 1) when there are 3 or more. A unit's text is its sentences' `text` joined by one space, and its hash is `fingerprintSentences` over its sentences, so a one-sentence unit's hash is the sentence hash. Its highlight range covers its sentences. `embeddingUnits` in `client/lib/embed.ts` and `units` in `backend/app/api/core.py` build the same units. Blocks with an exact or variant match are not embedded.
+
+A unit matches a narrative at the `narrative` level when its maximum cosine to that narrative's vectors is at least `narrativeThreshold`, and at the `related` level when it is at least `relatedThreshold` and below `narrativeThreshold`; the cosine goes on `similarity`. When several narratives match, the stronger level wins, then an `active` narrative (the extension: the stronger tier), then the highest cosine.
+
 
 A narrative's vectors are unit vectors from the embedding model: up to 5 of its attached prose, non-boilerplate blocks closest to their mean, plus the embedding of its claim text (title and claim), so a narrative with no fetched blocks still has one, plus LLM paraphrases of its claim worded as an article would assert it. They live in `narrative_vector(narrative_id, kind 'block' | 'claim' | 'paraphrase', fingerprint_id, text, embedding vector(384))`, where `text` is the paraphrase. On the wire each is 384 int8 values `floor(v * 127 + 0.5)` clamped to +-127 (halves rounded up), base64-encoded; `quantize`, `dequantize` and `cosine` are in `client/lib/embed.ts` with a Python twin in `backend/app/vectors.py`.
 - `POST /hits` takes `{hits: Hit[]}`, at most 500, and returns `{ok: true}`. `narrativeId` is a numeric string and `url` must be http(s). A hit records a detection observation when its narrative holds the hash as a sentence or content hash; hits on unknown narratives are dropped. Each URL gets at most one `fetch` job `{url, reason: "hit", narrative_id}` per day.
@@ -21,7 +26,7 @@ A narrative's vectors are unit vectors from the embedding model: up to 5 of its 
 - `GET /auth/verify?token=...` consumes the token, links its install to the account for the token's email (creating the account) and returns an HTML page "Signed in as <email>, you can close this tab". An invalid, used or expired token returns a 400 page.
 - `GET /me?userId=...` returns a `MeResponse`: the linked email or null, `reputation` in [0, 1], `weight` (equal to `reputation`, since burst division is per content), the `agreed` and `disagreed` counts, and the reports of every install of the account. A report is a `source = 'report'` narrative that one of those installs voted negative on; its `outcome` is `rejected` when the narrative is retired, `confirmed` when `settled_by` is set, `pending` otherwise. `settledBy` is the confirming narrative `{source, title, sourceUrl}`, `sourceUrl` possibly null. An unknown `userId` gets a new voter's numbers and no reports.
 
-A `LookupResult` is flagged when its reputation-weighted votes flag it (see `backend/app/trust.py`), or when it belongs to a narrative in state `active`. `counts` and `total` count distinct users per verdict. Its `topVerdict` is the negative verdict with the most weight when votes flag it, the narrative's verdict when only the narrative flags it, and the verdict with the most weight otherwise. It carries a `signature` when it belongs to a narrative in state `active`, `under_review` or `disputed`; a `disputed` narrative ships as `under_review`:
+A `LookupResult` is flagged when its reputation-weighted votes flag it (see `backend/app/trust.py`), or when it matches a narrative in state `active` at any level but `related`. `counts` and `total` count distinct users per verdict. Its `topVerdict` is the negative verdict with the most weight when votes flag it, the narrative's verdict when only the narrative flags it, and the verdict with the most weight otherwise. It carries a `signature` when it belongs to a narrative in state `active`, `under_review` or `disputed`:
 
 ```ts
 export interface Signature {
@@ -32,12 +37,34 @@ export interface Signature {
   explanation: string | null;
   source: 'euvsdisinfo' | 'report' | 'cluster' | 'network' | 'factcheck';
   sourceUrl: string | null;
-  state: 'under_review' | 'active';
-  matchLevel: 'exact' | 'variant' | 'narrative';
+  state: 'under_review' | 'active' | 'disputed';
+  matchLevel: 'exact' | 'variant' | 'narrative' | 'related';
+  /** Active narratives from euvsdisinfo, factcheck or network, and reports with settledBy set. */
+  settled: boolean;
+  /** Report narratives: distinct negative voters and their summed vote weight. */
+  reports?: { count: number; weight: number };
+  /** Cosine of a narrative or related match. */
+  similarity?: number;
 }
 ```
 
-`matchLevel: 'narrative'` means the block is semantically close to a narrative but shares no sentence and no 2 bands with it.
+`matchLevel: 'narrative'` or `'related'` means the unit is semantically close to a narrative but its block shares no sentence and no 2 bands with it.
+
+A feedback vote counts toward its narrative's tally (`narrative_tallies` in `backend/app/trust.py`) like any vote attached to it, so weighted `trustworthy` feedback disputes and then retires a narrative under the usual lifecycle rules, and once retired those votes count as agreements in reputation. `vote.narrative_id` and `vote.match_level` (text, migration 103) store it; the trigger `index_change_vote` from the same migration marks a report narrative changed in the index when a vote attaches to it.
+
+### Tiers
+
+The client decides a highlight's tier from the `LookupResult` (`tierOf` in `client/lib/tier.ts`; `dashboard/tiers.py` mirrors it). Strongest first:
+
+| Tier | Rule | Style (`TIER_STYLES`) |
+| --- | --- | --- |
+| confirmed | exact or variant match to an `active`, `settled` narrative | solid red background `#dc2626`, white text |
+| likely | `narrative` match to an `active` narrative, or an exact or variant match to an `active` narrative that is not settled | orange background `rgba(249,115,22,0.3)` |
+| reported | any match to a report narrative in `under_review`, an `under_review` match the votes flag, or content flagged by votes alone | faint purple background `rgba(168,85,247,0.15)` |
+| related | `related` match to an `active` narrative | 2px dotted yellow underline `rgba(234,179,8,0.9)` |
+| disputed | any match to a `disputed` narrative | grey background `rgba(156,163,175,0.25)` |
+
+An `under_review` narrative that is not a report and is not flagged by votes gets no tier. Each sentence takes the strongest tier among the matches covering it, the smallest unit on a tie; consecutive sentences with the same match form one range, so highlights never overlap. The popup shows a legend. Every tooltip has the buttons "Misinformation" and "Not misinformation", which send a feedback vote.
 
 ## Accounts, settlement and reputation
 
@@ -91,12 +118,12 @@ Rows in the `job` table, claimed with `SELECT ... FOR UPDATE SKIP LOCKED`. A han
 
 ## Configuration
 
-Environment variables, read in `backend/app/config.py`: `DATABASE_URL`, `FP_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANALYSIS_MODEL`, `NARRATIVE_MATCH_THRESHOLD` (cosine, default 0.825), `SMTP_URL` (`smtp[s]://user:pass@host:port`; `smtps` uses implicit TLS, `smtp` STARTTLS when offered), `MAIL_FROM`, `PUBLIC_API_URL` (base of the sign-in link, default `http://localhost:API_PORT`). Compose reads `COMPOSE_PROJECT_NAME`, `DB_PORT`, `API_PORT`, `FP_PORT` and `DASH_PORT` from the worktree's `.env`. The fingerprint service caches the model in `MODEL_CACHE_DIR`. The dashboard reads `DATABASE_URL`, `API_URL` and `EVAL_RESULTS`. In local index mode the extension downloads the embedding model's weights from the Hugging Face hub on first use. Production (`deploy/compose.prod.yaml`) also needs `DOMAIN` and `POSTGRES_PASSWORD` in the VPS `.env`.
+Environment variables, read in `backend/app/config.py`: `DATABASE_URL`, `FP_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `ANALYSIS_MODEL`, `NARRATIVE_MATCH_THRESHOLD` (cosine, default 0.825), `RELATED_MATCH_THRESHOLD` (cosine, default 0.70), `SMTP_URL` (`smtp[s]://user:pass@host:port`; `smtps` uses implicit TLS, `smtp` STARTTLS when offered), `MAIL_FROM`, `PUBLIC_API_URL` (base of the sign-in link, default `http://localhost:API_PORT`). Compose reads `COMPOSE_PROJECT_NAME`, `DB_PORT`, `API_PORT`, `FP_PORT` and `DASH_PORT` from the worktree's `.env`. The fingerprint service caches the model in `MODEL_CACHE_DIR`. The dashboard reads `DATABASE_URL`, `API_URL` and `EVAL_RESULTS`. In local index mode the extension downloads the embedding model's weights from the Hugging Face hub on first use. Production (`deploy/compose.prod.yaml`) also needs `DOMAIN` and `POSTGRES_PASSWORD` in the VPS `.env`.
 
 ## File ownership
 
 - integrator: `docs/`, `compose.yaml`, `backend/migrations/000_*`, `backend/app/{config,db,migrate,worker}.py`, `backend/app/jobs/__init__.py`, `backend/app/api/main.py`, `backend/tests/conftest.py`, `client/lib/types.ts`.
-- ext: `client/entrypoints/`, `client/lib/api.ts`, `client/lib/account.ts`, `client/lib/settings.ts`, `client/lib/extensionSettings.ts`, `client/wxt.config.ts`, `client/lib/messages.ts`, `client/e2e/`, `client/package.json`, `client/README.md`, `client/.gitignore`.
+- ext: `client/entrypoints/`, `client/lib/api.ts`, `client/lib/tier.ts`, `client/lib/account.ts`, `client/lib/settings.ts`, `client/lib/extensionSettings.ts`, `client/wxt.config.ts`, `client/lib/messages.ts`, `client/e2e/`, `client/package.json`, `client/README.md`, `client/.gitignore`.
 - pipeline: `client/lib/{normalize,fingerprint,minhash,embed}.ts`, `fingerprint-service/`, `backend/app/fpclient.py`, `backend/app/jobs/{fetch,variants,settle}.py`, migrations `2xx`.
 - core: `backend/app/api/{core,account}.py`, `backend/app/jobs/analyze.py`, `backend/app/{trust,reliable,mail}.py`, `backend/Dockerfile`, `deploy/`, migrations `1xx`.
 - data: `backend/app/seed/`, `backend/app/jobs/cluster.py`, `backend/app/eval/`, `dashboard/`, `simulation/`, migrations `3xx`.

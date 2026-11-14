@@ -141,3 +141,30 @@ WHERE r.source = 'report' AND r.settled_at IS NOT NULL
 ORDER BY r.settled_at DESC
 LIMIT %(limit)s
 """
+
+# Each voter's latest feedback vote per narrative and match level. Feedback votes come from the extension's
+# tooltip buttons, which record the match level they were cast on.
+FEEDBACK_VOTES = """
+SELECT DISTINCT ON (v.narrative_id, v.match_level, v.user_id)
+       v.narrative_id, n.title, n.source, n.state, v.match_level, v.user_id::text AS user_id, v.verdict
+FROM vote v
+JOIN narrative n ON n.id = v.narrative_id
+WHERE v.match_level IS NOT NULL
+ORDER BY v.narrative_id, v.match_level, v.user_id, v.received_at DESC
+"""
+
+# Disputed narratives, most recently changed first, with the feedback votes cast on their matches.
+DISPUTES = """
+SELECT n.id,
+       n.title,
+       n.source,
+       n.updated_at,
+       count(v.id) FILTER (WHERE v.verdict = 'trustworthy') AS not_misinformation,
+       count(v.id) FILTER (WHERE v.verdict <> 'trustworthy') AS misinformation
+FROM narrative n
+LEFT JOIN vote v ON v.narrative_id = n.id AND v.match_level IS NOT NULL
+WHERE n.state = 'disputed'
+GROUP BY n.id
+ORDER BY n.updated_at DESC
+LIMIT %(limit)s
+"""

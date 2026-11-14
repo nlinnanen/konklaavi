@@ -7,7 +7,7 @@ import httpx
 import trafilatura
 from fastapi import APIRouter, HTTPException
 from psycopg import Connection
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
 from app import fpclient
@@ -15,7 +15,15 @@ from app.config import settings
 from app.db import connection
 from app.jobs import enqueue
 from app.jobs.fetch import domain_of
-from app.trust import NEGATIVE_VERDICTS, SHIPPED_STATES, VERDICTS, Tally, tallies
+from app.trust import (
+    NEGATIVE_VERDICTS,
+    SHIPPED_STATES,
+    VERDICTS,
+    Tally,
+    narrative_tallies,
+    tallies,
+    update_states,
+)
 from app.vectors import quantize
 
 router = APIRouter()
@@ -25,12 +33,15 @@ MAX_HITS = 500
 # LSH bands a block must share with a fingerprint to match it at the variant level.
 MIN_SHARED_BANDS = 2
 BANDS = 32
-# Blocks shorter than this are too generic to match a narrative by meaning.
-MIN_NARRATIVE_WORDS = 8
+# Consecutive sentences embedded together as one unit, besides each sentence alone.
+RUN_SENTENCES = 3
 # A URL gets at most one hit fetch in this interval.
 HIT_FETCH_INTERVAL = timedelta(days=1)
 
 Verdict = Literal["misinformation", "manipulative", "misleading", "trustworthy"]
+MatchLevel = Literal["exact", "variant", "narrative", "related"]
+# Sources whose active narratives a signature marks settled.
+SETTLED_SOURCES = ("euvsdisinfo", "factcheck", "network")
 
 
 class Body(BaseModel):
@@ -47,6 +58,17 @@ class VoteRequest(Body):
     domain: str
     excerpt: str | None = None
     created_at: datetime
+    # Feedback on a highlighted match: the matched narrative and the highlight's match level.
+    narrative_id: int | None = None
+    match_level: MatchLevel | None = None
+
+    @model_validator(mode="after")
+    def feedback_has_no_excerpt(self) -> "VoteRequest":
+        if self.match_level is not None and self.narrative_id is None:
+            raise ValueError("matchLevel needs narrativeId")
+        if self.narrative_id is not None and self.excerpt is not None:
+            raise ValueError("feedback on a match carries no excerpt")
+        return self
 
 
 class BlockBands(Body):
@@ -76,12 +98,15 @@ class CheckRequest(Body):
 
 
 def summarize(hash: str, tally: Tally, signature: dict | None = None) -> dict:
-    """A LookupResult. A signature from an active narrative flags the hash whatever the votes say.
+    """A LookupResult. A match to an active narrative, closer than related, flags the hash whatever the
+    votes say.
 
     Counts are distinct users per verdict; flagging and the top verdict follow the weighted votes.
     """
     by_votes = tally.flags()
-    by_narrative = signature is not None and signature["state"] == "active"
+    by_narrative = (
+        signature is not None and signature["state"] == "active" and signature["matchLevel"] != "related"
+    )
     if by_votes:
         top = tally.top_verdict(NEGATIVE_VERDICTS)
     elif by_narrative:
@@ -111,11 +136,13 @@ def vote_tallies(conn: Connection, hashes: list[str]) -> dict[str, Tally]:
     return tallies(conn, rows)
 
 
-SIGNATURE_COLUMNS = "n.id, n.title, n.verdict, n.techniques, n.explanation, n.source, n.source_url, n.state"
+SIGNATURE_COLUMNS = (
+    "n.id, n.title, n.verdict, n.techniques, n.explanation, n.source, n.source_url, n.state, n.settled_by"
+)
 
 
 def signature(row: tuple, match_level: str) -> dict:
-    narrative_id, title, verdict, techniques, explanation, source, source_url, state = row
+    narrative_id, title, verdict, techniques, explanation, source, source_url, state, settled_by = row
     return {
         "narrativeId": str(narrative_id),
         "title": title,
@@ -124,9 +151,21 @@ def signature(row: tuple, match_level: str) -> dict:
         "explanation": explanation,
         "source": source,
         "sourceUrl": source_url,
-        "state": "active" if state == "active" else "under_review",
+        "state": state,
+        "settled": state == "active" and (source in SETTLED_SOURCES or settled_by is not None),
         "matchLevel": match_level,
     }
+
+
+def add_reports(conn: Connection, signatures: list[dict]) -> None:
+    """Give each report narrative's signature its reporters: distinct negative voters and their weight."""
+    reports = [s for s in signatures if s["source"] == "report"]
+    if not reports:
+        return
+    tallied = narrative_tallies(conn, {int(s["narrativeId"]) for s in reports})
+    for s in reports:
+        tally = tallied.get(int(s["narrativeId"]), Tally())
+        s["reports"] = {"count": tally.negative_users, "weight": round(tally.negative_weight, 3)}
 
 
 def exact_signatures(conn: Connection, hashes: list[str]) -> dict[str, dict]:
@@ -196,6 +235,7 @@ def lookup(conn: Connection, hashes: list[str], blocks: list[BlockBands]) -> dic
     hashes = list(dict.fromkeys(hashes))
     votes = vote_tallies(conn, hashes)
     signatures = {**variant_signatures(conn, blocks), **exact_signatures(conn, hashes)}
+    add_reports(conn, list(signatures.values()))
     keys = dict.fromkeys([*hashes, *(block.hash for block in blocks)])
     return {
         h: summarize(h, votes.get(h, Tally()), signatures.get(h))
@@ -205,53 +245,73 @@ def lookup(conn: Connection, hashes: list[str], blocks: list[BlockBands]) -> dic
 
 
 def narrative_signatures(conn: Connection, embeddings: dict[str, list[float]]) -> dict[str, dict]:
-    """The signature of each block whose cosine to one of a shipped narrative's vectors reaches the threshold.
+    """The signature of each unit whose cosine to one of a shipped narrative's vectors is related or closer.
 
-    Among several matching narratives an active one wins, then the most similar.
+    A unit at narrativeThreshold matches at the narrative level, one at relatedThreshold is related.
+    Among several narratives the strongest level wins, then an active narrative, then the most similar.
     """
     if not embeddings:
         return {}
     rows = conn.execute(
         f"""
         WITH q AS (
-          SELECT * FROM unnest(%(keys)s::text[], %(embeddings)s::text[]) AS q(block, embedding)
+          SELECT * FROM unnest(%(keys)s::text[], %(embeddings)s::text[]) AS q(unit, embedding)
+        ), close AS (
+          SELECT q.unit, nv.narrative_id, 1 - (nv.embedding <=> q.embedding::vector) AS similarity
+          FROM q JOIN narrative_vector nv ON 1 - (nv.embedding <=> q.embedding::vector) >= %(related)s
         )
-        SELECT DISTINCT ON (q.block) q.block, {SIGNATURE_COLUMNS}
-        FROM q
-        JOIN narrative_vector nv ON 1 - (nv.embedding <=> q.embedding::vector) >= %(threshold)s
-        JOIN narrative n ON n.id = nv.narrative_id
+        SELECT DISTINCT ON (c.unit) c.unit, c.similarity, {SIGNATURE_COLUMNS}
+        FROM close c JOIN narrative n ON n.id = c.narrative_id
         WHERE n.state = ANY(%(states)s)
-        ORDER BY q.block, n.state = 'active' DESC, nv.embedding <=> q.embedding::vector, n.updated_at DESC
+        ORDER BY c.unit, c.similarity >= %(threshold)s DESC, n.state = 'active' DESC, c.similarity DESC,
+                 n.updated_at DESC
         """,
         {
             "keys": list(embeddings),
             "embeddings": [str(embedding) for embedding in embeddings.values()],
+            "related": settings.related_match_threshold,
             "threshold": settings.narrative_match_threshold,
             "states": list(SHIPPED_STATES),
         },
     ).fetchall()
-    return {row[0]: signature(row[1:], "narrative") for row in rows}
+    result = {}
+    for unit, similarity, *row in rows:
+        level = "narrative" if similarity >= settings.narrative_match_threshold else "related"
+        result[unit] = {**signature(tuple(row), level), "similarity": round(similarity, 4)}
+    add_reports(conn, list(result.values()))
+    return result
 
 
 @router.post("/votes")
 def post_vote(vote: VoteRequest) -> dict:
+    """Store a vote. A report is fetched and analysed; feedback on a match moves its narrative's state."""
     with connection() as conn:
+        if (
+            vote.narrative_id is not None
+            and not conn.execute("SELECT 1 FROM narrative WHERE id = %s", (vote.narrative_id,)).fetchone()
+        ):
+            raise HTTPException(422, f"narrative {vote.narrative_id} does not exist")
         vote_id = conn.execute(
             """
             INSERT INTO vote (user_id, content_hash, sentence_hashes, verdict, comment, url, domain, excerpt,
-                              created_at)
+                              created_at, narrative_id, match_level)
             VALUES (%(user_id)s, %(content_hash)s, %(sentence_hashes)s, %(verdict)s, %(comment)s, %(url)s,
-                    %(domain)s, %(excerpt)s, %(created_at)s)
+                    %(domain)s, %(excerpt)s, %(created_at)s, %(narrative_id)s, %(match_level)s)
             ON CONFLICT (user_id, content_hash) DO UPDATE SET
               sentence_hashes = EXCLUDED.sentence_hashes, verdict = EXCLUDED.verdict,
               comment = EXCLUDED.comment, url = EXCLUDED.url, domain = EXCLUDED.domain,
-              excerpt = EXCLUDED.excerpt, created_at = EXCLUDED.created_at, received_at = now()
+              excerpt = EXCLUDED.excerpt, created_at = EXCLUDED.created_at, received_at = now(),
+              narrative_id = coalesce(EXCLUDED.narrative_id, vote.narrative_id),
+              match_level = EXCLUDED.match_level
             RETURNING id
             """,
             vote.model_dump(),
         ).fetchone()[0]
-        enqueue(conn, "fetch", {"url": vote.url, "reason": "vote", "vote_id": vote_id})
-        enqueue(conn, "analyze", {"vote_id": vote_id})
+        if vote.narrative_id is not None:
+            update_states(conn, [vote.narrative_id])
+        else:
+            enqueue(conn, "fetch", {"url": vote.url, "reason": "vote", "vote_id": vote_id})
+            enqueue(conn, "analyze", {"vote_id": vote_id})
     return {"ok": True}
 
 
@@ -303,16 +363,24 @@ def fetch_blocks(url: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
+def units(sentences: list[dict]) -> list[str]:
+    """The text of a block's embedding units: each sentence, and each run of RUN_SENTENCES sentences,
+    their texts joined by a space as embeddingUnits in client/lib/embed.ts joins them."""
+    runs = [sentences[i : i + RUN_SENTENCES] for i in range(len(sentences) - RUN_SENTENCES + 1)]
+    return [" ".join(s["text"] for s in unit) for unit in [[s] for s in sentences] + runs]
+
+
 @router.post("/check")
 def post_check(request: CheckRequest) -> dict:
-    """Matches per sentence, and per block for blocks that match only at the variant or narrative level."""
+    """Matches per sentence, per block for blocks matching only at the variant level, and per embedding
+    unit at the narrative or related level for blocks with neither."""
     if request.text:
         blocks = text_blocks(request.text)
     elif request.url:
         blocks = fetch_blocks(request.url)
     else:
         raise HTTPException(422, "give text or url")
-    fingerprinted = fpclient.fingerprint(blocks, embed=True)["blocks"] if blocks else []
+    fingerprinted = fpclient.fingerprint(blocks)["blocks"] if blocks else []
     hashes = [s["hash"] for block in fingerprinted for s in block["sentences"]]
     banded = [
         BlockBands(hash=block["contentHash"], bands=block["bands"])
@@ -321,16 +389,20 @@ def post_check(request: CheckRequest) -> dict:
     ]
     with connection() as conn:
         results = lookup(conn, hashes, banded)
-        unmatched = {
-            block["contentHash"]: block["embedding"]
-            for block in fingerprinted
-            if block["embedding"] is not None
-            and len(blocks[block["index"]].split()) >= MIN_NARRATIVE_WORDS
-            and block["contentHash"] not in results
-            and not any(s["hash"] in results for s in block["sentences"])
-        }
-        for hash, match in narrative_signatures(conn, unmatched).items():
-            results[hash] = summarize(hash, Tally(), match)
+    unmatched = {
+        block["index"]: units(block["sentences"])
+        for block in fingerprinted
+        if block["contentHash"] not in results and not any(s["hash"] in results for s in block["sentences"])
+    }
+    texts = [text for block_units in unmatched.values() for text in block_units]
+    embedded = fpclient.fingerprint(texts, embed=True)["blocks"] if texts else []
+    unit_hashes = {texts[unit["index"]]: unit["contentHash"] for unit in embedded}
+    with connection() as conn:
+        close = narrative_signatures(
+            conn,
+            {unit["contentHash"]: unit["embedding"] for unit in embedded if unit["embedding"] is not None},
+        )
+    unit_results = {hash: summarize(hash, Tally(), match) for hash, match in close.items()}
     matches = []
     for block in fingerprinted:
         sentence_matches = [
@@ -341,6 +413,9 @@ def post_check(request: CheckRequest) -> dict:
         matches += sentence_matches
         if not sentence_matches and block["contentHash"] in results:
             matches.append({"text": blocks[block["index"]], "result": results[block["contentHash"]]})
+        for text in unmatched.get(block["index"], []):
+            if unit_hashes.get(text) in unit_results:
+                matches.append({"text": text, "result": unit_results[unit_hashes[text]]})
     return {"matches": matches}
 
 
@@ -402,6 +477,8 @@ def get_index(since: int | None = None) -> dict:
             " ORDER BY narrative_id, kind = 'claim' DESC, fingerprint_id",
             (ids,),
         ).fetchall()
+        signatures = [index_signature(row) for row in narratives]
+        add_reports(conn, signatures)
     narrative_vectors: dict[int, list[str]] = {id: [] for id in ids}
     for narrative_id, embedding in vectors:
         narrative_vectors[narrative_id].append(quantize(embedding))
@@ -414,10 +491,11 @@ def get_index(since: int | None = None) -> dict:
     return {
         "version": version,
         "full": full,
-        "signatures": [index_signature(row) for row in narratives],
+        "signatures": signatures,
         "sentences": [{"hash": hash, "narrativeId": str(narrative_id)} for hash, narrative_id in sentences],
         "fingerprints": fingerprints,
         "narrativeThreshold": settings.narrative_match_threshold,
+        "relatedThreshold": settings.related_match_threshold,
         "narrativeVectors": [
             {"narrativeId": str(id), "vectors": encoded} for id, encoded in narrative_vectors.items()
         ],

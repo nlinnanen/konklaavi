@@ -1,12 +1,13 @@
 import { browser } from 'wxt/browser';
 import type { LookupBlock, NarrativeBlock } from './api';
+import type { Tier } from './tier';
 import type { DomainStats, LookupResult, MeResponse, Signature, Verdict, VoteInput } from './types';
 
 /** Requests handled by the background worker: [payload, response]. */
 export interface BackgroundApi {
   vote: [VoteInput, null];
   lookup: [{ hashes: string[]; blocks: LookupBlock[] }, LookupResult[]];
-  /** Narrative-level matches for blocks with no exact or variant match. */
+  /** Narrative-level and related matches for embedding units with no exact or variant match. */
   matchNarratives: [NarrativeBlock[], LookupResult[]];
   domainStats: [string, DomainStats];
   clearMock: [null, null];
@@ -73,6 +74,7 @@ export type ContentRequest = { target: 'content'; type: 'pageStatus' } | { targe
 export interface FlaggedItem {
   text: string;
   verdict: Verdict;
+  tier: Tier;
   total: number;
   signature?: Signature;
 }

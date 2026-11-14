@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 
 from common import API_URL
+from tiers import label, legend, mark, tier
 
 st.title("Check text")
 st.caption(f"Fingerprints the text or page through the API at {API_URL} and lists the sentences it knows.")
@@ -29,26 +30,40 @@ if submitted:
     flagged = sum(m["result"]["flagged"] for m in matches)
     st.subheader(f"{flagged} flagged of {len(matches)} known sentences")
     if matches:
+        legend()
         rows = []
         for match in matches:
             result = match["result"]
             signature = result.get("signature") or {}
+            reports = signature.get("reports") or {}
             rows.append(
                 {
+                    "tier": tier(result),
                     "sentence": match["text"],
                     "flagged": result["flagged"],
                     "verdict": result["topVerdict"],
                     "votes": result["total"],
                     "narrative": signature.get("title"),
                     "match": signature.get("matchLevel"),
+                    "similarity": signature.get("similarity"),
+                    "state": signature.get("state"),
+                    "settled": signature.get("settled"),
+                    "reporters": reports.get("count"),
+                    "report weight": reports.get("weight"),
                     "source": signature.get("sourceUrl"),
                 }
             )
+        st.markdown("<br>".join(mark(row["sentence"], row["tier"]) for row in rows), unsafe_allow_html=True)
+        frame = pd.DataFrame(rows)
+        frame["tier"] = frame["tier"].map(label)
         st.dataframe(
-            pd.DataFrame(rows),
+            frame,
             hide_index=True,
             column_config={
+                "tier": "Tier",
                 "sentence": st.column_config.TextColumn("Sentence", width="large"),
+                "similarity": st.column_config.NumberColumn(format="%.3f"),
+                "report weight": st.column_config.NumberColumn(format="%.2f"),
                 "source": st.column_config.LinkColumn("Source"),
             },
         )

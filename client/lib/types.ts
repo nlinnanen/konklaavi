@@ -30,6 +30,10 @@ export interface VoteRequest {
   excerpt?: string;
   /** ISO 8601 timestamp. */
   createdAt: string;
+  /** The narrative of the highlight voted on from its tooltip. */
+  narrativeId?: string;
+  /** The match level of that highlight. */
+  matchLevel?: Signature['matchLevel'];
 }
 
 /** What the content script sends; background adds userId/createdAt. */
@@ -52,7 +56,7 @@ export interface LookupResult {
    * verdict. Otherwise: most-voted verdict overall.
    */
   topVerdict: Verdict;
-  /** Present when the hash belongs to a narrative in state `under_review` or `active`. */
+  /** Present when the hash belongs to a narrative in state `under_review`, `active` or `disputed`. */
   signature?: Signature;
 }
 
@@ -65,12 +69,19 @@ export interface Signature {
   explanation: string | null;
   source: 'euvsdisinfo' | 'report' | 'cluster' | 'network' | 'factcheck';
   sourceUrl: string | null;
-  state: 'under_review' | 'active';
-  matchLevel: 'exact' | 'variant' | 'narrative';
+  state: 'under_review' | 'active' | 'disputed';
+  /** `related` is a narrative-level cosine below `narrativeThreshold` but at least `relatedThreshold`. */
+  matchLevel: 'exact' | 'variant' | 'narrative' | 'related';
+  /** Active narratives from euvsdisinfo, factcheck or network, and confirmed reports. */
+  settled: boolean;
+  /** Report narratives: distinct reporters and their summed vote weight. */
+  reports?: { count: number; weight: number };
+  /** Cosine of a narrative-level or related match. */
+  similarity?: number;
 }
 
-/** A signature as GET /index ships it; the match level is the client's to set. */
-export type IndexSignature = Omit<Signature, 'matchLevel'>;
+/** A signature as GET /index ships it; the match level and similarity are the client's to set. */
+export type IndexSignature = Omit<Signature, 'matchLevel' | 'similarity'>;
 
 /** One fingerprint of GET /index: `bands[i]` is LSH band i, null where the block has none. */
 export interface IndexFingerprint {
@@ -98,6 +109,8 @@ export interface IndexResponse {
   fingerprints: IndexFingerprint[];
   /** Cosine at or above which a block matches a narrative's vectors. */
   narrativeThreshold: number;
+  /** Cosine at or above which a unit is related to a narrative. */
+  relatedThreshold: number;
   narrativeVectors: NarrativeVectors[];
   removed: string[];
 }

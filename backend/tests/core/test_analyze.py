@@ -52,7 +52,9 @@ def test_report_creates_a_narrative_under_review_that_matches_its_text(conn, cli
         "source": "report",
         "sourceUrl": body["url"],
         "state": "under_review",
+        "settled": False,
         "matchLevel": "exact",
+        "reports": {"count": 1, "weight": 0.25},
     }
 
 

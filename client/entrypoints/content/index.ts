@@ -3,9 +3,9 @@ import { cleanUrl, domainOf } from '@/lib/domain';
 import { fingerprintSentences, splitSentences, type Sentence } from '@/lib/fingerprint';
 import { callBackground, displayVerdict, type ContentRequest, type PageStatus } from '@/lib/messages';
 import { getSettings, onSettingsChanged } from '@/lib/settings';
-import { Highlighter, highlightSupported } from './highlighter';
+import { Highlighter, highlightSupported, type FlaggedRange } from './highlighter';
 import { PageScanner } from './scanner';
-import { OverlayUi } from './ui';
+import { OverlayUi, type FeedbackVerdict } from './ui';
 import { blockFor, buildModel, offsetsOf, textNodesUnder } from './textModel';
 
 export default defineContentScript({
@@ -34,7 +34,7 @@ export default defineContentScript({
 
     scanner.start();
     setupSelectionVoting(ui, scanner);
-    setupTooltips(ui, highlighter);
+    setupTooltips(ui, highlighter, scanner);
 
     browser.runtime.onMessage.addListener((msg: any, _sender, sendResponse: (r: unknown) => void) => {
       const req = msg as ContentRequest;
@@ -47,6 +47,7 @@ export default defineContentScript({
           flagged: highlighter.all().map((f) => ({
             text: f.text,
             verdict: displayVerdict(f.result),
+            tier: f.tier,
             total: f.result.total,
             signature: f.result.signature,
           })),
@@ -150,16 +151,42 @@ function setupSelectionVoting(ui: OverlayUi, scanner: PageScanner) {
 }
 
 /**
- * Hovering a highlight shows its tooltip; clicking one pins the tooltip so its
- * source link can be clicked. Escape, a click elsewhere or scrolling unpins it.
+ * Votes on a highlight from its tooltip, about the matched sentence, block or
+ * unit, without its text, then rechecks that content.
  */
-function setupTooltips(ui: OverlayUi, highlighter: Highlighter) {
+async function voteOn(ui: OverlayUi, scanner: PageScanner, item: FlaggedRange, verdict: FeedbackVerdict) {
+  try {
+    await callBackground('vote', {
+      contentHash: item.contentHash,
+      sentenceHashes: item.sentenceHashes,
+      verdict,
+      url: cleanUrl(location.href),
+      domain: domainOf(location.hostname),
+      narrativeId: item.result.signature?.narrativeId,
+      matchLevel: item.result.signature?.matchLevel,
+    });
+  } catch (err) {
+    ui.toast(`Could not submit vote: ${err instanceof Error ? err.message : err}`, 'error');
+    throw err;
+  }
+  ui.toast('Thanks! Your vote was recorded.');
+  void scanner.refresh([item.contentHash, ...item.sentenceHashes]);
+}
+
+/**
+ * Hovering a highlight shows its tooltip; clicking one pins the tooltip so its
+ * source link and feedback buttons can be clicked. Escape, a click elsewhere
+ * or scrolling unpins it.
+ */
+function setupTooltips(ui: OverlayUi, highlighter: Highlighter, scanner: PageScanner) {
   let frame = 0;
   let pinned = false;
   const unpin = () => {
     pinned = false;
     ui.hideTooltip();
   };
+  const show = (x: number, y: number, item: FlaggedRange, pin: boolean) =>
+    ui.showTooltip(x, y, item, pin, (verdict) => voteOn(ui, scanner, item, verdict));
 
   document.addEventListener(
     'mousemove',
@@ -168,7 +195,7 @@ function setupTooltips(ui: OverlayUi, highlighter: Highlighter) {
       frame = requestAnimationFrame(() => {
         frame = 0;
         const hit = highlighter.hitTest(e.clientX, e.clientY);
-        if (hit) ui.showTooltip(e.clientX, e.clientY, hit.text, hit.result, false);
+        if (hit) show(e.clientX, e.clientY, hit, false);
         else ui.hideTooltip();
       });
     },
@@ -179,7 +206,7 @@ function setupTooltips(ui: OverlayUi, highlighter: Highlighter) {
     const hit = window.getSelection()?.isCollapsed !== false ? highlighter.hitTest(e.clientX, e.clientY) : undefined;
     if (hit) {
       pinned = true;
-      ui.showTooltip(e.clientX, e.clientY, hit.text, hit.result, true);
+      show(e.clientX, e.clientY, hit, true);
     } else if (pinned) unpin();
   });
   document.addEventListener('keydown', (e) => {

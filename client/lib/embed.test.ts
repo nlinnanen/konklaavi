@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { cosine, createEmbedder, dequantize, EMBEDDING_DIM, type PipelineFactory, quantize } from './embed';
+import { cosine, createEmbedder, dequantize, EMBEDDING_DIM, embeddingUnits, type PipelineFactory, quantize } from './embed';
+import { splitSentences } from './fingerprint';
 
 /** A fake transformers.js pipeline whose vector for text t is filled with t's length. */
 function fakePipeline(): PipelineFactory {
@@ -46,5 +47,23 @@ describe('quantize', () => {
     const unit = (v: number[]) => v.map((x) => x / Math.hypot(...v));
     const [ua, ub] = [unit(a), unit(b)];
     expect(cosine(dequantize(quantize(ua)), dequantize(quantize(ub)))).toBeCloseTo(cosine(ua, ub), 2);
+  });
+});
+
+describe('embeddingUnits', () => {
+  it('takes every sentence of 5+ words and every run of 3 of them', () => {
+    const block = 'One two three four five. Too short here. Six seven eight nine ten. A b c d e. F g h i j.';
+    expect(embeddingUnits(splitSentences(block)).map((u) => u.text)).toEqual([
+      'One two three four five.',
+      'Six seven eight nine ten.',
+      'A b c d e.',
+      'F g h i j.',
+      'One two three four five. Six seven eight nine ten. A b c d e.',
+      'Six seven eight nine ten. A b c d e. F g h i j.',
+    ]);
+  });
+
+  it('has no windows when the block has fewer than 3 sentences', () => {
+    expect(embeddingUnits(splitSentences('One two three four five. Six seven eight nine ten.'))).toHaveLength(2);
   });
 });

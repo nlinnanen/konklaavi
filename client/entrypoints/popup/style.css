@@ -36,10 +36,9 @@ p { margin: 0 0 6px; }
 ul.flagged { list-style: none; margin: 0; padding: 0; max-height: 180px; overflow: auto; }
 ul.flagged li { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; }
 .chip { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #fff; padding: 1px 6px; border-radius: 4px; margin-right: 6px; }
-.chip.misinformation { background: var(--misinformation); }
-.chip.manipulative { background: var(--manipulative); }
-.chip.misleading { background: var(--misleading); }
-.chip.trustworthy { background: var(--trustworthy); }
+.chip.tier { color: var(--fg); min-width: 68px; text-align: center; }
+ul.legend-list { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+ul.legend-list li { margin-bottom: 3px; }
 .bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--border); margin: 4px 0 6px; }
 .bar span { display: block; height: 100%; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: var(--muted); }
