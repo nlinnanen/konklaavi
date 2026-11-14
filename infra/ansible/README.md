@@ -18,12 +18,13 @@ All commands below run in `infra/ansible`.
 
 ## Configuration
 
+`inventory.yml` and the encrypted `group_vars/all/vault.yml` for the demo VPS are committed. To change a secret, decrypt it in place with the vault password:
+
 ```sh
-cp inventory.example.yml inventory.yml
-cp group_vars/all/vault.example.yml group_vars/all/vault.yml
+ansible-vault edit group_vars/all/vault.yml
 ```
 
-In `inventory.yml`, set `ansible_host` to the VPS hostname from hPanel, of the form `srv123456.hstgr.cloud`.
+For a different VPS, set `ansible_host` in `inventory.yml` to its hostname from hPanel (of the form `srv123456.hstgr.cloud`; `inventory.example.yml` is the template), and replace `vault.yml` with a new file holding the secrets below.
 
 In `group_vars/all/main.yml`, set:
 
@@ -32,7 +33,7 @@ In `group_vars/all/main.yml`, set:
 - `deploy_ssh_public_key`: the public half of the deploy key, created below.
 - `ghcr_user`: the GitHub user that owns the GHCR token.
 
-In `group_vars/all/vault.yml`, set the secrets and encrypt the file:
+`group_vars/all/vault.yml` holds these secrets, encrypted:
 
 - `vault_postgres_password`: `openssl rand -hex 24`. It takes effect only when the database volume is created.
 - `vault_ghcr_token`: a classic personal access token with only `read:packages`, created under GitHub Settings, Developer settings.
@@ -40,11 +41,13 @@ In `group_vars/all/vault.yml`, set the secrets and encrypt the file:
 - `vault_smtp_url`: the SMTP server for magic-link sign-in email, as `smtp[s]://user:pass@host:port`, with `mail_from` in `main.yml`. Without it, sign-in email fails in production. `PUBLIC_API_URL`, the API address in those emails, is set to `https://<app_domain>/api`.
 - `auth_skip_email_verification` in `main.yml`: demo only. When true, sign-in links the install to whatever email is typed without sending mail, so anyone can sign in as any account, moderators included. It is for a demo server without `vault_smtp_url`.
 
+A new or rewritten `vault.yml` must be encrypted before it is committed:
+
 ```sh
 ansible-vault encrypt group_vars/all/vault.yml
 ```
 
-`inventory.yml`, `vault.yml` and `.vault-pass` are gitignored.
+Only `.vault-pass`, a local file holding the vault password, is gitignored.
 
 ### Deploy key
 

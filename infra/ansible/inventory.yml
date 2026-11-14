@@ -1,4 +1,4 @@
-# Copy to inventory.yml (gitignored) and set the VPS hostname from hPanel.
+# The demo VPS. For another VPS, set its hostname from hPanel.
 all:
   hosts:
     vps:
