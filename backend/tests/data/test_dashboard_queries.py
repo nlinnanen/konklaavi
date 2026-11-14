@@ -2,8 +2,6 @@ import importlib.util
 from datetime import UTC, datetime
 from pathlib import Path
 
-import psycopg
-
 _spec = importlib.util.spec_from_file_location(
     "dashboard_queries", Path(__file__).resolve().parents[3] / "dashboard" / "queries.py"
 )
@@ -119,40 +117,15 @@ def add_second_domain(conn, fingerprint):
     )
 
 
-SPREAD_PER_DAY = [(1, 2, 2, 1, 1), (2, 1, 1, 1, 1), (3, 1, 1, 1, 2)]
-SPREAD_DOMAINS = [("a.example", 1, 2, 2, 3), ("b.example", 3, 3, 1, 1)]
-
-
-def spread(conn, narrative, aggregate):
-    per_day = conn.execute(queries.spread_per_day(aggregate), {"id": narrative}).fetchall()
-    domains = conn.execute(queries.spread_domains(aggregate), {"id": narrative}).fetchall()
-    return (
-        [(day.day, *counts) for day, *counts in per_day],
-        [(name, first.day, last.day, *counts) for name, first, last, *counts in domains],
-    )
-
-
-def test_spread_counts_pages_and_domains_reached_per_day(conn):
+def test_spread_counts_observations_and_domains_reached_per_day(conn):
     narrative, fingerprints = add_spread(conn)
     add_second_domain(conn, fingerprints[0])
 
-    assert spread(conn, narrative, aggregate=False) == (SPREAD_PER_DAY, SPREAD_DOMAINS)
+    per_day = conn.execute(queries.SPREAD_PER_DAY, {"id": narrative}).fetchall()
+    domains = conn.execute(queries.SPREAD_DOMAINS, {"id": narrative}).fetchall()
 
-
-def test_spread_from_the_continuous_aggregate_matches_the_observation_table(conn, database_url):
-    narrative, fingerprints = add_spread(conn)
-    add_second_domain(conn, fingerprints[0])
-    conn.commit()
-    with psycopg.connect(database_url, autocommit=True) as admin:
-        admin.execute(
-            "CREATE MATERIALIZED VIEW observation_daily WITH (timescaledb.continuous) AS"
-            " SELECT time_bucket('1 day', seen_at) AS day, fingerprint_id, page_id, count(*) AS observations"
-            " FROM observation GROUP BY 1, 2, 3 WITH NO DATA"
-        )
-        try:
-            admin.execute("CALL refresh_continuous_aggregate('observation_daily', NULL, NULL)")
-            assert conn.execute(queries.HAS_OBSERVATION_DAILY).fetchone()[0]
-            assert spread(conn, narrative, aggregate=True) == (SPREAD_PER_DAY, SPREAD_DOMAINS)
-        finally:
-            conn.rollback()
-            admin.execute("DROP MATERIALIZED VIEW observation_daily")
+    assert [(day.day, *counts) for day, *counts in per_day] == [(1, 2, 1, 1), (2, 1, 1, 1), (3, 1, 1, 2)]
+    assert [(name, first.day, last.day, n) for name, first, last, n in domains] == [
+        ("a.example", 1, 2, 3),
+        ("b.example", 3, 3, 1),
+    ]
