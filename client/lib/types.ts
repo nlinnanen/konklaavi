@@ -43,6 +43,21 @@ export interface LookupResult {
   flagged: boolean;
   /** When flagged: most-voted negative verdict. Otherwise: most-voted verdict overall. */
   topVerdict: Verdict;
+  /** Present when the hash belongs to a narrative in state `under_review` or `active`. */
+  signature?: Signature;
+}
+
+/** The shipped form of a narrative. */
+export interface Signature {
+  narrativeId: string;
+  title: string;
+  verdict: NegativeVerdict;
+  techniques: string[];
+  explanation: string | null;
+  source: 'euvsdisinfo' | 'report' | 'cluster';
+  sourceUrl: string | null;
+  state: 'under_review' | 'active';
+  matchLevel: 'exact' | 'variant';
 }
 
 /** Response of GET /domains/:domain. */
