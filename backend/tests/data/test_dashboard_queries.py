@@ -45,3 +45,63 @@ def test_narrative_row_counts_its_spread(conn):
         ("Spread", "euvsdisinfo", "candidate", 2, 3, 2, first_seen),
         ("Unseen", "report", "candidate", 0, 0, 0, None),
     ]
+
+
+def add_spread(conn):
+    """A narrative with two fingerprints, the second derived from the first, seen on two pages."""
+    narrative = insert(conn, "INSERT INTO narrative (title, source) VALUES ('Spread', 'euvsdisinfo')")
+    variant = insert(conn, "INSERT INTO variant (narrative_id) VALUES (%s)", narrative)
+    domain = insert(conn, "INSERT INTO domain (name) VALUES ('a.example')")
+    pages = [
+        insert(conn, "INSERT INTO page (url, domain_id) VALUES (%s, %s)", f"https://a.example/{i}", domain)
+        for i in range(2)
+    ]
+    fingerprints = [
+        insert(
+            conn,
+            "INSERT INTO fingerprint (content_hash, content, variant_id, first_page_id) VALUES (%s, %s, %s, %s)",
+            f"h{i}",
+            f"Block {i}",
+            variant,
+            page,
+        )
+        for i, page in enumerate(pages)
+    ]
+    for day, fingerprint, page in [(1, 0, 0), (1, 0, 1), (2, 1, 1)]:
+        conn.execute(
+            "INSERT INTO observation (seen_at, fingerprint_id, page_id, source) VALUES (%s, %s, %s, 'fetch')",
+            (datetime(2025, 7, day, 12, tzinfo=UTC), fingerprints[fingerprint], pages[page]),
+        )
+    conn.execute(
+        "INSERT INTO edge (src_kind, src, dst_kind, dst, type) VALUES ('fingerprint', %s, 'fingerprint', %s,"
+        " 'DERIVED_FROM')",
+        (fingerprints[1], fingerprints[0]),
+    )
+    return narrative, fingerprints
+
+
+def test_narrative_pages_count_observations_per_page(conn):
+    narrative, _ = add_spread(conn)
+
+    rows = conn.execute(queries.NARRATIVE_PAGES, {"id": narrative}).fetchall()
+
+    assert [(url, domain, count) for url, domain, _, count, _, _ in rows] == [
+        ("https://a.example/0", "a.example", 1),
+        ("https://a.example/1", "a.example", 2),
+    ]
+
+
+def test_narrative_observations_are_bucketed_by_day(conn):
+    narrative, _ = add_spread(conn)
+
+    rows = conn.execute(queries.NARRATIVE_OBSERVATIONS_PER_DAY, {"id": narrative}).fetchall()
+
+    assert [(day.day, count) for day, count in rows] == [(1, 2), (2, 1)]
+
+
+def test_narrative_lineage_points_from_parent_to_derived_block(conn):
+    narrative, (first, second) = add_spread(conn)
+
+    rows = conn.execute(queries.NARRATIVE_LINEAGE, {"id": narrative, "limit": 10}).fetchall()
+
+    assert rows == [(first, "a.example: Block 0", second, "a.example: Block 1")]

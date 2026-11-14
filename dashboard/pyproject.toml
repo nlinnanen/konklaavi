@@ -6,6 +6,7 @@ dependencies = [
   "streamlit",
   "psycopg[binary]",
   "pandas",
+  "httpx",
 ]
 
 [tool.uv]

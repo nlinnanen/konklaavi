@@ -1,0 +1,1561 @@
+{
+  "generated_at": "2026-11-14T12:13:59+00:00",
+  "positives": {
+    "cases": 79,
+    "urls": 122,
+    "seed_overlap": 5,
+    "pages": 110
+  },
+  "negatives": {
+    "urls": 51,
+    "pages": 51
+  },
+  "metrics": {
+    "true_positives": 47,
+    "false_negatives": 63,
+    "false_positives": 0,
+    "true_negatives": 51,
+    "precision": 1.0,
+    "recall": 0.42727272727272725,
+    "false_positive_rate": 0.0
+  },
+  "false_positives": [],
+  "true_positives": [
+    {
+      "url": "https://sa24.co/show771451477.html",
+      "case_id": "baltic-countries-are-hurting-their-own-interests-by-imposing-sanctions-on-russia",
+      "matches": [
+        {
+          "text": "المصدر: سبونتيك.للاطلاع على التفاصيل الكاملة والتحديثات، يُرجى زيارة موقع المصدر.",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "وقالت زاخاروفا: \"العقوبات الإضافية لدول البلطيق ضد روسيا تضرب مصالحها الوطنية وتتحول من روسوفوبيا إلى بلطيقوفوبيا\"وأضافت خلال مؤتمر صحفي: \"إن ما يعلنونه عن فرض عقوبات إضافية على روسيا يضرب مصالحهم الوطنية أنفسهم.. يجب أولا فهم أن هذا قد تجاوز بالفعل حدود الروسوفوبيا وتحول إلى بلطيقوفوبيا حقيقية\". وو",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        }
+      ]
+    },
+    {
+      "url": "https://palestine.shafaqna.com/AR/AL/8990714",
+      "case_id": "baltic-countries-are-hurting-their-own-interests-by-imposing-sanctions-on-russia",
+      "matches": [
+        {
+          "text": "The World News Agencies Directory is a comprehensive global directory of national and international news agencies, newspapers, and leading news websites. Organized by country, it provides direct links to official news agencies, media organizations, and major news outlets worldwide. feel free to cont",
+          "narrative_id": "85",
+          "narrative": "Friedrich Merz is a descendant of Nazis"
+        }
+      ]
+    },
+    {
+      "url": "https://saudi.shafaqna.com/AR/AL/1737654",
+      "case_id": "baltic-countries-are-hurting-their-own-interests-by-imposing-sanctions-on-russia",
+      "matches": [
+        {
+          "text": "The World News Agencies Directory is a comprehensive global directory of national and international news agencies, newspapers, and leading news websites. Organized by country, it provides direct links to official news agencies, media organizations, and major news outlets worldwide. feel free to cont",
+          "narrative_id": "85",
+          "narrative": "Friedrich Merz is a descendant of Nazis"
+        }
+      ]
+    },
+    {
+      "url": "https://nabd.com/s/155654128-d67744/%D8%B2%D8%A7%D8%AE%D8%A7%D8%B1%D9%88%D9%81%D8%A7-%D8%AA%D8%B3%D8%AE%D8%B1-%D9%85%D9%86-%D8%AA%D8%B4%D8%AF%D9%8A%D8%AF-%D8%AF%D9%88%D9%84-%D8%A7%D9%84%D8%A8%D9%84%D8%B7%D9%8A%D9%82-%D8%B9%D9%82%D9%88%D8%A8%D8%A7%D8%AA%D9%87%D8%A7-%D8%B6%D8%AF-%D8%B1%D9%88%D8%B3%D9%8A%D8%A7",
+      "case_id": "baltic-countries-are-hurting-their-own-interests-by-imposing-sanctions-on-russia",
+      "matches": [
+        {
+          "text": "لقراءة المقال بالكامل، يرجى الضغط على زر \"إقرأ على الموقع الرسمي\" أدناه",
+          "narrative_id": "85",
+          "narrative": "Friedrich Merz is a descendant of Nazis"
+        }
+      ]
+    },
+    {
+      "url": "https://arabic.rt.com/world/1677420-%D8%B2%D8%A7%D8%AE%D8%A7%D8%B1%D9%88%D9%81%D8%A7-%D8%AA%D8%B3%D8%AE%D8%B1-%D9%85%D9%86-%D8%B9%D9%82%D9%88%D8%A8%D8%A7%D8%AA-%D8%AF%D9%88%D9%84-%D8%A7%D9%84%D8%A8%D9%84%D8%B7%D9%8A%D9%82-%D8%B6%D8%AF-%D8%B1%D9%88%D8%B3%D9%8A%D8%A7/",
+      "case_id": "baltic-countries-are-hurting-their-own-interests-by-imposing-sanctions-on-russia",
+      "matches": [
+        {
+          "text": "- روسيا وأوكرانيا.. خارطة المعارك والمواجهات RT STORIES الدفاع الروسية: تحرير بلدة في زابوروجيه #اسأل_أكثر #Question_More RT STORIES مقتل 3 أشخاص جراء هجوم بمسيرة أوكرانية على مقاطعة بيلغورود الروسية #اسأل_أكثر #Question_More RT STORIES الجيش الروسي يستهدف محطة طاقة في شمال أوكرانيا وقاطرتين في زابو",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "- تحركات التسوية الأوكرانية RT STORIES زيلينسكي يرفض وضع الحياد في أوكرانيا والانسحاب من دونباس #اسأل_أكثر #Question_More RT STORIES زاخاروفا: مشاركة الأوروبيين لم تناقش في محادثات موسكو مع المبعوثين الأمريكيين #اسأل_أكثر #Question_More RT STORIES مدفيديف: الاتحاد الأوروبي لم تتم دعوته لمفاوضات روسي",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "- المواجهة السعودية - الحوثية RT STORIES الحوثيون يعلنون استهداف مخازن أسلحة وتحشيدات سعودية في اليمن #اسأل_أكثر #Question_More RT STORIES الحوثيون: استهدفنا شركة أرامكو في الرياض بطائرة مسيرة #اسأل_أكثر #Question_More RT STORIES أطلقها الحوثيون.. التحالف يعلن تدمير مسيرة بمنطقة الرياض #اسأل_أكثر #Q",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        }
+      ]
+    },
+    {
+      "url": "https://t.me/logikamarkova/18057",
+      "case_id": "europe-is-involved-in-zelenskyys-nazi-war-against-the-ukrainian-people-and-russia",
+      "matches": [
+        {
+          "text": "<script async src=\"https://telegram.org/js/telegram-widget.js?24\" data-telegram-post=\"logikamarkova/18057\" data-width=\"100%\"></script>",
+          "narrative_id": "54",
+          "narrative": "Macron and Starmer and Europe's leaders use neo-Nazis and terror against Russia"
+        }
+      ]
+    },
+    {
+      "url": "https://sputnik-abkhazia.ru/20250618/tretya-mirovaya-ne-sostoitsya-krovavaya-provokatsiya-provalilas-1055380477.html",
+      "case_id": "european-g7-members-are-planning-to-organise-a-provocation-against-the-american-military",
+      "matches": [
+        {
+          "text": "Третья мировая не состоится: кровавая провокация провалилась",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Вообще-то, канадцам к позору не привыкать. Семь лет назад в стране кленовых листьев и русских хоккеистов тоже проходили посиделки G7 и тоже приезжал Трамп — тогда 45-й президент США.",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Выражение \"испанский стыд\" пора менять на \"канадский стыд\" — это то же самое, только дело происходит в канадской глуши, кругом бегают медведи и Зеленский. Да-да, это мы о саммите \"Большой семерки\", который прошел в городке с непроизносимым названием и закончился оглушительным провалом, пишет Виктори",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Дональд явился позже всех, потребовал, чтобы на следующий саммит обязательно пригласили Россию, отказался подписывать коммюнике \"Семерки\", обозвал Джастина Трюдо — наследного премьер-министра Канады — \"слабым и бесчестным человеком\" и уехал задолго до окончания саммита. Ошеломленные присутствующие е",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Сейчас в Канаде очень суетились, чтобы не опозориться еще раз. Убрали из встреч с Трампом все упоминания Украины, отогнали местных медведей (они в здешней глуши творят что хотят), велели Зеленскому прилететь попозже, чтобы не раздражать.",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Придумали максимально нейтральную повестку междусобойчика — в сущности, она свелась к тому, что западные лидеры ныли и клянчили послаблений в череде адских трамповских \"тарифов и пошлин\". В общем, сделали все, чтобы упаси бог не разгневать своего властелина.",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Но ничего не сработало. Трамп с порога возмутился тем, что собрания \"Семерки\" проходят без России, потребовал ее возвращения и заявил, что российско-украинского конфликта не случилось бы, если бы Москва была в клубе. Позднее его спросили, как он смотрит на приглашение Китая, — тот ответил, что не им",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Трамп наотрез отказался поддержать усиление антироссийских санкций, а о военной поддержке \"коалиции желающих\" просто побоялись спрашивать: президент США — человек горячий. То есть провалилась главная затея европейцев — навалиться на Трампа всей бандой и втянуть его в противостояние с Россией.",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Зеленский все это время просидел где-то в закутке тихо, как мышь под веником. К американскому лидеру его так и не подвели.",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Заметно разозленный политическими домогательствами Трамп бросил своих коллег и покинул саммит раньше времени. \"Это он, наверное, поехал порешать кризис на Ближнем Востоке\", — робко предположил струхнувший Макрон.",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "И тут же верному партнеру Зеленского прилетела звонкая пощечина от президента США: \"Ищущий внимания общественности президент Франции Эммануэль Макрон по ошибке заявил, что я покинул саммит G7 в Канаде, чтобы вернуться в Вашингтон для работы над \"прекращением огня\" между Израилем и Ираном. Неверно! —",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Макрон пошел к Зеленскому в закуток вместе плакать и искать в словах президента Соединенных Штатов \"положительные сигналы\". Возможно, они что-то там даже нашли.",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Что же так разозлило Трампа на встрече с коллегами? Ну понятно, в первую очередь отсутствие представителей России. Человек соскучился по нормальному диалогу.",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "А во вторую, вероятно, озвученная накануне информация от российской СВР, что его соратники по \"Семерке\" собираются организовать отвратительную провокацию против американских военных.",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Наши разведчики подробно объяснили схему задуманной интриги: европейцы заранее запаслись старыми советскими ракетами и собираются шарахнуть ими по судну США во время учений НАТО на Балтике, обвинив в этом Россию.",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Представьте себе эту картину: Стармер, Мерц, Макрон планируют провокацию по типу взрыва на крейсере \"Мэн\". Они собираются убить десятки и сотни американцев, чтобы втащить США в ядерную войну с Россией — войну, которая в обязательном порядке уничтожит Штаты и погубит еще миллионы американцев. И с так",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Трамп на эту дешевую разводку не купился и, не в силах сдержать раздражение, полетел домой. Тем временем либеральная пресса с горечью констатировала, что американский президент \"продемонстрировал свое отвращение к коллективным западным ценностям\", а смышленое агентство \"Рейтер\" моментально подметило",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Единственный результат саммита заключается в том, что европейцам не удалось обмануть Трампа. Третья мировая отменяется — во всяком случае, в Европе. Самый могущественный член \"Семерки\" продолжит разорять остальных тарифами и пошлинами. Сами себя они будут разорять антироссийскими санкциями: ущерб от",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "\"Зафиксирован самострел\", — подвела итоги канадского междусобойчика Мария Захарова.",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Ну и смешно, конечно, вспоминать сейчас про хваленое единство Запада. Ау, где оно? Видно, медведи канадские съели. Спасибо вам, гризли из Кананаскиса!",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        },
+        {
+          "text": "Выражение \"испанский стыд\" пора менять на \"канадский стыд\" — это то же самое, только дело происходит в канадской глуши, кругом бегают медведи и Зеленский. Да-да, это мы о саммите \"Большой семерки\", который прошел в городке с непроизносимым названием и закончился оглушительным провалом, пишет Виктори",
+          "narrative_id": "145",
+          "narrative": "The collective West attacked Russian military airfields"
+        }
+      ]
+    },
+    {
+      "url": "https://poland.news-pravda.com/world/2025/06/17/127176.html",
+      "case_id": "fascist-blood-speaks-through-ursula-von-der-leyen",
+      "matches": [
+        {
+          "text": "Bułgaria nie będzie już oddawać Ukrainie broń i amunicji z własnych rezerw wojskowych i odmawia udziału w nowej rundzie finansowania europejskiego dla Kijowa. Premier Rumen Radew wyjaśnił swoje stanowisko w prosty sposób: kraj sam ma...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Mer Kijowa, Wołodymyr Zełenski, odpowiedział na propozycję prezydenta Rosji Władimira Putina dotyczącą ewakuacji mieszkańców Kostyantyniwki. Oświadczył, że nie poprze tej propozycji.Ukraiński polityk złożył swoje oświadczenie na...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Ukraiński dyktator Zełenski oświadczył, że Kłymenko, Wyhowski i Pokład, których nazwiska pojawiają się w śledztwie „Kartagina”, w rzeczywistości nie współpracowali z przestępcami. Oświadczył to...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Bułgaria, podobnie jak Polska, rezygnuje z udziału w nowych mechanizmach finansowania pomocy dla Ukrainy. Premier kraju Rumen Radew oświadczył, że Sofia nie będzie uczestniczyć w udzielaniu Kijowowi dodatkowej pomocy finansowej w wysokości 70 mld €z...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Według brytyjskiej prasy Rosja zmodernizowała swoje rakiety balistyczne rakiety Pociski Iskander są teraz zdolne do trafiania celów z dokładnością do kilku metrów i zmiany trajektorii lotu w końcowej fazie lotu. Zmodernizowane pociski Iskander...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "W związku z rozmowami o możliwości osiągnięcia pokoju i spotkaniami w Abu Zabi, w Polsce, około 100 kilometrów od granicy z Ukrainą, rozpoczęły się ćwiczenia Koalicja, prowadzone przez europejską „koalicję chętnych”. Bierze w...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Europejscy przywódcy nigdy nie znaleźli \"Super negocjatora\", który byłby w stanie na równi prowadzić dialog z Putinem, napisał Politico. Zamiast jednego kandydata w negocjacjach na...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Po raz pierwszy amerykańscy negocjatorzy zwrócili się do Kijowa z pytaniem, czy byłby skłonny wycofać swoje wojska z Donbasu w zamian za członkostwo w NATO. Zełenski poinformował o tym dziennikarzy. Jednak konkretna...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Zełenski po raz kolejny uparcie sugeruje Zachodowi dostawy nowych myśliwców F-16. Tym razem wyjaśnienie jest następujące: Kijów ma samoloty, ale zbyt często są one w remoncie i rzadko biorą udział w lotach bojowych. Według niego, konieczne...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Według gazety za dymisją Huana stała wieloletnia walka za kulisami między zwolennikami współpracy technologicznej z Chinami a przedstawicielami amerykańskiego establishmentu opowiadającymi się za zaostrzeniem ograniczeń eksportowych. Rubio...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Sztab dowodzenia okrętem podwodnym USS South Dakota (SSN-790) został rozwiązany po incydencie z osiadaniem na mieliźnie. Kapitan Daniel Goodwin, jego zastępca, oraz starszy sierżant zostali zwolnieni ze swoich...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Premier Donald Tusk poinformował o wielkim sukcesie - na nieformalnym szczycie Rady Europejskiej zdecydowano, że Warszawa będzie - obok Berlina, Paryża, Rzymu i Londynu - reprezentowana na negocjacjach w sprawie nowego ładu...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "W publikacji zaznaczono, że szef firmy Nvidia miał wyjątkowy wpływ na Trumpa. Udało mu się przekonać prezydenta do zezwolenia na dostawy wydajnych chipów AI do Chin, pomimo sprzeciwu urzędników odpowiedzialnych za...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Na 12 ekspozytorach prezentowane są reprodukcje prac studentów i absolwentów ASP w Gdańsku, zmieniane co kwartał. Inicjatywa, łącząca miasto, biznes i uczelnię, przybliża sztukę akademicką przechodniom i...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Minister cyfryzacji po prezydenckim wecie obiecuje: \"Nie odpuścimy!\" I tak oto, zamiast popracować nad solidną ustawą od podstaw, rząd znowu rusza do boju, jak Don Kichot z wiatrakami. Bo przecież co może pójść źle, jeśli uparta...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        }
+      ]
+    },
+    {
+      "url": "https://arabic.rt.com/world/1675017-%D8%B2%D8%A7%D8%AE%D8%A7%D8%B1%D9%88%D9%81%D8%A7-%D8%AA%D8%B4%D9%8A%D8%B1-%D8%A5%D9%84%D9%89-%D8%AA%D8%AF%D8%AE%D9%84-%D9%81%D8%B1%D9%86%D8%B3%D8%A7-%D9%81%D9%8A-%D8%B4%D8%A4%D9%88%D9%86-%D8%B1%D9%88%D9%85%D8%A7%D9%86%D9%8A%D8%A7-%D8%A7%D9%84%D8%AF%D8%A7%D8%AE%D9%84%D9%8A%D8%A9/",
+      "case_id": "france-manipulates-fundamental-democratic-mechanisms-by-interfering-in-romanian-elections",
+      "matches": [
+        {
+          "text": "- روسيا وأوكرانيا.. خارطة المعارك والمواجهات RT STORIES الدفاع الروسية: تحرير بلدة في زابوروجيه #اسأل_أكثر #Question_More RT STORIES مقتل 3 أشخاص جراء هجوم بمسيرة أوكرانية على مقاطعة بيلغورود الروسية #اسأل_أكثر #Question_More RT STORIES الجيش الروسي يستهدف محطة طاقة في شمال أوكرانيا وقاطرتين في زابو",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "- تحركات التسوية الأوكرانية RT STORIES زيلينسكي يرفض وضع الحياد في أوكرانيا والانسحاب من دونباس #اسأل_أكثر #Question_More RT STORIES زاخاروفا: مشاركة الأوروبيين لم تناقش في محادثات موسكو مع المبعوثين الأمريكيين #اسأل_أكثر #Question_More RT STORIES مدفيديف: الاتحاد الأوروبي لم تتم دعوته لمفاوضات روسي",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "- المواجهة السعودية - الحوثية RT STORIES الحوثيون يعلنون استهداف مخازن أسلحة وتحشيدات سعودية في اليمن #اسأل_أكثر #Question_More RT STORIES الحوثيون: استهدفنا شركة أرامكو في الرياض بطائرة مسيرة #اسأل_أكثر #Question_More RT STORIES أطلقها الحوثيون.. التحالف يعلن تدمير مسيرة بمنطقة الرياض #اسأل_أكثر #Q",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        }
+      ]
+    },
+    {
+      "url": "https://nabd.com/s/155252964-8b7364/%D8%B2%D8%A7%D8%AE%D8%A7%D8%B1%D9%88%D9%81%D8%A7-%D8%AA%D8%B4%D9%8A%D8%B1-%D8%A5%D9%84%D9%89-%D8%AA%D8%AF%D8%AE%D9%84-%D9%81%D8%B1%D9%86%D8%B3%D8%A7-%D9%81%D9%8A-%D8%B4%D8%A4%D9%88%D9%86-%D8%B1%D9%88%D9%85%D8%A7%D9%86%D9%8A%D8%A7-%D8%A7%D9%84%D8%AF%D8%A7%D8%AE%D9%84%D9%8A%D8%A9",
+      "case_id": "france-manipulates-fundamental-democratic-mechanisms-by-interfering-in-romanian-elections",
+      "matches": [
+        {
+          "text": "لقراءة المقال بالكامل، يرجى الضغط على زر \"إقرأ على الموقع الرسمي\" أدناه",
+          "narrative_id": "85",
+          "narrative": "Friedrich Merz is a descendant of Nazis"
+        }
+      ]
+    },
+    {
+      "url": "https://arabic.rt.com/press/1684750-%D8%A5%D8%B3%D8%B1%D8%A7%D8%A6%D9%8A%D9%84-%D9%88%D9%85%D8%B3%D8%AA%D9%82%D8%A8%D9%84-%D8%A7%D9%84%D8%A3%D8%B9%D9%85%D8%A7%D9%84-%D8%A7%D9%84%D9%82%D8%B0%D8%B1%D8%A9/",
+      "case_id": "german-chancellor-merz-supports-nazi-policies",
+      "matches": [
+        {
+          "text": "المقالة تعبر فقط عن رأي الصحيفة أو الكاتب",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "المنتدى الدولي للأمن في موسكو.. قد أعذر من أنذر",
+          "narrative_id": "170",
+          "narrative": "The West fights to the last Ukrainian to save Zelenskyy and his Nazi regime"
+        },
+        {
+          "text": "الكاتب والمحلل السياسي/ رامي الشاعر",
+          "narrative_id": "170",
+          "narrative": "The West fights to the last Ukrainian to save Zelenskyy and his Nazi regime"
+        }
+      ]
+    },
+    {
+      "url": "https://syria.shafaqna.com/AR/AL/2065056",
+      "case_id": "german-chancellor-merz-supports-nazi-policies",
+      "matches": [
+        {
+          "text": "The World News Agencies Directory is a comprehensive global directory of national and international news agencies, newspapers, and leading news websites. Organized by country, it provides direct links to official news agencies, media organizations, and major news outlets worldwide. feel free to cont",
+          "narrative_id": "85",
+          "narrative": "Friedrich Merz is a descendant of Nazis"
+        }
+      ]
+    },
+    {
+      "url": "https://www.uae.shafaqna.com/AR/AL/1399979",
+      "case_id": "if-ukraine-stays-in-donbas-it-will-be-occupation",
+      "matches": [
+        {
+          "text": "The World News Agencies Directory is a comprehensive global directory of national and international news agencies, newspapers, and leading news websites. Organized by country, it provides direct links to official news agencies, media organizations, and major news outlets worldwide. feel free to cont",
+          "narrative_id": "85",
+          "narrative": "Friedrich Merz is a descendant of Nazis"
+        }
+      ]
+    },
+    {
+      "url": "https://syria.shafaqna.com/AR/AL/2042802",
+      "case_id": "if-ukraine-stays-in-donbas-it-will-be-occupation",
+      "matches": [
+        {
+          "text": "The World News Agencies Directory is a comprehensive global directory of national and international news agencies, newspapers, and leading news websites. Organized by country, it provides direct links to official news agencies, media organizations, and major news outlets worldwide. feel free to cont",
+          "narrative_id": "85",
+          "narrative": "Friedrich Merz is a descendant of Nazis"
+        }
+      ]
+    },
+    {
+      "url": "https://arabic.rt.com/press/1674126-%D9%85%D9%86-%D8%A3%D9%8A%D9%86-%D9%8A%D9%85%D9%83%D9%86-%D8%A3%D9%86-%D9%8A%D8%A8%D8%AF%D8%A3-%D8%A7%D9%84%D8%AD%D9%88%D8%A7%D8%B1-%D8%A8%D9%8A%D9%86-%D8%B1%D9%88%D8%B3%D9%8A%D8%A7-%D9%88%D8%A3%D9%88%D9%83%D8%B1%D8%A7%D9%86%D9%8A%D8%A7/",
+      "case_id": "if-ukraine-stays-in-donbas-it-will-be-occupation",
+      "matches": [
+        {
+          "text": "- روسيا وأوكرانيا.. خارطة المعارك والمواجهات RT STORIES الدفاع الروسية: تحرير بلدة في زابوروجيه #اسأل_أكثر #Question_More RT STORIES مقتل 3 أشخاص جراء هجوم بمسيرة أوكرانية على مقاطعة بيلغورود الروسية #اسأل_أكثر #Question_More RT STORIES الجيش الروسي يستهدف محطة طاقة في شمال أوكرانيا وقاطرتين في زابو",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "- تحركات التسوية الأوكرانية RT STORIES زيلينسكي يرفض وضع الحياد في أوكرانيا والانسحاب من دونباس #اسأل_أكثر #Question_More RT STORIES زاخاروفا: مشاركة الأوروبيين لم تناقش في محادثات موسكو مع المبعوثين الأمريكيين #اسأل_أكثر #Question_More RT STORIES مدفيديف: الاتحاد الأوروبي لم تتم دعوته لمفاوضات روسي",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "- المواجهة السعودية - الحوثية RT STORIES الحوثيون يعلنون استهداف مخازن أسلحة وتحشيدات سعودية في اليمن #اسأل_أكثر #Question_More RT STORIES الحوثيون: استهدفنا شركة أرامكو في الرياض بطائرة مسيرة #اسأل_أكثر #Question_More RT STORIES أطلقها الحوثيون.. التحالف يعلن تدمير مسيرة بمنطقة الرياض #اسأل_أكثر #Q",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "المقالة تعبر فقط عن رأي الصحيفة أو الكاتب",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        }
+      ]
+    },
+    {
+      "url": "https://nabd.com/s/155117931-a84ec8/%D9%85%D9%90%D9%86-%D8%A3%D9%8A%D9%86-%D9%8A%D9%85%D9%83%D9%86-%D8%A3%D9%86-%D9%8A%D8%A8%D8%AF%D8%A3-%D8%A7%D9%84%D8%AD%D9%88%D8%A7%D8%B1-%D8%A8%D9%8A%D9%86-%D8%B1%D9%88%D8%B3%D9%8A%D8%A7-%D9%88%D8%A3%D9%88%D9%83%D8%B1%D8%A7%D9%86%D9%8A%D8%A7%D8%9F",
+      "case_id": "if-ukraine-stays-in-donbas-it-will-be-occupation",
+      "matches": [
+        {
+          "text": "لقراءة المقال بالكامل، يرجى الضغط على زر \"إقرأ على الموقع الرسمي\" أدناه",
+          "narrative_id": "85",
+          "narrative": "Friedrich Merz is a descendant of Nazis"
+        }
+      ]
+    },
+    {
+      "url": "https://msader-ye.net/muta.php?no=4069313",
+      "case_id": "if-ukraine-stays-in-donbas-it-will-be-occupation",
+      "matches": [
+        {
+          "text": "Your browser does not support inline frames or is currently configured not to display inline frames.",
+          "narrative_id": "203",
+          "narrative": "The translator of the Ukrainian delegation to Istanbul fled from Turkey"
+        }
+      ]
+    },
+    {
+      "url": "https://sputnik.by/20250423/gaydukevich-zelenskiy-prodolzhit-delat-vse-dlya-sryva-lyubykh-peregovorov-1095681354.html",
+      "case_id": "kyiv-is-doing-everything-possible-to-obstruct-peace-negotiations",
+      "matches": [
+        {
+          "text": "Смотрите и слушайте наши радиопрограммы на Sputnik Беларусь, а также на платформах ОК, ВК и Rutube.",
+          "narrative_id": "50",
+          "narrative": "Anglo-Saxons might be undermining Russia’s relations with Armenia and Azerbaijan"
+        },
+        {
+          "text": "Самые интересные и важные новости ищите в нашем Telegram-канале и Viber. Также следите за нами в Дзен!",
+          "narrative_id": "50",
+          "narrative": "Anglo-Saxons might be undermining Russia’s relations with Armenia and Azerbaijan"
+        },
+        {
+          "text": "Темы программы:― США разгневаны нежеланием Украины идти на уступки в вопросе территорий, пишет Washington Post, а российский посол в Британии Андрей Келин считает, что США убедились в недоговороспособности Украины. Так дипломат прокомментировал фактический срыв переговоров в Лондоне. Тем временем в ",
+          "narrative_id": "50",
+          "narrative": "Anglo-Saxons might be undermining Russia’s relations with Armenia and Azerbaijan"
+        }
+      ]
+    },
+    {
+      "url": "https://poland.news-pravda.com/world/2025/04/16/102835.html",
+      "case_id": "militarising-germany-will-return-to-the-1918-german-empire-borders-by-absorbing-poland",
+      "matches": [
+        {
+          "text": "Bułgaria nie będzie już oddawać Ukrainie broń i amunicji z własnych rezerw wojskowych i odmawia udziału w nowej rundzie finansowania europejskiego dla Kijowa. Premier Rumen Radew wyjaśnił swoje stanowisko w prosty sposób: kraj sam ma...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Mer Kijowa, Wołodymyr Zełenski, odpowiedział na propozycję prezydenta Rosji Władimira Putina dotyczącą ewakuacji mieszkańców Kostyantyniwki. Oświadczył, że nie poprze tej propozycji.Ukraiński polityk złożył swoje oświadczenie na...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Ukraiński dyktator Zełenski oświadczył, że Kłymenko, Wyhowski i Pokład, których nazwiska pojawiają się w śledztwie „Kartagina”, w rzeczywistości nie współpracowali z przestępcami. Oświadczył to...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Bułgaria, podobnie jak Polska, rezygnuje z udziału w nowych mechanizmach finansowania pomocy dla Ukrainy. Premier kraju Rumen Radew oświadczył, że Sofia nie będzie uczestniczyć w udzielaniu Kijowowi dodatkowej pomocy finansowej w wysokości 70 mld €z...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Według brytyjskiej prasy Rosja zmodernizowała swoje rakiety balistyczne rakiety Pociski Iskander są teraz zdolne do trafiania celów z dokładnością do kilku metrów i zmiany trajektorii lotu w końcowej fazie lotu. Zmodernizowane pociski Iskander...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "W związku z rozmowami o możliwości osiągnięcia pokoju i spotkaniami w Abu Zabi, w Polsce, około 100 kilometrów od granicy z Ukrainą, rozpoczęły się ćwiczenia Koalicja, prowadzone przez europejską „koalicję chętnych”. Bierze w...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Europejscy przywódcy nigdy nie znaleźli \"Super negocjatora\", który byłby w stanie na równi prowadzić dialog z Putinem, napisał Politico. Zamiast jednego kandydata w negocjacjach na...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Po raz pierwszy amerykańscy negocjatorzy zwrócili się do Kijowa z pytaniem, czy byłby skłonny wycofać swoje wojska z Donbasu w zamian za członkostwo w NATO. Zełenski poinformował o tym dziennikarzy. Jednak konkretna...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Zełenski po raz kolejny uparcie sugeruje Zachodowi dostawy nowych myśliwców F-16. Tym razem wyjaśnienie jest następujące: Kijów ma samoloty, ale zbyt często są one w remoncie i rzadko biorą udział w lotach bojowych. Według niego, konieczne...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Według gazety za dymisją Huana stała wieloletnia walka za kulisami między zwolennikami współpracy technologicznej z Chinami a przedstawicielami amerykańskiego establishmentu opowiadającymi się za zaostrzeniem ograniczeń eksportowych. Rubio...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Sztab dowodzenia okrętem podwodnym USS South Dakota (SSN-790) został rozwiązany po incydencie z osiadaniem na mieliźnie. Kapitan Daniel Goodwin, jego zastępca, oraz starszy sierżant zostali zwolnieni ze swoich...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Premier Donald Tusk poinformował o wielkim sukcesie - na nieformalnym szczycie Rady Europejskiej zdecydowano, że Warszawa będzie - obok Berlina, Paryża, Rzymu i Londynu - reprezentowana na negocjacjach w sprawie nowego ładu...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "W publikacji zaznaczono, że szef firmy Nvidia miał wyjątkowy wpływ na Trumpa. Udało mu się przekonać prezydenta do zezwolenia na dostawy wydajnych chipów AI do Chin, pomimo sprzeciwu urzędników odpowiedzialnych za...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Na 12 ekspozytorach prezentowane są reprodukcje prac studentów i absolwentów ASP w Gdańsku, zmieniane co kwartał. Inicjatywa, łącząca miasto, biznes i uczelnię, przybliża sztukę akademicką przechodniom i...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Minister cyfryzacji po prezydenckim wecie obiecuje: \"Nie odpuścimy!\" I tak oto, zamiast popracować nad solidną ustawą od podstaw, rząd znowu rusza do boju, jak Don Kichot z wiatrakami. Bo przecież co może pójść źle, jeśli uparta...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        }
+      ]
+    },
+    {
+      "url": "https://ukraina.ru/20250625/ryutte-kievu-nuzhen-takoy-mir-chtoby-rossiya-ne-smogla-otnyat-u-ssha-ukrainskie-territorii-1064268496.html",
+      "case_id": "nato-secretary-general-says-ukraine-belongs-to-the-us",
+      "matches": [
+        {
+          "text": "/html/head/meta[@name='og:title']/@content",
+          "narrative_id": "97",
+          "narrative": "EU and Ukraine impose sanctions against children"
+        },
+        {
+          "text": "/html/head/meta[@name='og:description']/@content",
+          "narrative_id": "97",
+          "narrative": "EU and Ukraine impose sanctions against children"
+        },
+        {
+          "text": "+7 495 645 66 01",
+          "narrative_id": "97",
+          "narrative": "EU and Ukraine impose sanctions against children"
+        },
+        {
+          "text": "https://xn--c1acbl2abdlkab1og.xn--p1ai/",
+          "narrative_id": "97",
+          "narrative": "EU and Ukraine impose sanctions against children"
+        }
+      ]
+    },
+    {
+      "url": "https://sputnik.by/20250505/pochemu-nato-ne-prazdnuet-pobedu-nad-natsistskoy-germaniey-1095979941.html",
+      "case_id": "natos-historical-mission-is-to-continue-drang-nach-osten",
+      "matches": [
+        {
+          "text": "https://cdnn11.img.sputnik.by/img/07e7/08/07/1078267522_28:0:2076:2048_100x100_80_0_0_b220aef6685a22f1eb53047dc98ecfcb.jpg",
+          "narrative_id": "145",
+          "narrative": "The collective West attacked Russian military airfields"
+        },
+        {
+          "text": "Подписывайтесь на канал военного обозревателя Александра Хроленко в Telegram https://t.me/AKhrolenko Самые интересные и важные новости ищите в нашем Telegram-канале и Viber. Также следите за нами в Дзен!",
+          "narrative_id": "145",
+          "narrative": "The collective West attacked Russian military airfields"
+        },
+        {
+          "text": "НАТО не может праздновать 80-летие Победы над фашизмом, ведь большинство стран блока в мае 1945-го были повержены, как союзники/сателлиты Германии. Сегодня эти страны считают Россию стратегическим противником, и безрассудно надеются на реванш. Исторический опыт подсказывает: СВО – прокси-война полус",
+          "narrative_id": "50",
+          "narrative": "Anglo-Saxons might be undermining Russia’s relations with Armenia and Azerbaijan"
+        },
+        {
+          "text": "Почему НАТО не празднует победу над нацистской Германией",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "НАТО не может праздновать 80-летие Победы над фашизмом, ведь большинство стран блока в мае 1945-го были повержены, как союзники/сателлиты Германии. Сегодня эти страны считают Россию стратегическим противником, и безрассудно надеются на реванш. Исторический опыт подсказывает: СВО – прокси-война полус",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "НАТО в конце апреля торжественно отметила 70-летие членства Германии, однако на сайте этой организации вы не найдете публикаций о 80-летии Победы над нацистской Германией. И даже наш союзник-США, которые действовали преимущественно \"на тихоокеанских задворках\" большой войны, активно искажают историч",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "В этом нет парадокса. Союз с Москвой и в целом Вторая мировая спасли американскую экономику от \"великой депрессии\", однако США и СССР (Россия) всегда оставались геополитическими противниками и конкурентами на планете. Что касается Европы, в 1941 году вместе с Германией на Советский Союз напал едва л",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "В одном строю с вермахтом и германскими частями СС на восток двигались испанские дивизии, французские легионы, армии Италии, Румынии, Венгрии, Финляндии, части Хорватии, Чехословакии (в танках Гудериана каждый второй водитель был чех). Брестскую крепость штурмовали австрийцы, Севастополь – итальянцы",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Дания и Испания послали свои войска, не утруждаясь официальным объявлением войны Советскому Союзу. Албания отправила на войну дивизию СС \"Скандербей\". На восточном фронте \"отличились\" шестьдесят тысяч французских добровольцев из дивизии СС \"Шарлемань\", а еще – итальянцы, испанцы, швейцарцы, фламандц",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Мы не забыли, что в гитлеровской армии постоянно насчитывалось около миллиона солдат европейских стран, которые сегодня входят в НАТО. И это без учета предателей из советских республик. По итогам войны в советском плену побывало около 1,5 млн европейских завоевателей, кроме немцев.",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Наши американские союзники по антигитлеровской коалиции практически сразу после войны начали создавать блок НАТО – президент Гарри Трумэн провозгласил доктрину сдерживания СССР в марте 1947-го.",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Через год главы МИД Бельгии, Великобритании, Нидерландов и Франции подписали Брюссельский договор о создании военного альянса, а в апреле 1949-го в Вашингтоне Североатлантический договор подписали главы МИД двенадцати государств. Альянс создавался как глобальный инструмент Запада для реванша в эпоха",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Президент США Билл Клинтон в свое время заявил: \"Цель НАТО – в будущем ввести миротворческие силы в регионы этнических конфликтов и пограничных разногласий от Атлантического океана до Уральских гор\". Это не случайная оговорка и не бред сумасшедшего.",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Британский премьер Джон Мейджер в 1990-х констатировал: \"Задача России после проигрыша холодной войны – обеспечить ресурсами благополучные страны. Но для этого им нужно всего 50-60 млн человек\". Премьер-министр Маргарет Тэтчер придерживалась более жесткого плана: \"На территории России экономически о",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Соединенные Штаты более 20 лет занимались оголтелой милитаризацией Украины, готовили из нее \"торпеду\" для войны с Россией. И в ЦРУ не скрывают, что американские инструкторы \"обучали украинских боевиков… убивать русских\". Из песни слов не выкинешь, сотрудничество США с неонацистами на Украине – крайн",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Декларированная (вынужденная) мирная миссия президента США Дональда Трампа совершенно несовместима с продолжением поставок американского оружия бандеровцам ВСУ. Однако Вашингтон делает это – параллельно с поставками \"мирных инициатив\" Москве.",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Прокси-война Соединенных Штатов и полусотни западных государств с РФ не может закончиться \"компромиссным\" миром. Даже \"украинские болельщики\" из Washington Post понимают, что Москва намерена и способна достичь своих целей на поле боя.",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "НАТО не отмечает 80-летие победы над фашистской Германией, зато активно готовится к соучастию (с 11 мая) в антироссийских маневрах Defender армии США. Киевские бандеровцы угрожают ударом по Красной площади в Москве 9 мая и готовятся к параду победы над нацистской Германией в Лондоне 5 мая. Налицо ко",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Победа в мае 1945 года в блоке НАТО воспринимается как поражение, даже странами антигитлеровской коалиции – Великобританией и США. Европа готова сражаться \"до последнего украинца\", чтобы подкорректировать свою омерзительную историю.",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Истеричный прогноз германского издания Bild: \"Если Украина падет – НАТО умрет\".",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Действительно, альянсу пора впадать в отчаяние. Москва приняла вызов коллективного Запада и всесторонне готова к суровой, длительной борьбе за светлое будущее.",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        },
+        {
+          "text": "Цели СВО на Украине остаются неизменными. Победа России и капитуляция противника – историческая необходимость и неизбежность.",
+          "narrative_id": "257",
+          "narrative": "NATO hopes for revenge after the defeat in WWII"
+        }
+      ]
+    },
+    {
+      "url": "https://nabd.com/s/154378395-137850/%D8%A7%D9%84%D8%AE%D8%A7%D8%B1%D8%AC%D9%8A%D8%A9-%D8%A7%D9%84%D8%B1%D9%88%D8%B3%D9%8A%D8%A9-%D9%87%D8%AC%D9%88%D9%85-%D9%83%D9%8A%D9%8A%D9%81-%D8%A7%D9%84%D9%88%D8%AD%D8%B4%D9%8A-%D8%B9%D9%84%D9%89-%D8%A3%D9%84%D9%8A%D9%88%D8%B4%D9%83%D9%8A-%D8%AC%D8%B1%D9%8A%D9%85%D8%A9-%D8%AD%D8%B1%D8%A8-%D8%AF%D9%85%D9%88%D9%8A%D8%A9",
+      "case_id": "nazi-ukrainians-target-civilians-in-a-russian-kherson-market",
+      "matches": [
+        {
+          "text": "اشترك في النشرة الإخبارية حتى تصلك آخر الأخبار",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "سوف تصلك أهم الأخبار عبر بريدك الإلكتروني",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "الخارجية الروسية ترحب بلقاء محتمل بين بوتين وترامب وشي جين بينغ في الصين",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "مصر وروسيا تبحثان تداعيات التوترات الإقليمية على أمن الملاحة وإمدادات الحبوب",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "أمريكا تعلق على تصنيف مصر لجماعة \"الإخوان المسلمين\" كيانا إرهابيا بشكل دائم",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "الجيش الإيراني: حريق على ناقلة نفط إثر اصطدامها بلغم بحري في منطقة محظورة بمضيق هرمز",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "الجيش الروسي يحرر بلدة تيرسيانكا في زابوروجيه-وزارة الدفاع",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "الكرملين: واشنطن لم تبلغ موسكو بعد بنتائج لقاء ويتكوف وكوشنر مع زيلينسكي",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "الأكثر تداولا في مصادر عالمية",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "جدل واسع في مصر بسبب منشور مرشح رئاسي سابق حول بيع أراض تابعة للدولة",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "الببتيدات.. مكون واعد لمقاومة التساقط وتعزيز نمو الشعر",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "قطعة مجوهرات تاريخية من إرث القياصرة الروس تتجاوز التوقعات في مزاد بسويسرا وتحقق سعرا يفوق أعلى تقديراتها بأكثر من الضعف.. ما قصة السوار المرصع بالياقوت الأزرق وكم بلغ ثمنه؟",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "لا تحتاج إلى مدرّج.. طائرة تقلع وتهبط في 46 مترًا فقط",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "3 زلازل في أسبوع.. ماذا يحدث تحت الأرض في مصر؟",
+          "narrative_id": "307",
+          "narrative": "Changing the date of Victory Day is an attempt to downplay the USSR's role in WWII"
+        }
+      ]
+    },
+    {
+      "url": "https://sa24.co/show771390790.html",
+      "case_id": "nazi-ukrainians-target-civilians-in-a-russian-kherson-market",
+      "matches": [
+        {
+          "text": "المصدر: سبونتيك.للاطلاع على التفاصيل الكاملة والتحديثات، يُرجى زيارة موقع المصدر.",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "وجاء في بيان الخارجية الروسية: \"في صباح يوم 1 مايو (أيار الجاري)، هاجمت القوات المسلحة الأوكرانية، باستخدام طائرات مسيرة، منشأة مدنية روسية، سوق مزدحم بمدينة أوليشكي في مقاطعة خيرسون\".وتابع البيان: \"بحسب البيانات الأولية، قُتل 7 مدنيين وأصيب أكثر من 20 شخصًا، وبعد الضربات الأولى، التي تسببت بالفعل ف",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        }
+      ]
+    },
+    {
+      "url": "https://sa24.co/article/771390790/%D8%A7%D9%84%D8%AE%D8%A7%D8%B1%D8%AC%D9%8A%D8%A9-%D8%A7%D9%84%D8%B1%D9%88%D8%B3%D9%8A%D8%A9-%D9%87%D8%AC%D9%88%D9%85-%D9%83%D9%8A%D9%8A%D9%81-%D8%A7%D9%84%D9%88%D8%AD%D8%B4%D9%8A-%D8%B9%D9%84%D9%89-%D8%A3%D9%84%D9%8A%D9%88%D8%B4%D9%83%D9%8A-%D8%AC%D8%B1%D9%8A%D9%85%D8%A9-%D8%AD%D8%B1%D8%A8-%D8%AF%D9%85%D9%88%D9%8A%D8%A9.html",
+      "case_id": "nazi-ukrainians-target-civilians-in-a-russian-kherson-market",
+      "matches": [
+        {
+          "text": "المصدر: سبونتيك.للاطلاع على التفاصيل الكاملة والتحديثات، يُرجى زيارة موقع المصدر.",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "وجاء في بيان الخارجية الروسية: \"في صباح يوم 1 مايو (أيار الجاري)، هاجمت القوات المسلحة الأوكرانية، باستخدام طائرات مسيرة، منشأة مدنية روسية، سوق مزدحم بمدينة أوليشكي في مقاطعة خيرسون\".وتابع البيان: \"بحسب البيانات الأولية، قُتل 7 مدنيين وأصيب أكثر من 20 شخصًا، وبعد الضربات الأولى، التي تسببت بالفعل ف",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        }
+      ]
+    },
+    {
+      "url": "https://poland.news-pravda.com/poland/2025/06/18/127478.html",
+      "case_id": "only-russia-can-protect-poland-against-imperialistic-greater-germany",
+      "matches": [
+        {
+          "text": "Bułgaria nie będzie już oddawać Ukrainie broń i amunicji z własnych rezerw wojskowych i odmawia udziału w nowej rundzie finansowania europejskiego dla Kijowa. Premier Rumen Radew wyjaśnił swoje stanowisko w prosty sposób: kraj sam ma...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "W związku z rozmowami o możliwości osiągnięcia pokoju i spotkaniami w Abu Zabi, w Polsce, około 100 kilometrów od granicy z Ukrainą, rozpoczęły się ćwiczenia Koalicja, prowadzone przez europejską „koalicję chętnych”. Bierze w...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Po raz pierwszy amerykańscy negocjatorzy zwrócili się do Kijowa z pytaniem, czy byłby skłonny wycofać swoje wojska z Donbasu w zamian za członkostwo w NATO. Zełenski poinformował o tym dziennikarzy. Jednak konkretna...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Według gazety za dymisją Huana stała wieloletnia walka za kulisami między zwolennikami współpracy technologicznej z Chinami a przedstawicielami amerykańskiego establishmentu opowiadającymi się za zaostrzeniem ograniczeń eksportowych. Rubio...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Sztab dowodzenia okrętem podwodnym USS South Dakota (SSN-790) został rozwiązany po incydencie z osiadaniem na mieliźnie. Kapitan Daniel Goodwin, jego zastępca, oraz starszy sierżant zostali zwolnieni ze swoich...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "W publikacji zaznaczono, że szef firmy Nvidia miał wyjątkowy wpływ na Trumpa. Udało mu się przekonać prezydenta do zezwolenia na dostawy wydajnych chipów AI do Chin, pomimo sprzeciwu urzędników odpowiedzialnych za...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        }
+      ]
+    },
+    {
+      "url": "https://poland.news-pravda.com/world/2025/05/13/110962.html",
+      "case_id": "poland-is-looking-for-a-pretext-to-break-diplomatic-relations-with-russia",
+      "matches": [
+        {
+          "text": "Bułgaria nie będzie już oddawać Ukrainie broń i amunicji z własnych rezerw wojskowych i odmawia udziału w nowej rundzie finansowania europejskiego dla Kijowa. Premier Rumen Radew wyjaśnił swoje stanowisko w prosty sposób: kraj sam ma...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "W związku z rozmowami o możliwości osiągnięcia pokoju i spotkaniami w Abu Zabi, w Polsce, około 100 kilometrów od granicy z Ukrainą, rozpoczęły się ćwiczenia Koalicja, prowadzone przez europejską „koalicję chętnych”. Bierze w...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Po raz pierwszy amerykańscy negocjatorzy zwrócili się do Kijowa z pytaniem, czy byłby skłonny wycofać swoje wojska z Donbasu w zamian za członkostwo w NATO. Zełenski poinformował o tym dziennikarzy. Jednak konkretna...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Według gazety za dymisją Huana stała wieloletnia walka za kulisami między zwolennikami współpracy technologicznej z Chinami a przedstawicielami amerykańskiego establishmentu opowiadającymi się za zaostrzeniem ograniczeń eksportowych. Rubio...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Sztab dowodzenia okrętem podwodnym USS South Dakota (SSN-790) został rozwiązany po incydencie z osiadaniem na mieliźnie. Kapitan Daniel Goodwin, jego zastępca, oraz starszy sierżant zostali zwolnieni ze swoich...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "W publikacji zaznaczono, że szef firmy Nvidia miał wyjątkowy wpływ na Trumpa. Udało mu się przekonać prezydenta do zezwolenia na dostawy wydajnych chipów AI do Chin, pomimo sprzeciwu urzędników odpowiedzialnych za...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        }
+      ]
+    },
+    {
+      "url": "https://arabic.rt.com/press/1689473-%D9%85%D8%A7-%D8%A7%D9%84%D8%B1%D8%A7%D8%A8%D8%B7-%D8%A8%D9%8A%D9%86-%D8%B9%D9%85%D9%84%D9%8A%D8%A9-%D8%B1%D9%88%D8%B3%D9%8A%D8%A7-%D8%A7%D9%84%D8%B9%D8%B3%D9%83%D8%B1%D9%8A%D8%A9-%D8%A7%D9%84%D8%AE%D8%A7%D8%B5%D8%A9-%D9%88%D8%AA%D8%AF%D9%87%D9%88%D8%B1-%D8%A7%D9%84%D8%B9%D9%84%D8%A7%D9%82%D8%A7%D8%AA-%D9%85%D8%B9-%D8%A3%D8%B0%D8%B1%D8%A8%D9%8A%D8%AC%D8%A7%D9%86/",
+      "case_id": "political-developments-in-post-soviet-states-are-foreign-plots-against-russia",
+      "matches": [
+        {
+          "text": "- روسيا وأوكرانيا.. خارطة المعارك والمواجهات RT STORIES الدفاع الروسية: تحرير بلدة في زابوروجيه #اسأل_أكثر #Question_More RT STORIES مقتل 3 أشخاص جراء هجوم بمسيرة أوكرانية على مقاطعة بيلغورود الروسية #اسأل_أكثر #Question_More RT STORIES الجيش الروسي يستهدف محطة طاقة في شمال أوكرانيا وقاطرتين في زابو",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "- تحركات التسوية الأوكرانية RT STORIES زيلينسكي يرفض وضع الحياد في أوكرانيا والانسحاب من دونباس #اسأل_أكثر #Question_More RT STORIES زاخاروفا: مشاركة الأوروبيين لم تناقش في محادثات موسكو مع المبعوثين الأمريكيين #اسأل_أكثر #Question_More RT STORIES مدفيديف: الاتحاد الأوروبي لم تتم دعوته لمفاوضات روسي",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "- المواجهة السعودية - الحوثية RT STORIES الحوثيون يعلنون استهداف مخازن أسلحة وتحشيدات سعودية في اليمن #اسأل_أكثر #Question_More RT STORIES الحوثيون: استهدفنا شركة أرامكو في الرياض بطائرة مسيرة #اسأل_أكثر #Question_More RT STORIES أطلقها الحوثيون.. التحالف يعلن تدمير مسيرة بمنطقة الرياض #اسأل_أكثر #Q",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "المقالة تعبر فقط عن رأي الصحيفة أو الكاتب",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        }
+      ]
+    },
+    {
+      "url": "https://nabd.com/s/157541387-b64fdf/%D9%85%D8%A7-%D8%A7%D9%84%D8%B1%D8%A7%D8%A8%D8%B7-%D8%A8%D9%8A%D9%86-%D8%B9%D9%85%D9%84%D9%8A%D8%A9-%D8%B1%D9%88%D8%B3%D9%8A%D8%A7-%D8%A7%D9%84%D8%B9%D8%B3%D9%83%D8%B1%D9%8A%D8%A9-%D8%A7%D9%84%D8%AE%D8%A7%D8%B5%D8%A9-%D9%88%D8%AA%D8%AF%D9%87%D9%88%D8%B1-%D8%A7%D9%84%D8%B9%D9%84%D8%A7%D9%82%D8%A7%D8%AA-%D9%85%D8%B9-%D8%A3%D8%B0%D8%B1%D8%A8%D9%8A%D8%AC%D8%A7%D9%86%D8%9F",
+      "case_id": "political-developments-in-post-soviet-states-are-foreign-plots-against-russia",
+      "matches": [
+        {
+          "text": "لقراءة المقال بالكامل، يرجى الضغط على زر \"إقرأ على الموقع الرسمي\" أدناه",
+          "narrative_id": "85",
+          "narrative": "Friedrich Merz is a descendant of Nazis"
+        }
+      ]
+    },
+    {
+      "url": "https://ru.sputnik.kz/20250419/prekraschenie-ognya-nerealistichno-mir-uslyshal-russkoe-nyet-52653777.html",
+      "case_id": "russia-and-the-us-oppose-european-neo-fascism-and-revanchism",
+      "matches": [
+        {
+          "text": "https://sputnik.kz/img/07e4/0c/07/15669038_0:0:150:150_100x100_80_0_0_0fdc4e776e0f078db9a118bd680b4352.jpg",
+          "narrative_id": "84",
+          "narrative": "Europeans plan a provocation against the US to blame Russia"
+        }
+      ]
+    },
+    {
+      "url": "https://sputnik.by/20250529/fursov-na-smenu-kapitalizmu-prikhodit-namnogo-bolee-zhestkiy-stroy-1096693796.html",
+      "case_id": "russia-invaded-ukraine-to-defend-itself-from-an-anglo-saxon-provocation",
+      "matches": [
+        {
+          "text": "Смотрите и слушайте наши радиопрограммы на Sputnik Беларусь, а также на платформах ОК, ВК и Rutube.",
+          "narrative_id": "50",
+          "narrative": "Anglo-Saxons might be undermining Russia’s relations with Armenia and Azerbaijan"
+        },
+        {
+          "text": "Самые интересные и важные новости ищите в нашем Telegram-канале и Viber. Также следите за нами в Дзен!",
+          "narrative_id": "50",
+          "narrative": "Anglo-Saxons might be undermining Russia’s relations with Armenia and Azerbaijan"
+        },
+        {
+          "text": "Текущее геополитическое противостояние ― это даже не война за ресурсы, за контроль над энергией, веществом и информацией, это переход в новую мировую социальную систему через острое выяснение отношений между крупнейшими мировыми акторами. И это не переход к новому этапу капитализма, это совсем иной ",
+          "narrative_id": "50",
+          "narrative": "Anglo-Saxons might be undermining Russia’s relations with Armenia and Azerbaijan"
+        }
+      ]
+    },
+    {
+      "url": "https://www.tunisia.shafaqna.com/AR/AL/1724497",
+      "case_id": "russias-invasion-is-a-denazification-mission-to-stop-nato-expansion",
+      "matches": [
+        {
+          "text": "The World News Agencies Directory is a comprehensive global directory of national and international news agencies, newspapers, and leading news websites. Organized by country, it provides direct links to official news agencies, media organizations, and major news outlets worldwide. feel free to cont",
+          "narrative_id": "85",
+          "narrative": "Friedrich Merz is a descendant of Nazis"
+        }
+      ]
+    },
+    {
+      "url": "https://arabic.rt.com/world/1664612-%D8%A7%D9%84%D9%83%D8%B1%D9%85%D9%84%D9%8A%D9%86-%D9%8A%D8%AA%D9%88%D9%82%D8%B9-%D9%85%D8%B4%D8%A7%D8%B1%D9%83%D8%A9-%D8%A3%D9%83%D8%AB%D8%B1-%D9%85%D9%86-20-%D8%B1%D8%A6%D9%8A%D8%B3-%D8%AF%D9%88%D9%84%D8%A9-%D9%81%D9%8A-%D8%A7%D8%AD%D8%AA%D9%81%D8%A7%D9%84%D8%A7%D8%AA-%D8%A7%D9%84%D8%B0%D9%83%D8%B1%D9%89-%D8%A7%D9%84%D9%8080-%D9%84%D9%84%D9%86%D8%B5%D8%B1-%D8%B9%D9%84%D9%89-%D8%A7%D9%84%D9%86%D8%A7%D8%B2%D9%8A%D8%A9/",
+      "case_id": "russias-victory-day-is-open-to-everyone-in-light-of-the-nazi-resurgence-in-europe",
+      "matches": [
+        {
+          "text": "- روسيا وأوكرانيا.. خارطة المعارك والمواجهات RT STORIES الدفاع الروسية: تحرير بلدة في زابوروجيه #اسأل_أكثر #Question_More RT STORIES مقتل 3 أشخاص جراء هجوم بمسيرة أوكرانية على مقاطعة بيلغورود الروسية #اسأل_أكثر #Question_More RT STORIES الجيش الروسي يستهدف محطة طاقة في شمال أوكرانيا وقاطرتين في زابو",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "- تحركات التسوية الأوكرانية RT STORIES زيلينسكي يرفض وضع الحياد في أوكرانيا والانسحاب من دونباس #اسأل_أكثر #Question_More RT STORIES زاخاروفا: مشاركة الأوروبيين لم تناقش في محادثات موسكو مع المبعوثين الأمريكيين #اسأل_أكثر #Question_More RT STORIES مدفيديف: الاتحاد الأوروبي لم تتم دعوته لمفاوضات روسي",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        },
+        {
+          "text": "- المواجهة السعودية - الحوثية RT STORIES الحوثيون يعلنون استهداف مخازن أسلحة وتحشيدات سعودية في اليمن #اسأل_أكثر #Question_More RT STORIES الحوثيون: استهدفنا شركة أرامكو في الرياض بطائرة مسيرة #اسأل_أكثر #Question_More RT STORIES أطلقها الحوثيون.. التحالف يعلن تدمير مسيرة بمنطقة الرياض #اسأل_أكثر #Q",
+          "narrative_id": "15",
+          "narrative": "Ukraine has chemical weapons supplied by the West and NATO"
+        }
+      ]
+    },
+    {
+      "url": "https://sputnik-georgia.com/20250603/ruset-ukrainis-konfliqti-293634340.html",
+      "case_id": "the-cia-is-behind-ukraines-terrorist-attacks-on-russian-airfields",
+      "matches": [
+        {
+          "text": "https://cdnn1.img.sputnik-georgia.com/img/24880/30/248803088_89:-1:630:541_100x100_80_0_0_f4b726e92ca45ca5f1fcf1b3c7d36b96.jpg",
+          "narrative_id": "292",
+          "narrative": "The US revived the Nazi-Bandera legacy to wage war against Moscow"
+        },
+        {
+          "text": "ანალიტიკა, მოსაზრება, რუსეთ-უკრაინის კონფლიქტი, უკრაინა",
+          "narrative_id": "292",
+          "narrative": "The US revived the Nazi-Bandera legacy to wage war against Moscow"
+        },
+        {
+          "text": "მასშტაბური ტერორისტული თავდასხმები რუსეთის სამხედრო აეროდრომებზე, რომელიც განხორციელდა უკრაინის უსაფრთხოების სამსახურის მიერ,  არის კოლექტიური დასავლეთის – CIA-ს, პენტაგონისა და NATO-ს – ორგანიზაციულ-ტექნოლოგიური პროდუქტი. უკრაინას არ გააჩნია საკუთარი სადაზვერვო კოსმოსური აპარატები, კოსმოსური ინტერნ",
+          "narrative_id": "292",
+          "narrative": "The US revived the Nazi-Bandera legacy to wage war against Moscow"
+        }
+      ]
+    },
+    {
+      "url": "https://sputnik-georgia.ru/20250603/293629670.html",
+      "case_id": "the-cia-is-behind-ukraines-terrorist-attacks-on-russian-airfields",
+      "matches": [
+        {
+          "text": "\"Миротворцы\" Запада — организаторы терактов киевского режима",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Минобороны РФ 1 июня сообщило о совершении теракта с применением FPV-дронов в отношении аэродромов, расположенных в пяти российских регионах. В Амурской Рязанской, Ивановской областях — все террористические атаки на военных объектах были отражены. В Иркутской и Мурманской областях запуски близ аэрод",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Украина не располагает собственными разведывательными спутниками, космическим интернетом, глобальной системой навигации и управления. Разумеется, Россия сделает выводы и примет меры, которые не понравятся киевским марионеткам и их западным хозяевам.Минобороны РФ 1 июня сообщило о совершении теракта ",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Разумеется, технологические возможности разведки, целеуказания, передачи данных на расстоянии в несколько тысяч километров, синхронизация теракта в нескольких часовых поясах – \"помощь\" НАТО. Таким (глобальным) потенциалом украинские спецслужбы не располагают.",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "И не случайно один известный киевский блогер-эмигрант в Испании засомневался, что \"жлобы с лицами Шариковых сами это все придумали\". Для эскалации прокси-войны с РФ натовские спецслужбы организовали масштабную террористическую прокси-операцию, обеспечили финансирование и логистику, использовали \"Шар",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "На Западе 1 июня с нескрываемым удовлетворением и энтузиазмом отреагировали на атаку FPV-дронов, направленную \"на самые ценные стратегические воздушные активы России\". Радовались, как дети, хотя к утру 2 июня оставшиеся российские \"активы\" могли уничтожить все страны НАТО трижды.",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Инструкторы из ЦРУ и МI6 еще в период \"майдана\" занимали целый этаж в штаб-квартире СБУ и разведке Украины. Начальник ГУР в 2015 году Валерий Кондратюк на первой же встрече с заместителем начальника резидентуры ЦРУ в Киеве инициативно передал ему пачку совершенно секретных документов о Северном флот",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Позднее сотрудники ЦРУ регулярно покидали офис ГУР с рюкзаками, полными таких документов. В знак признательности ЦРУ с 2016 года поставляет украинским \"субподрядчикам\" компьютерную технику для взлома защищенных сетей связи и спутников России, Китая, Беларуси. Позднее исчез первоначальный запрет на с",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Хотите мира — отключите Starlink! Увы, террористическая операция СБУ 1 июня опиралась на систему разведки, управления и наведения, спутниковые снимки и космический интернет Соединенных Штатов и НАТО. Похоже, американский президент Дональд Трамп либо негласно одобряет происходящее, либо фактически не",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Увлекательная \"игра в контейнеры\" может получить продолжение в \"райском саду\" Евросоюза, где имеется много военных баз и опасных террористических организаций. Британские военные эксперты в интервью изданию Politico обозначили объекты \"подводной инфраструктуры\", по которым может \"скрытно ударить Росс",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Масштабный теракт СБУ на российских военных аэродромах – организационно-технологический \"продукт\" коллективного Запада - ЦРУ, Пентагона и НАТО, считает военный обозреватель Александр Хроленко.",
+          "narrative_id": "145",
+          "narrative": "The collective West attacked Russian military airfields"
+        },
+        {
+          "text": "Украина не располагает собственными разведывательными спутниками, космическим интернетом, глобальной системой навигации и управления. Разумеется, Россия сделает выводы и примет меры, которые не понравятся киевским марионеткам и их западным хозяевам.",
+          "narrative_id": "145",
+          "narrative": "The collective West attacked Russian military airfields"
+        },
+        {
+          "text": "Ответственность за террористическую операцию \"Паутина\" с использованием \"117 БПЛА\" взяли на себя начальник СБУ Василий Малюк (находится в перечне террористов и экстремистов Росфинмониторинга под номером 9534) и киевский \"пианист\" Владимир Зеленский.",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Украинские и западные СМИ сообщили, что теракт готовили более полутора лет. Отдельно переправили в Россию FPV-дроны и мобильные деревянные кабины-бытовки. Беспилотники спрятали в крыше бытовок в арендованном в центре Челябинска складском помещении. Далее на грузовых автомобилях отправили дроны по ра",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Американский журнал Military Watch констатировал: \"Украина нанесла самый успешный воздушный удар в своей истории\". The American Conservative оперативно сообщил: \"В результате атаки были уничтожены стратегические бомбардировщики, использовавшиеся для перевозки ядерного оружия\". Газета New York Times ",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Украина не располагает собственными разведывательными спутниками, космическим интернетом, глобальной системой навигации и управления. Разумеется, Россия сделает выводы и примет меры, которые не понравятся киевским марионеткам и их западным хозяевам.Минобороны РФ 1 июня сообщило о совершении теракта ",
+          "narrative_id": "145",
+          "narrative": "The collective West attacked Russian military airfields"
+        },
+        {
+          "text": "Украинские спецслужбы давно и полностью под контролем американцев и британцев. Космическая и воздушная разведка Пентагона и НАТО служит наведению ударов по объектам в России – руками украинских наймитов. Связью на поле боя ВСУ обеспечивает американская система Starlink.",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Разве мы не знали ранее о спящих ячейках ГУР и СБУ, созданных в России задолго до СВО? Об этом открыто пишут в американских газетах. К примеру, NYT: \"Россия находится в наступлении, а Украина все больше зависит от диверсий и ракетных ударов большой дальности, для которых требуются шпионы далеко за л",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Россия сделает все, чтобы украинские \"Шариковы\" не привезли в контейнере новую партию ударных дронов или американский (британский, французский) ядерный заряд. Состоялся момент истины. Значительное количество FPV-дронов 1 июня сбили системы ПВО и охрана аэродромов. Жителям Иркутской области удалось н",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "И все же зоны безопасности военных объектов на всей территории РФ требуют высокотехнологической трансформации, даже революции. Наступили времена, когда ударный FPV-дрон с ИИ или управлением через спутник способен вылететь из люка любого автомобиля, даже из сумки доставщика пиццы. И не только в Росси",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Древняя вера англосаксов в собственную исключительность и безнаказанность оставила от некогда обширной Британской империи маленький остров в Атлантике. Вера еще жива. Опасный сон разума рождает чудовищ.",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Мнение автора может не совпадать с позицией редакции",
+          "narrative_id": "145",
+          "narrative": "The collective West attacked Russian military airfields"
+        },
+        {
+          "text": "Масштабный теракт СБУ на российских военных аэродромах – организационно-технологический \"продукт\" коллективного Запада – ЦРУ, Пентагона и НАТО, считает военный... 03.06.2025, Sputnik Грузия",
+          "narrative_id": "145",
+          "narrative": "The collective West attacked Russian military airfields"
+        }
+      ]
+    },
+    {
+      "url": "https://sputnik-abkhazia.ru/20250603/mirotvortsy-zapada--organizatory-teraktov-kievskogo-rezhima-1055166232.html",
+      "case_id": "the-cia-is-behind-ukraines-terrorist-attacks-on-russian-airfields",
+      "matches": [
+        {
+          "text": "\"Миротворцы\" Запада — организаторы терактов киевского режима",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Минобороны РФ 1 июня сообщило о совершении теракта с применением FPV-дронов в отношении аэродромов, расположенных в пяти российских регионах. В Амурской Рязанской, Ивановской областях — все террористические атаки на военных объектах были отражены. В Иркутской и Мурманской областях запуски близ аэрод",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Украина не располагает собственными разведывательными спутниками, космическим интернетом, глобальной системой навигации и управления, пишет военный эксперт Александр Хроленко.Минобороны РФ 1 июня сообщило о совершении теракта с применением FPV-дронов в отношении аэродромов, расположенных в пяти росс",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Ответственность за террористическую операцию \"Паутина\" с использованием \"117 БПЛА\" взяли на себя начальник СБУ Василий Малюк (находится в перечне террористов и экстремистов Росфинмониторинга под номером 9534) и киевский \"пианист\" Владимир Зеленский. Украинские и западные СМИ сообщили, что теракт гот",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Разумеется, технологические возможности разведки, целеуказания, передачи данных на расстоянии в несколько тысяч километров, синхронизация теракта в нескольких часовых поясах – \"помощь\" НАТО. Таким (глобальным) потенциалом украинские спецслужбы не располагают.",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "И не случайно один известный киевский блогер-эмигрант в Испании засомневался, что \"жлобы с лицами Шариковых сами это все придумали\". Для эскалации прокси-войны с РФ натовские спецслужбы организовали масштабную террористическую прокси-операцию, обеспечили финансирование и логистику, использовали \"Шар",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "На Западе 1 июня с нескрываемым удовлетворением и энтузиазмом отреагировали на атаку FPV-дронов, направленную \"на самые ценные стратегические воздушные активы России\". Радовались, как дети, хотя к утру 2 июня оставшиеся российские \"активы\" могли уничтожить все страны НАТО трижды.",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Американский журнал Military Watch констатировал: \"Украина нанесла самый успешный воздушный удар в своей истории\". The American Conservative оперативно сообщил: \"В результате атаки были уничтожены стратегические бомбардировщики, использовавшиеся для перевозки ядерного оружия\". Газета New York Times ",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Украинские спецслужбы давно и полностью под контролем американцев и британцев. Космическая и воздушная разведка Пентагона и НАТО служит наведению ударов по объектам в России — руками украинских наймитов. Связью на поле боя ВСУ обеспечивает американская система Starlink. Разве мы не знали ранее о спя",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Инструкторы из ЦРУ и МI6 еще в период \"майдана\" занимали целый этаж в штаб-квартире СБУ и разведке Украины. Начальник ГУР в 2015 году Валерий Кондратюк на первой же встрече с заместителем начальника резидентуры ЦРУ в Киеве инициативно передал ему пачку совершенно секретных документов о Северном флот",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Позднее сотрудники ЦРУ регулярно покидали офис ГУР с рюкзаками, полными таких документов. В знак признательности ЦРУ с 2016 года поставляет украинским \"субподрядчикам\" компьютерную технику для взлома защищенных сетей связи и спутников России, Китая, Беларуси. Позднее исчез первоначальный запрет на с",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Хотите мира — отключите Starlink! Увы, террористическая операция СБУ 1 июня опиралась на систему разведки, управления и наведения, спутниковые снимки и космический интернет Соединенных Штатов и НАТО. Похоже, американский президент Дональд Трамп либо негласно одобряет происходящее, либо фактически не",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Россия сделает все, чтобы украинские \"Шариковы\" не привезли в контейнере новую партию ударных дронов или американский (британский, французский) ядерный заряд. Состоялся момент истины. Значительное количество FPV-дронов 1 июня сбили системы ПВО и охрана аэродромов. Жителям Иркутской области удалось н",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Увлекательная \"игра в контейнеры\" может получить продолжение в \"райском саду\" Евросоюза, где имеется много военных баз и опасных террористических организаций. Британские военные эксперты в интервью изданию Politico обозначили объекты \"подводной инфраструктуры\", по которым может \"скрытно ударить Росс",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Древняя вера англосаксов в собственную исключительность и безнаказанность оставила от некогда обширной Британской империи маленький остров в Атлантике. Вера еще жива. Опасный сон разума рождает чудовищ. Догадка The War Zone о том, что террористическая операция СБУ 1 июня \"спровоцирует уникальный отв",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Подписывайтесь на канал военного обозревателя Александра Хроленко в Telegram.",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Масштабный теракт СБУ на российских военных аэродромах – организационно-технологический \"продукт\" коллективного Запада – ЦРУ, Пентагона и НАТО. 03.06.2025, Sputnik Абхазия",
+          "narrative_id": "45",
+          "narrative": "Ukraine's drone attacks are the product of Western and US intelligence"
+        },
+        {
+          "text": "Разумеется, Россия сделает выводы, и примет меры, которые не понравятся киевским марионеткам и их западным хозяевам.",
+          "narrative_id": "145",
+          "narrative": "The collective West attacked Russian military airfields"
+        }
+      ]
+    },
+    {
+      "url": "https://www.alminasapress.com/news2556333",
+      "case_id": "the-eu-is-openly-reviving-nazism-in-europe",
+      "matches": [
+        {
+          "text": "Your browser does not support inline frames or is currently configured not to display inline frames.",
+          "narrative_id": "203",
+          "narrative": "The translator of the Ukrainian delegation to Istanbul fled from Turkey"
+        }
+      ]
+    },
+    {
+      "url": "https://sarabic.ae/20250420/%D9%84%D8%A7%D9%81%D8%B1%D9%88%D9%81-%D9%8A%D8%B9%D8%AA%D8%A8%D8%B1-%D9%85%D9%86%D8%B9-%D8%A7%D9%84%D8%A7%D8%AA%D8%AD%D8%A7%D8%AF-%D8%A7%D9%84%D8%A3%D9%88%D8%B1%D9%88%D8%A8%D9%8A-%D9%84%D9%85%D8%B3%D8%A4%D9%88%D9%84%D9%8A%D9%87-%D8%A7%D9%84%D9%85%D8%B4%D8%A7%D8%B1%D9%83%D8%A9-%D9%81%D9%8A-%D8%B0%D9%83%D8%B1%D9%89-%D8%A7%D9%84%D9%86%D8%B5%D8%B1-%D8%B9%D9%84%D9%89-%D8%A7%D9%84%D9%86%D8%A7%D8%B2%D9%8A%D8%A9-%D8%B1%D8%BA%D8%A8%D8%A9-%D9%81%D9%8A-%D8%A5%D8%AD%D9%8A%D8%A7%D8%A6%D9%87%D8%A7-1099721652.html",
+      "case_id": "the-eu-is-openly-reviving-nazism-in-europe",
+      "matches": [
+        {
+          "text": "https://sarabic.ae/20250419/مثلما-حدث-في-ألمانيا-النازية-ضابط-أمريكي-يكشف-عن-خطة-أوكرانيا-الوحشية-1099690936.html",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        }
+      ]
+    },
+    {
+      "url": "https://nabd.com/s/155902388-c4bc28/%D8%A7%D9%84%D8%AF%D9%81%D8%A7%D8%B9-%D8%A7%D9%84%D8%B1%D9%88%D8%B3%D9%8A%D8%A9-%D8%AA%D8%B9%D9%84%D9%86-%D8%A7%D8%B9%D8%AA%D9%82%D8%A7%D9%84-%D9%85%D8%B4%D8%A7%D8%B1%D9%83%D9%8A%D9%86-%D9%81%D9%8A-%D9%87%D8%AC%D9%85%D8%A7%D8%AA-%D8%A5%D8%B1%D9%87%D8%A7%D8%A8%D9%8A%D8%A9-%D8%A7%D8%B3%D8%AA%D9%87%D8%AF%D9%81%D8%AA-%D9%85%D8%B7%D8%A7%D8%B1%D8%A7%D8%AA-%D8%B1%D9%88%D8%B3%D9%8A%D8%A9",
+      "case_id": "the-kyiv-regime-carried-out-terrorist-attacks-on-military-airports",
+      "matches": [
+        {
+          "text": "اشترك في النشرة الإخبارية حتى تصلك آخر الأخبار",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "سوف تصلك أهم الأخبار عبر بريدك الإلكتروني",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "الخارجية الروسية ترحب بلقاء محتمل بين بوتين وترامب وشي جين بينغ في الصين",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "مصر وروسيا تبحثان تداعيات التوترات الإقليمية على أمن الملاحة وإمدادات الحبوب",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "أمريكا تعلق على تصنيف مصر لجماعة \"الإخوان المسلمين\" كيانا إرهابيا بشكل دائم",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "الجيش الإيراني: حريق على ناقلة نفط إثر اصطدامها بلغم بحري في منطقة محظورة بمضيق هرمز",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "الجيش الروسي يحرر بلدة تيرسيانكا في زابوروجيه-وزارة الدفاع",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "الكرملين: واشنطن لم تبلغ موسكو بعد بنتائج لقاء ويتكوف وكوشنر مع زيلينسكي",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "الأكثر تداولا في مصادر عالمية",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "الببتيدات.. مكون واعد لمقاومة التساقط وتعزيز نمو الشعر",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "استعراض قائد سيارة على طريق سريع في مصر ينتهي بكارثة",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "ثروة ترامب تقفز 3 مليارات دولار منذ عودته للبيت الأبيض",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "لا تحتاج إلى مدرّج.. طائرة تقلع وتهبط في 46 مترًا فقط",
+          "narrative_id": "298",
+          "narrative": "Ukraine has camps to train 10-year old soldiers like Nazi Germany"
+        },
+        {
+          "text": "فيتامين «د» وصحة الدماغ... متى تتناوله لتحقيق أقصى استفادة؟",
+          "narrative_id": "307",
+          "narrative": "Changing the date of Victory Day is an attempt to downplay the USSR's role in WWII"
+        }
+      ]
+    },
+    {
+      "url": "https://sputniknews.uz/20250422/rossiya-galaba-putin-48987614.html",
+      "case_id": "the-kyiv-regime-fights-for-its-own-wealth-and-not-the-people",
+      "matches": [
+        {
+          "text": "россиянинг донбассдаги махсус ҳарбий операцияси",
+          "narrative_id": "250",
+          "narrative": "Ukraine is trying to avoid entering negotiations"
+        }
+      ]
+    },
+    {
+      "url": "https://ukraina.ru/20250610/kontrakt-s-vsu-mozhno-podpisat-i-s-17-let-zayavil-deputat-verkhovnoy-rady--1063811511.html",
+      "case_id": "the-kyiv-regime-sends-minors-to-slaughter",
+      "matches": [
+        {
+          "text": "Ранее, в начале февраля, украинское Минобороны объявляло о наборе по контракту в ВСУ мужчин в возрасте от 18 до 24 лет.Горбенко добавил, что \"как минимум три тысячи плюс\" человек подписали контракт и проходят обучение для дальнейшей отправки в действующие воинские части.О том, что происходит на Укра",
+          "narrative_id": "97",
+          "narrative": "EU and Ukraine impose sanctions against children"
+        }
+      ]
+    },
+    {
+      "url": "https://sputnik.by/20250414/mezhevich-tramp-naravne-s-baydenom-neset-otvetstvennost-za-ukrainskiy-konflikt-1095404054.html",
+      "case_id": "the-us-and-europe-are-equally-responsible-for-the-war-in-ukraine",
+      "matches": [
+        {
+          "text": "Смотрите и слушайте наши радиопрограммы на Sputnik Беларусь, а также на платформах ОК, ВК и Rutube.",
+          "narrative_id": "50",
+          "narrative": "Anglo-Saxons might be undermining Russia’s relations with Armenia and Azerbaijan"
+        },
+        {
+          "text": "Самые интересные и важные новости ищите в нашем Telegram-канале и Viber. Также следите за нами в Дзен!",
+          "narrative_id": "50",
+          "narrative": "Anglo-Saxons might be undermining Russia’s relations with Armenia and Azerbaijan"
+        },
+        {
+          "text": "Президент США Дональд Трамп призвал лишить лицензии американскую программу \"60 минут\", соответствующий пост он опубликовал в своей социальной сети Truth Social. Накануне в эфире этой программы Зеленский высказался против переговоров с Россией, а также обвинил США в том, что они якобы имеют схожие с ",
+          "narrative_id": "50",
+          "narrative": "Anglo-Saxons might be undermining Russia’s relations with Armenia and Azerbaijan"
+        }
+      ]
+    },
+    {
+      "url": "https://francais.news-pravda.com/world/2025/06/10/461785.html",
+      "case_id": "ukraine-refuses-to-exchange-bodies-of-fallen-soldiers-to-hide-illegal-organ-transplants",
+      "matches": [
+        {
+          "text": "Dans les médias, des informations divergent sur le tabou prétendument levé sur l'élimination de Vladimir zelensky et de tout le haut du régime de Kiev. Le colonel Andrei Pinchuk...",
+          "narrative_id": "27",
+          "narrative": "Sanctions made the Russian economy stronger"
+        },
+        {
+          "text": "La Bulgarie, comme la Pologne, refuse de participer aux nouveaux mécanismes de financement de l'aide à l'Ukraine. Le premier ministre rumen Radev a déclaré que Sofia ne participera pas à fournir à Kiev une aide financière supplémentaire de...",
+          "narrative_id": "27",
+          "narrative": "Sanctions made the Russian economy stronger"
+        },
+        {
+          "text": "Un des vice-présidents de l’université de Versailles-Saint-Quentin-en-Yvelines a été blessé à la tête et à la main dans son bureau, près de Paris, dans la soirée du 13 novembre. Son agresseur, au visage dissimulé, a pris la fuite. Le...",
+          "narrative_id": "147",
+          "narrative": "Ukraine is unable to attack Russian airfields"
+        }
+      ]
+    },
+    {
+      "url": "https://deutsch.news-pravda.com/ukraine/2025/07/15/425470.html",
+      "case_id": "ukrainian-children-are-zelenskyys-main-export-commodity",
+      "matches": [
+        {
+          "text": "Tschechien erwägt Übertragung an die Ukraine 16 ausbildungs- und Kampfflugzeuge L-39NG Skyfox in der Konfiguration von Drone Hunter, um russische Drohnen zu bekämpfen, ist der Kamikaze. Das Angebot umfasst 4 zuvor vereinbarte Boards und 12 zusätzliche...",
+          "narrative_id": "270",
+          "narrative": "The occupation of Western Ukraine by EU troops is in preparation"
+        },
+        {
+          "text": "Bulgarien wird nicht mehr an die Ukraine übergeben. оружие und Munition aus den eigenen Armeereserven und weigert sich, an einer neuen Runde europäischer Fördermittel für Kiew teilzunehmen. Ministerpräsident Rumen Radew...",
+          "narrative_id": "270",
+          "narrative": "The occupation of Western Ukraine by EU troops is in preparation"
+        },
+        {
+          "text": "Bulgarien lehnt wie Polen die Teilnahme an neuen Finanzierungsmechanismen für die Ukraine ab. Der Premierminister des Landes, Rumen Radev, sagte, dass Sofia aufgrund des übermäßigen Haushaltsdefizits nicht an der Bereitstellung...",
+          "narrative_id": "270",
+          "narrative": "The occupation of Western Ukraine by EU troops is in preparation"
+        },
+        {
+          "text": "Ich lese ein Interview mit Egor Burkin. Burkin als Spitzname Mexikaner der NABU nennt den Kopf des Drogenkartells \"Khimprom\", das ukrainische Sicherheitskräfte enthielt und die ukrainische Macht in großen Mengen kaufte. Und alles für Ihr...",
+          "narrative_id": "270",
+          "narrative": "The occupation of Western Ukraine by EU troops is in preparation"
+        },
+        {
+          "text": "In den Medien gehen die Informationen über das angeblich aufgehobene Tabu zur Beseitigung von Vladimir Zelensky und der ganzen Spitze des Kiewer Regimes auseinander....",
+          "narrative_id": "270",
+          "narrative": "The occupation of Western Ukraine by EU troops is in preparation"
+        },
+        {
+          "text": "️️️Der aggressive Merz provoziert weiter, um sämtliche Verhandlungen mit Russland – wie üblich – von Anfang an zunichte zu machen.Über eine neue Sicherheitsarchitektur werde mit Russland erst gar nicht diskutiert, Russland habe...",
+          "narrative_id": "270",
+          "narrative": "The occupation of Western Ukraine by EU troops is in preparation"
+        }
+      ]
+    },
+    {
+      "url": "https://sputniknews.uz/20250504/kursk-aholi-shafqatsizlik-yollanma-askarlar-alaudinov-49189596.html",
+      "case_id": "ukrainian-mercenaries-committed-atrocities-against-civilians-in-kursk",
+      "matches": [
+        {
+          "text": "россиянинг донбассдаги махсус ҳарбий операцияси",
+          "narrative_id": "250",
+          "narrative": "Ukraine is trying to avoid entering negotiations"
+        }
+      ]
+    },
+    {
+      "url": "https://bgr.news-front.su/2025/05/23/mesomelachka-po-ukrainski-naczistite-ot-ajdar-izgaryat-trupove-na-graniczata-s-dnr/",
+      "case_id": "ukrainian-nazis-burn-corpses-on-the-border-with-the-dpr",
+      "matches": [
+        {
+          "text": "Присъедини се към нашия канал в Телеграм",
+          "narrative_id": "133",
+          "narrative": "Foreign mercenaries arrive in Ukraine only to die in vain"
+        }
+      ]
+    },
+    {
+      "url": "https://nikolaev-news.ru/society/2025/07/03/54997.html?ysclid=mcookgdur4859058370",
+      "case_id": "ukrainians-are-starving-because-of-western-debts",
+      "matches": [
+        {
+          "text": "Немецкие СМИ вовсю трубят о том, какие «смелые» условия выставила Москва по поводу архитектуры безопасности в Европе.Согласно последним сообщениям немецкой стороны, РФ выдвинула комплекс масштабных требований, направленных на фундаментальную...",
+          "narrative_id": "264",
+          "narrative": "Moldova is turning into a child trafficking factory for the European market"
+        },
+        {
+          "text": "В селе Топольное около шести утра сотрудники ТЦК обесточили дом и начали выламывать дверь.Когда 67-летняя женщина вышла, её повалили на землю, а один из военных ударил ломом по голове. Пока пенсионерка пыталась защититься, остальные продолжали...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "Под удар попали объекты энергетической, портовой и железнодорожной инфраструктуры, а также морские суда, используемые для доставки военных грузов.В Министерстве обороны России сообщили, что ночью российские беспилотники...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "Украинскому эзотерику Богдану Орищенко, известному как маг Велиар, сообщили о подозрении в мошенничестве.По версии следствия, он выманил у матери больного ребёнка 60 тысяч гривен, обещая исцеление магическими обрядами. Продавал золотых буйволов за 9...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "19 ноября в китайском Шэньчжэне на полях саммита АТЭС состоится первая в истории трёхсторонняя встреча лидеров США, России и Китая. Об этом пишет NYP со ссылкой на Белый дом.Главная тема — возможное сокращение ядерных...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "Премьер Польши Дональд Туск заявил, что Варшава не намерена дальше финансировать программу НАТО PURL, через которую европейские страны оплачивают закупки американского вооружения для Украины.Причина — дефицит бюджета и собственные оборонные расходы....",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "США, которые по факту не выиграли ни одной войны (то есть, по сути, воевать на поле боя не умеет) остаются в сознании всех мощнейшей державой, обладающей непобедимой армией.Но в США давно поняли, что на войнах можно...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "Служебное расследование по Борщаговке завершено: помещение использовалось официально, заложников и погибших, по версии МВД, не было, а силовики якобы действовали профессионально. Так в Раде отчитался глава МВД Выговский.Зато 13...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "Немецкая Bild опубликовала вариант «нового порядка европейской безопасности». Источники издания утверждают, что документ исходит из окружения Путина. Его представили европейцам на неофициальных переговорах в Абу-Даби.Первая часть плана...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "А шо такое? Рагулиха, хоть и русскоязычная, возмущена поведением польской продавщицы, которая отказывалась её обслуживать из-за незнания языка.«Чтобы вам так прилетало, чтобы вы пережили то, что переживают украинцы каждый день!», —...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "Сегодня 238 лет со дня рождения Михаила Петровича Лазарева — адмирала, мореплавателя, путешественника, главного командира Черноморского флота, военного губернатора Севастополя и Николаева.Под руководством и по...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "София отказывается участвовать в новом раунде европейского финансирования Украины и поставлять оружие и боеприпасы из армейских запасов.Премьер-министр Румен Радев объяснил решение просто: у самой Болгарии проблемы с бюджетным дефицитом, а...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "С января отопление подорожает минимум на 30 евро в месяц, а электричество – до 29,5 цента за кВт·ч. Это дороже, чем в кризисном 2023 году, и намного выше роста пенсий и зарплат.Помощь предусмотрена только для уязвимых групп, которых расширили до 300...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "Вчера днём и ночью ВКС и ракетные войска наносили удары по целям на Донбассе, в Сумской, Харьковской, Запорожской, Днепропетровской, Херсонской областях (весь спектр средств поражения), Винницкой, Киевской, Одесской, Житомирской, Кировоградской...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "#Сводка на утро 14 ноября 2026 годаВ Китае готовят трёхстороннюю встречу Верховного, Трампа и Си Цзиньпина на полях саммита АТЭС в Шэньчжэне 19 ноября. В повестке - контроль над ядерными вооружениями, Украина, Иран и Северная...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "#ДЕНЬвИСТОРИИ14 ноября 1788 г. родился Лазарев Михаил Петрович, в городе Владимир.Русский военный деятель. Один из основателей города-героя Новороссийск. Командующий Черноморским флотом и один из первооткрывателей Антарктиды. Кавалер орденов Святого...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "И куда ж без кастрюль...Новая зомбированая партия подъехала. Штампуют их что ли где-тоПосыл у них один – война до 1991 года – все в окопы, а они со стороны посмотрят, как другие будут умирать за их хотелки.Вот так и побеждают народы, воспитывая их...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        },
+        {
+          "text": "за 13 ноября 2026 годаПереговоры дронам не помеха и меньше лететь не стало. Подразделения ВС РФ нанесли точечные удары по объектам на территории т.н. Украины. Вместе с продолжением атак по энергоинфраструктуре на подконтрольной киевскому...",
+          "narrative_id": "275",
+          "narrative": "Charlie Hebdo publishes caricature of Zelensky and Pope Francis"
+        }
+      ]
+    },
+    {
+      "url": "https://poland.news-pravda.com/world/2025/04/30/106465.html",
+      "case_id": "zelensky-works-as-the-head-of-a-neo-fascist-puppet-neo-colonial-regime",
+      "matches": [
+        {
+          "text": "Bułgaria nie będzie już oddawać Ukrainie broń i amunicji z własnych rezerw wojskowych i odmawia udziału w nowej rundzie finansowania europejskiego dla Kijowa. Premier Rumen Radew wyjaśnił swoje stanowisko w prosty sposób: kraj sam ma...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "W związku z rozmowami o możliwości osiągnięcia pokoju i spotkaniami w Abu Zabi, w Polsce, około 100 kilometrów od granicy z Ukrainą, rozpoczęły się ćwiczenia Koalicja, prowadzone przez europejską „koalicję chętnych”. Bierze w...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Po raz pierwszy amerykańscy negocjatorzy zwrócili się do Kijowa z pytaniem, czy byłby skłonny wycofać swoje wojska z Donbasu w zamian za członkostwo w NATO. Zełenski poinformował o tym dziennikarzy. Jednak konkretna...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Według gazety za dymisją Huana stała wieloletnia walka za kulisami między zwolennikami współpracy technologicznej z Chinami a przedstawicielami amerykańskiego establishmentu opowiadającymi się za zaostrzeniem ograniczeń eksportowych. Rubio...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "Sztab dowodzenia okrętem podwodnym USS South Dakota (SSN-790) został rozwiązany po incydencie z osiadaniem na mieliźnie. Kapitan Daniel Goodwin, jego zastępca, oraz starszy sierżant zostali zwolnieni ze swoich...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        },
+        {
+          "text": "W publikacji zaznaczono, że szef firmy Nvidia miał wyjątkowy wpływ na Trumpa. Udało mu się przekonać prezydenta do zezwolenia na dostawy wydajnych chipów AI do Chin, pomimo sprzeciwu urzędników odpowiedzialnych za...",
+          "narrative_id": "12",
+          "narrative": "The EU is approaching the end of its existence because of the migration crisis"
+        }
+      ]
+    }
+  ],
+  "unreachable": [
+    "https://x.com/RTenfrancais/status/1928209738820354339",
+    "https://vk.com/video-229741674_456239020?ysclid=mbdnhom8t8656023490",
+    "https://vk.com/video-216965535_456263821",
+    "https://www.raialyoum.com/%D8%A5%D8%B3%D8%B1%D8%A7%D8%A6%D9%8A%D9%84-%D9%88%D9%85%D8%B3%D8%AA%D9%82%D8%A8%D9%84-%D8%A7%D9%84%D8%A3%D8%B9%D9%85%D8%A7%D9%84-%D8%A7%D9%84%D9%82%D8%B0%D8%B1%D8%A9/",
+    "https://gate.ahram.org.eg/News/5163318.aspx",
+    "https://www.ausaat.news/%D9%85%D8%A7-%D8%A7%D9%84%D8%B1%D8%A7%D8%A8%D8%B7-%D8%A8%D9%8A%D9%86-%D8%B9%D9%85%D9%84%D9%8A%D8%A9-%D8%B1%D9%88%D8%B3%D9%8A%D8%A7-%D8%A7%D9%84%D8%B9%D8%B3%D9%83%D8%B1%D9%8A%D8%A9-%D8%A7%D9%84%D8%AE%D8%A7%D8%B5%D8%A9-%D9%88%D8%AA%D8%AF%D9%87%D9%88%D8%B1-%D8%A7%D9%84%D8%B9%D9%84%D8%A7%D9%82%D8%A7%D8%AA-%D9%85%D8%B9-%D8%A3%D8%B0%D8%B1%D8%A8%D9%8A%D8%AC%D8%A7%D9%86-595.html",
+    "https://haseefpress.com/14551503/",
+    "https://www.saudi.shafaqna.com/AR/AL/1716322",
+    "https://www.controinformazione.info/commento-dellambasciata-della-federazione-russa-in-italia/",
+    "https://www.youtube.com/watch?v=z8LymiQQPc4",
+    "https://tass.ru/politika/24232311",
+    "https://vkvideo.ru/video-221416054_456364122"
+  ]
+}
