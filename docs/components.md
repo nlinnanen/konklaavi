@@ -11,7 +11,7 @@ flowchart LR
   Sys["Content Trust Layer"]
   Web["Public web pages"]
   EU["EUvsDisinfo database"]
-  Claude["Claude API"]
+  Claude["Claude via Hostinger AI Router"]
 
   Reader -->|reports| Sys
   Sys -->|highlights with verdict and explanation| Reader
@@ -36,7 +36,7 @@ flowchart LR
     Ext["Extension<br/>TypeScript, WXT, transformers.js"]
     API["API<br/>Python, FastAPI"]
     Worker["Worker<br/>Python"]
-    DB[("Postgres + pgvector")]
+    DB[("Postgres<br/>TimescaleDB, pgvector")]
     Dash["Dashboard<br/>React, react-sigma"]
     Seed["Seed importer<br/>Python script"]
     Sim["Simulation<br/>Python script"]
@@ -44,7 +44,7 @@ flowchart LR
 
   Web["Public web pages"]
   EU["EUvsDisinfo database"]
-  Claude["Claude API"]
+  Claude["Claude via Hostinger AI Router"]
 
   Reader -->|reports| Ext
   Ext -->|highlights| Reader

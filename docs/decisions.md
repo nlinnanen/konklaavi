@@ -10,6 +10,8 @@ Each chunk gets three fingerprints, one per level of the [data model](data-model
 
 Shingles decide the variant level, because shared phrasing is evidence of copying and timestamps give the direction. Embeddings decide the narrative level, because they group rewrites of the same claim.
 
+The extension and the backend must produce identical fingerprints. The backend runs the same ONNX embedding model file as transformers.js through onnxruntime, and a shared JSON file of test vectors checks both MinHash implementations.
+
 ## Matching runs on the client
 
 The client never uploads fingerprints of rendered content, because embeddings and shingle hashes can be inverted back into text. It downloads the signature index and matches locally. Telemetry contains only a known variant id, a public URL and a timestamp, and the server confirms the URL is public by fetching it anonymously.
@@ -24,16 +26,29 @@ Chunks are the DOM's block-level elements, with selectors written specifically f
 
 ## Storage
 
-Postgres with pgvector is the only datastore. It holds fingerprints and embeddings, LSH bands in an indexed table, observations, reports, signatures and graph edges. Graph queries use recursive CTEs, and the graph worker loads subgraphs into networkx for clustering and lineage.
+Postgres is the only datastore, run from the `timescale/timescaledb-ha` image, which includes TimescaleDB, pgvector and pgvectorscale. Development runs it in a local Docker container. Production points the same schema at either the container on the VPS or a Tiger Cloud service, which only changes the connection string.
+
+- `observation` is a TimescaleDB hypertable partitioned on `seen_at`, with compression on older chunks.
+- Continuous aggregates precompute hits per narrative per hour, new domains per narrative per day and posts per account per hour. They feed the dashboard's spread charts and the detection of posting bursts.
+- pgvector holds fingerprint embeddings and narrative centroids.
+- LSH bands sit in an indexed table.
+- The job queue is a table, and workers claim jobs with `SELECT ... FOR UPDATE SKIP LOCKED`.
+- Graph queries use recursive CTEs, and the worker loads subgraphs into networkx for clustering and lineage.
+
+Migrations are plain SQL files run by the container's init scripts.
 
 ## Backend
 
-The backend is Python with FastAPI, so the API and the workers share code. Narratives are clustered with HDBSCAN on embeddings, and clusters in consecutive time windows are matched by centroid similarity.
+The backend is Python with FastAPI, using uv, psycopg 3 and raw SQL, so the API and the worker share code. The fetch job uses httpx and trafilatura to extract page text. Narratives are clustered with HDBSCAN on embeddings, and clusters in consecutive time windows are matched by centroid similarity.
 
 ## Report analysis
 
-The analysis worker sends each report to the Claude API. It extracts the core claim, classifies the manipulation techniques and writes the plain-language explanation that ships with the signature.
+The analysis job calls Claude through Hostinger's AI Router, using the Anthropic SDK with the router's base URL and key. It extracts the core claim, classifies the manipulation techniques and writes the plain-language explanation that ships with the signature.
+
+## Deployment
+
+The whole stack runs with Docker Compose on the team's Hostinger VPS (KVM 2, 2 vCPU, 8 GB RAM), behind its free domain: Postgres, the API, the worker with the embedding model on CPU, and the dashboard served by the API. The same compose file runs locally and on the VPS.
 
 ## Extension
 
-The extension is a Manifest V3 extension written in TypeScript. Fingerprinting and the heuristic classifier run in a Web Worker so the page stays responsive.
+The extension is a Manifest V3 extension written in TypeScript with WXT. Fingerprinting and the heuristic classifier run in a Web Worker so the page stays responsive.
