@@ -17,13 +17,13 @@ Every command runs in this directory with the router key from the worktree's `.e
 The 30-minute trial against production, stopping at 20 credits:
 
 ```sh
-set -a; . ../../.env; set +a; uv run python -m crowd run --config crowd.yaml --api https://srv2160986.hstgr.cloud/api --minutes 30 --budget-credits 20
+set -a; . ../../.env; set +a; uv run python -m crowd run --config crowd.yaml --api https://konklaavi.tech/api --minutes 30 --budget-credits 20
 ```
 
 The overnight run, eight hours at about 50 credits an hour:
 
 ```sh
-set -a; . ../../.env; set +a; uv run python -m crowd run --config crowd-overnight.yaml --api https://srv2160986.hstgr.cloud/api --minutes 480 --budget-credits 400
+set -a; . ../../.env; set +a; uv run python -m crowd run --config crowd-overnight.yaml --api https://konklaavi.tech/api --minutes 480 --budget-credits 400
 ```
 
 Ctrl-C stops after the current action. The run also stops when the credits the router reports reach the budget, so it can overshoot by one call.
@@ -31,18 +31,18 @@ Ctrl-C stops after the current action. The run also stops when the credits the r
 Per persona, the notes written, their statuses and moderation, the ratings cast and the current `/me` reputation, with the mean reputation of signed-in good and bad personas:
 
 ```sh
-uv run python -m crowd report --config crowd.yaml --api https://srv2160986.hstgr.cloud/api
+uv run python -m crowd report --config crowd.yaml --api https://konklaavi.tech/api
 ```
 
 Removal runs on the server, since anonymous installs can only be named by their ids. `remove` prints the command, with the anonymous installs from the state file, to run in `/srv/junction26`:
 
 ```sh
-uv run python -m crowd remove --config crowd.yaml --api https://srv2160986.hstgr.cloud/api
+uv run python -m crowd remove --config crowd.yaml --api https://konklaavi.tech/api
 ```
 
 ## What to check in the admin panel
 
-At https://srv2160986.hstgr.cloud/api/admin:
+At https://konklaavi.tech/api/admin:
 
 - Moderation: notes the moderation model held back, which should be few, since even the bad personas write civilly.
 - Notes: the bots' notes moving from needs_more_ratings to helpful, not helpful or controversial, and whether troll and brigade notes end not helpful.

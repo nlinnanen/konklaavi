@@ -28,6 +28,8 @@ For a different VPS, set `ansible_host` in `inventory.yml` to its hostname from 
 
 In `group_vars/all/main.yml`, set:
 
+- `app_domain`: the public hostname (`konklaavi.tech`). Its DNS A record, and AAAA if the VPS has IPv6, must point at the VPS before Ansible applies it, or Caddy can't get a certificate. `app_alt_domains` lists further hostnames served the same way; it keeps the VPS's own name working.
+
 - `admin_github_users`: GitHub usernames whose public keys (`https://github.com/<user>.keys`) may log in as `admin_user`. They are fetched on every run, so a key added or removed on GitHub reaches the VPS on the next run, and removing a user removes their access. Anyone who can add a key to one of these accounts gets sudo on the VPS, so the accounts should have 2FA.
 - `admin_ssh_keys`: extra public keys, for anyone not on GitHub. Root login is turned off, so these two lists are the only way in.
 - `deploy_ssh_public_key`: the public half of the deploy key, created below.

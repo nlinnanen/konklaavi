@@ -41,7 +41,7 @@ jobs:
           npm run zip
           npm run zip:firefox
         env:
-          WXT_API_URL: ${{ vars.PUBLIC_API_URL || 'https://srv2160986.hstgr.cloud/api' }}
+          WXT_API_URL: ${{ vars.PUBLIC_API_URL || 'https://konklaavi.tech/api' }}
       - uses: actions/upload-artifact@v4
         with:
           name: extension-chrome

@@ -1,4 +1,5 @@
-{$DOMAIN} {
+# DOMAIN, and any further hostnames in ALT_DOMAINS (space-separated), serve the same app.
+{$DOMAIN} {$ALT_DOMAINS} {
 	encode zstd gzip
 
 	handle_path /api/* {
