@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% from "_macros.html" import state_badge, when, host %}
+{% block title %}{{ n.title }}{% endblock %}
+{% macro member(m, level, n) %}
+        <li id="m{{ m.id }}">
+          <div class="member-meta">
+            <span class="measure">
+            {% if level == 'passage' %}the text the note was written on
+            {% elif level == 'exact' %}{{ m.shared }} shared {{ 'sentence' if m.shared == 1 else 'sentences' }} with <a href="narratives/{{ n.id }}#m{{ m.via }}">#{{ m.via }}</a>
+            {% elif level == 'edited' %}{% if m.jaccard is not none %}Jaccard {{ '%.2f'|format(m.jaccard) }}{% else %}same text without dates{% endif %} with <a href="narratives/{{ n.id }}#m{{ m.via }}">#{{ m.via }}</a>
+            {% elif m.similarity is not none %}cosine {{ '%.3f'|format(m.similarity) }}{% if m.match %} · <span class="level-{{ m.match }}">{{ m.match }} level</span>{% else %} · below the related threshold{% endif %}
+            {% else %}no embedding{% endif %}
+            </span>
+            <span class="where">{% if m.url %}<a href="{{ m.url }}" target="_blank" rel="noopener noreferrer">{{ m.domain }}</a>{% else %}passage{% endif %} · {{ when(m.first_seen) }}{% if m.pages > 1 %} · on {{ m.pages }} pages{% endif %} · #{{ m.id }}</span>
+          </div>
+          <p class="excerpt">{{ m.content }}</p>
+        </li>
+{% endmacro %}
+{% block content %}
+<nav class="crumbs"><a href="./">Narratives</a> / #{{ n.id }}</nav>
+<div class="head narrative-head">
+  <div class="head-line">{{ state_badge(n.state) }}<span class="muted">{{ 'Noted by a reader' if n.source == 'note' else 'Cluster candidate' if n.source == 'cluster' else n.source }} · created {{ when(n.created_at) }}</span></div>
+  <h1>{{ n.title }}</h1>
+  <p class="summary">
+    <b>{{ n.members }}</b> blocks on <b>{{ n.sites }}</b> {{ 'site' if n.sites == 1 else 'sites' }} and <b>{{ n.pages }}</b> {{ 'page' if n.pages == 1 else 'pages' }}
+    · {{ n.detections }} detections by readers · first seen {{ when(n.first_seen) }} · last seen {{ when(n.last_seen) }}
+  </p>
+  {% for e in evolution %}
+  <p class="muted">{{ 'Evolved into' if e.outgoing else 'Evolved from' }} <a href="narratives/{{ e.id }}">#{{ e.id }} {{ e.title }}</a>{% if e.similarity %} (similarity {{ '%.2f'|format(e.similarity) }}){% endif %}</p>
+  {% endfor %}
+</div>
+
+<section class="block">
+  <h2>How blocks joined this narrative</h2>
+  <p class="lede">Each block is filed under the closest way it matches: an exact copy shares a sentence hash with the passage, an edited copy is a near-duplicate by MinHash, and the rest are close in meaning by embedding cosine (narrative level from {{ settings.narrative_match_threshold }}, related from {{ settings.related_match_threshold }}).{% if capped %} Showing the first {{ members }} blocks.{% endif %}</p>
+  {% set titles = {'passage': 'Noted passage', 'exact': 'Exact copies', 'edited': 'Edited copies', 'embedding': 'Same claim in other words' if n.source == 'note' else 'Clustered by meaning'} %}
+  <div class="groups">
+  {% for level, items in groups.items() if items or level != 'passage' %}
+    <div class="group" data-level="{{ level }}">
+      <h3><span class="level-dot"></span>{{ titles[level] }} <span class="count">{{ items|length }}</span></h3>
+      {% if not items %}<p class="muted small">None.</p>{% endif %}
+      <ul class="members">{% for m in items[:6] %}{{ member(m, level, n) }}{% endfor %}</ul>
+      {% if items|length > 6 %}
+      <details class="more"><summary>Show {{ items|length - 6 }} more</summary>
+        <ul class="members">{% for m in items[6:] %}{{ member(m, level, n) }}{% endfor %}</ul>
+      </details>
+      {% endif %}
+    </div>
+  {% endfor %}
+  </div>
+</section>
+
+<section class="block two-col">
+  <div>
+    <h2>Sightings</h2>
+    {% if timeline %}
+    <p class="lede">Observations per {{ 'week' if timeline.weekly else 'day' }}: pages the pipeline fetched, and detections reported by readers' extensions.</p>
+    <figure class="chart">
+      <svg viewBox="0 -4 {{ timeline.width }} {{ timeline.height + 22 }}" role="img" aria-label="Observations over time">
+        <line class="axis" x1="0" x2="{{ timeline.width }}" y1="{{ timeline.height }}" y2="{{ timeline.height }}"/>
+        {% for b in timeline.bars %}
+        <g class="bar"><title>{{ b.day.strftime('%d %b %Y') }}: {{ b.fetch }} fetched, {{ b.detection }} detected</title>
+          <rect class="hit" x="{{ b.x }}" y="0" width="{{ b.w }}" height="{{ timeline.height }}"/>
+          {% if b.fetch %}<rect class="s-fetch" x="{{ b.x }}" y="{{ b.fetch_y }}" width="{{ b.w }}" height="{{ b.fetch_h }}" rx="1.5"/>{% endif %}
+          {% if b.detection %}<rect class="s-detect" x="{{ b.x }}" y="{{ b.det_y }}" width="{{ b.w }}" height="{{ [b.det_h - 1, 1]|max }}" rx="1.5"/>{% endif %}
+        </g>
+        {% endfor %}
+        <text x="0" y="{{ timeline.height + 16 }}">{{ timeline.first.strftime('%d %b') }}</text>
+        <text x="{{ timeline.width }}" y="{{ timeline.height + 16 }}" text-anchor="end">{{ timeline.last.strftime('%d %b %Y') }}</text>
+      </svg>
+      <figcaption class="legend"><span class="key s-fetch"></span>Fetched <span class="key s-detect"></span>Detected <span class="muted">· tallest bar {{ timeline.top }}</span></figcaption>
+    </figure>
+    {% else %}
+    <p class="muted">Not seen on any page yet. The pipeline fetches the noted page shortly after the note.</p>
+    {% endif %}
+  </div>
+  <div>
+    <h2>Lineage</h2>
+    {% if lineage %}
+    <p class="lede">DERIVED_FROM edges: each arrow runs from a block to a near-duplicate seen later, labelled with their Jaccard.</p>
+    <div class="scroll-x">
+    <svg class="lineage" width="{{ lineage.width }}" height="{{ lineage.height }}" viewBox="0 0 {{ lineage.width }} {{ lineage.height }}" role="img" aria-label="Edit lineage">
+      <defs><marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 8 4 0 8z" class="arrowhead"/></marker></defs>
+      {% for e in lineage.edges %}
+      <path class="edge" d="M{{ e.x1 }} {{ e.y1 }} C{{ e.x1 + 20 }} {{ e.y1 }} {{ e.x2 - 20 }} {{ e.y2 }} {{ e.x2 - 2 }} {{ e.y2 }}" marker-end="url(#arrow)"/>
+      {% if e.jaccard is not none %}<text class="edge-label" x="{{ (e.x1 + e.x2) / 2 }}" y="{{ (e.y1 + e.y2) / 2 - 4 }}" text-anchor="middle">{{ '%.2f'|format(e.jaccard) }}</text>{% endif %}
+      {% endfor %}
+      {% for node in lineage.nodes %}
+      <a href="narratives/{{ n.id }}#m{{ node.id }}">
+        <rect class="node" x="{{ node.x }}" y="{{ node.y }}" width="{{ node.w }}" height="{{ node.h }}" rx="6"/>
+        <text class="node-label" x="{{ node.x + 9 }}" y="{{ node.y + 21 }}">{{ node.label|truncate(32, True, '…') }}</text>
+        <title>#{{ node.id }} {{ node.label }}</title>
+      </a>
+      {% endfor %}
+    </svg>
+    </div>
+    {% else %}
+    <p class="muted">No DERIVED_FROM edges: no block here was found edited from an earlier one.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="block">
+  <h2>Notes <span class="count">{{ notes|length }}</span></h2>
+  {% if notes %}
+  <div class="note-list">{% for note in notes %}{% include "_note.html" %}{% endfor %}</div>
+  {% else %}<p class="muted">No notes. {{ 'Cluster candidates get a note when a reader writes one on one of their blocks.' if n.source == 'cluster' }}</p>{% endif %}
+</section>
+
+<section class="block">
+  <h2>Pages <span class="count">{{ pages|length }}</span></h2>
+  {% if pages %}
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Page</th><th>Site</th><th class="num">Observations</th><th class="num">Detections</th><th>First seen</th><th>Last seen</th></tr></thead>
+    <tbody>
+    {% for p in pages %}
+    <tr><td class="url-cell"><a href="{{ p.url }}" target="_blank" rel="noopener noreferrer">{{ p.url }}</a></td><td>{{ p.domain }}</td><td class="num">{{ p.observations }}</td><td class="num">{{ p.detections }}</td><td>{{ when(p.first_seen) }}</td><td>{{ when(p.last_seen) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="muted">No page yet.</p>{% endif %}
+</section>
+{% endblock %}

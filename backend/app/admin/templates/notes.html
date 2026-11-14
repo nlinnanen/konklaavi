@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, moderation_tag, when, ratings, score %}
+{% block title %}Notes{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Notes</h1>
+  <p class="muted">Every note with its scoring. Scoring places each note by intercept (helpfulness agreed across viewpoints) and factor (which side found it helpful).</p>
+</div>
+<form class="filters" action="notes" method="get" hx-get="notes" hx-target="main" hx-select="main" hx-swap="outerHTML" hx-push-url="true" hx-trigger="change">
+  <label>Status
+    <select name="status"><option value="">Any</option>{% for s in statuses %}<option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ s.replace('_', ' ')|capitalize }}</option>{% endfor %}</select>
+  </label>
+  <label>Moderation
+    <select name="moderation"><option value="">Any</option>{% for m in moderations %}<option value="{{ m }}" {% if m == moderation %}selected{% endif %}>{{ {'visible': 'Visible', 'pending_review': 'Held', 'hidden': 'Hidden'}[m] }}</option>{% endfor %}</select>
+  </label>
+  <noscript><button class="btn" type="submit">Apply</button></noscript>
+</form>
+
+{% if plot %}
+<figure class="chart bridging">
+  <svg viewBox="0 0 {{ plot.width }} {{ plot.height }}" role="img" aria-label="Notes by factor and intercept">
+    <rect class="region-helpful" x="{{ plot.helpful.x1 }}" y="{{ plot.plot.y }}" width="{{ plot.helpful.x2 - plot.helpful.x1 }}" height="{{ plot.helpful.y - plot.plot.y }}"/>
+    <line class="grid" x1="{{ plot.plot.x }}" x2="{{ plot.plot.x + plot.plot.w }}" y1="{{ plot.zero_y }}" y2="{{ plot.zero_y }}"/>
+    <line class="grid" x1="{{ plot.zero_x }}" x2="{{ plot.zero_x }}" y1="{{ plot.plot.y }}" y2="{{ plot.plot.y + plot.plot.h }}"/>
+    {% for x in plot.controversial %}<line class="threshold" x1="{{ x }}" x2="{{ x }}" y1="{{ plot.plot.y }}" y2="{{ plot.plot.y + plot.plot.h }}"/>{% endfor %}
+    <line class="threshold" x1="{{ plot.helpful.x1 }}" x2="{{ plot.helpful.x2 }}" y1="{{ plot.helpful.y }}" y2="{{ plot.helpful.y }}"/>
+    <polyline class="threshold" points="{% for x, y in plot.not_helpful %}{{ x }},{{ y }} {% endfor %}"/>
+    <text class="region-label" x="{{ plot.zero_x }}" y="{{ plot.plot.y + 14 }}" text-anchor="middle">helpful</text>
+    <text class="region-label" x="{{ plot.plot.x + 6 }}" y="{{ plot.plot.y + 14 }}">controversial</text>
+    <text class="region-label" x="{{ plot.plot.x + plot.plot.w - 6 }}" y="{{ plot.plot.y + 14 }}" text-anchor="end">controversial</text>
+    <text class="region-label" x="{{ plot.zero_x }}" y="{{ plot.plot.y + plot.plot.h - 6 }}" text-anchor="middle">not helpful</text>
+    {% for t in plot.x_ticks %}<text x="{{ t.x }}" y="{{ plot.height - 10 }}" text-anchor="middle">{{ t.label }}</text>{% endfor %}
+    {% for t in plot.y_ticks %}<text x="{{ plot.plot.x - 6 }}" y="{{ t.y + 4 }}" text-anchor="end">{{ t.label }}</text>{% endfor %}
+    {% for p in plot.points %}
+    <a href="narratives/{{ p.narrative_id }}#note-{{ p.id }}"><circle class="dot" data-status="{{ p.status }}" cx="{{ p.cx }}" cy="{{ p.cy }}" r="5"><title>#{{ p.id }} {{ p.status.replace('_', ' ') }}: i {{ '%+.2f'|format(p.intercept) }}, f {{ '%+.2f'|format(p.factor) }}. {{ p.body|truncate(80) }}</title></circle></a>
+    {% endfor %}
+  </svg>
+  <figcaption class="legend">
+    <span class="key dot" data-status="helpful"></span>Helpful <span class="key dot" data-status="controversial"></span>Controversial <span class="key dot" data-status="not_helpful"></span>Not helpful <span class="key dot" data-status="needs_more_ratings"></span>Needs more ratings
+    <span class="muted">· x factor, y intercept · lines are the scoring thresholds</span>
+  </figcaption>
+</figure>
+{% endif %}
+
+{% if notes %}
+<div class="table-wrap">
+<table class="data">
+  <thead><tr><th>Status</th><th>Note</th><th>Narrative</th><th>Ratings</th><th>Score</th><th>Written</th></tr></thead>
+  <tbody>
+  {% for note in notes %}
+  <tr>
+    <td>{{ status_badge(note) }}<br>{{ moderation_tag(note.moderation) }}</td>
+    <td class="note-cell"><span class="sub">{{ 'Misleading' if note.classification == 'misleading' else 'Not misleading' }} · {{ note.author }}</span>{{ note.body }}</td>
+    <td class="title-cell"><a href="narratives/{{ note.narrative_id }}#note-{{ note.id }}">{{ note.narrative }}</a><span class="sub">#{{ note.narrative_id }}</span></td>
+    <td>{{ ratings(note) }}</td>
+    <td>{{ score(note) }}</td>
+    <td>{{ when(note.created_at) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty"><p>No note matches these filters.</p></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "_macros.html" import state_badge, when %}
+{% block title %}Cluster map{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Cluster map</h1>
+  <p class="muted">Every block that belongs to a narrative, placed by the first two principal components of its embedding: blocks close together say similar things. Rings are the noted passages. Hover to pick out a narrative, click to open it.{% if capped %} Showing every block of a noted narrative and the newest of the rest.{% endif %}</p>
+</div>
+{% if plot.points %}
+<figure class="chart map" id="map">
+  <svg viewBox="0 0 {{ plot.width }} {{ plot.height }}" role="img" aria-label="Narrative blocks by embedding">
+    {% for p in plot.points %}
+    <a href="narratives/{{ p.narrative_id }}" data-n="{{ p.narrative_id }}">
+      {% if p.kind == 'claim' %}
+      <circle class="pt claim" data-slot="{{ p.slot }}" cx="{{ p.cx }}" cy="{{ p.cy }}" r="5.5"><title>#{{ p.narrative_id }} {{ p.title }} (noted passage)</title></circle>
+      {% else %}
+      <circle class="pt{% if p.candidate %} candidate{% endif %}" data-slot="{{ p.slot }}" cx="{{ p.cx }}" cy="{{ p.cy }}" r="4"><title>#{{ p.narrative_id }} {{ p.title }}: {{ p.text }}</title></circle>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </svg>
+  <figcaption class="legend">
+    {% for s in plot.series %}<a class="series" href="narratives/{{ s.id }}" data-n="{{ s.id }}"><span class="key pt" data-slot="{{ s.slot }}"></span>{{ s.title|truncate(48) }}</a>{% endfor %}
+    <span><span class="key pt" data-slot="0"></span>Other noted narratives</span>
+    <span><span class="key pt candidate"></span>Cluster candidates</span>
+    <span><span class="key claim"></span>Noted passage</span>
+  </figcaption>
+  <p class="map-focus muted" aria-live="polite"></p>
+</figure>
+{% else %}
+<div class="empty"><p>No embedded blocks yet. Blocks get embeddings when the pipeline fetches the pages narratives appear on.</p></div>
+{% endif %}
+
+<section class="block">
+  <h2>Emerging groups <span class="count">{{ candidates|length }}</span></h2>
+  <p class="lede">Cluster candidates: blocks without a note that the cluster job grouped by meaning (HDBSCAN over embeddings). They never reach readers; one with a growing spread is worth a note.
+  {% if run %}Last run {{ when(run.ran_at) }} at {{ run.ran_at.strftime('%H:%M') }}: {{ run.embeddings }} of {{ run.unassigned }} unassigned blocks clustered into {{ run.clusters }} groups, {{ run.created }} new, {{ run.extended }} joined existing narratives.{% else %}The cluster job has not run yet.{% endif %}</p>
+  {% if candidates %}
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><th>Candidate</th><th class="num">Blocks</th><th class="num">Sites</th><th class="num">Pages</th><th>Grew out of</th><th>First seen</th><th>Last seen</th></tr></thead>
+    <tbody>
+    {% for c in candidates %}
+    <tr>
+      <td class="title-cell"><a href="narratives/{{ c.id }}">{{ c.title }}</a><span class="sub">#{{ c.id }}</span></td>
+      <td class="num">{{ c.members }}</td><td class="num">{{ c.sites }}</td><td class="num">{{ c.pages }}</td>
+      <td>{% if c.evolved_from %}<a href="narratives/{{ c.evolved_from }}">#{{ c.evolved_from }} {{ c.evolved_from_title|truncate(40) }}</a>{% else %}<span class="muted">new</span>{% endif %}</td>
+      <td>{{ when(c.first_seen) }}</td><td>{{ when(c.last_seen) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+  // Hovering a point or a legend entry picks out every point of that narrative.
+  (() => {
+    const map = document.getElementById("map");
+    if (!map) return;
+    const label = map.querySelector(".map-focus");
+    const focus = (id, title) => {
+      map.classList.toggle("focusing", Boolean(id));
+      for (const el of map.querySelectorAll("svg [data-n]")) el.classList.toggle("on", el.dataset.n === id);
+      label.textContent = id ? `#${id} ${title}` : "";
+    };
+    map.addEventListener("pointerover", (e) => {
+      const el = e.target.closest("[data-n]");
+      if (el) focus(el.dataset.n, (el.querySelector("title")?.textContent || el.textContent).replace(/^#\d+ /, "").split(":")[0]);
+    });
+    map.addEventListener("pointerleave", () => focus(null));
+  })();
+</script>
+{% endblock %}

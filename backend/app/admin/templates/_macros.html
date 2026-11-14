@@ -1,0 +1,28 @@
+{% macro state_badge(state) -%}
+<span class="badge" data-state="{{ state }}">{{ {'misleading': 'Misleading', 'controversial': 'Controversial', 'context': 'Context', 'needs_ratings': 'Needs ratings', 'tracked': 'Tracked'}[state] }}</span>
+{%- endmacro %}
+
+{% macro status_badge(note) -%}
+{% set state = {'helpful': ('misleading' if note.classification == 'misleading' else 'context'), 'controversial': 'controversial', 'needs_more_ratings': 'needs_ratings', 'not_helpful': 'tracked'}[note.status] %}
+<span class="badge" data-state="{{ state }}">{{ note.status.replace('_', ' ')|capitalize }}</span>
+{%- endmacro %}
+
+{% macro moderation_tag(m) -%}
+<span class="tag" data-moderation="{{ m }}">{{ {'visible': 'Visible', 'pending_review': 'Held', 'hidden': 'Hidden'}[m] }}</span>
+{%- endmacro %}
+
+{% macro when(t) -%}
+{% if t %}<time datetime="{{ t.isoformat() }}" title="{{ t.strftime('%Y-%m-%d %H:%M UTC') }}">{{ t.strftime('%d %b %Y') }}</time>{% else %}<span class="muted">never</span>{% endif %}
+{%- endmacro %}
+
+{% macro ratings(note) -%}
+<span class="ratings" title="{{ note.counted }} of {{ note.ratings }} ratings count (raters signed in)">
+  <span class="r-h">{{ note.helpful }} helpful</span> · <span>{{ note.somewhat }} somewhat</span> · <span class="r-n">{{ note.not_helpful }} not helpful</span>{% if note.ratings > note.counted %} <span class="muted">+{{ note.ratings - note.counted }} uncounted</span>{% endif %}
+</span>
+{%- endmacro %}
+
+{% macro score(note) -%}
+{% if note.intercept is not none %}<span class="mono" title="intercept, factor">i {{ '%+.2f'|format(note.intercept) }} · f {{ '%+.2f'|format(note.factor) }}</span>{% else %}<span class="muted">not scored</span>{% endif %}
+{%- endmacro %}
+
+{% macro host(url) -%}{{ url.split('/')[2] if url and '//' in url else url }}{%- endmacro %}

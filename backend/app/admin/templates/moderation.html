@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import host %}
+{% block title %}Moderation{% endblock %}
+{% block content %}
+<div class="head">
+  <h1>Moderation queue <span class="count">{{ queue|length }}</span></h1>
+  <p class="muted">Notes the model review held and notes readers reported, oldest first. Approving shows a note to readers; hiding removes it until someone reports it again.</p>
+</div>
+{% if not admin.moderator %}
+<p class="notice">You can read the queue, but only moderators approve or hide notes: accounts in MODERATOR_EMAILS, or with reputation above {{ settings.moderator_reputation }} (yours is {{ '%.2f'|format(admin.reputation) }}).</p>
+{% endif %}
+{% if queue %}
+<div class="queue">
+{% for note in queue %}
+  <div class="queue-item">
+    <div class="passage">
+      <p class="passage-label">On <a href="narratives/{{ note.narrative_id }}">#{{ note.narrative_id }}</a>{% if note.url %} · <a href="{{ note.url }}" target="_blank" rel="noopener noreferrer">{{ host(note.url) }}</a>{% endif %}</p>
+      <blockquote>{{ note.passage }}</blockquote>
+    </div>
+    {% include "_note.html" %}
+  </div>
+{% endfor %}
+</div>
+{% else %}
+<div class="empty"><p>Nothing to review. Held and reported notes appear here.</p></div>
+{% endif %}
+{% endblock %}
