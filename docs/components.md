@@ -118,6 +118,7 @@ The fetch job fetches a URL anonymously, which also confirms it is public, then 
 - API: index deltas, reports and detection hits.
 - Worker: fetch job, variant matcher, narrative clusterer, analysis job and signature builder.
 - Seed importer: reads EUvsDisinfo cases into narratives with verdicts and explanations, and enqueues fetch jobs for the outlet URLs each case links to.
+- Case list importer: collects the titles of recent EUvsDisinfo cases from the euvsdisinfo.eu case list and imports each as an active narrative whose claim is its title, with no articles to fetch.
 - Dashboard: a Streamlit app in `dashboard/app.py` that reads Postgres directly and shows the narrative graph, lineage tree and spread over time.
 - Simulation: synthetic honest, lazy, partisan and coordinated users sending reports and hits through the API, plus the evaluation of precision and false-positive rate.
 - Database: schema migrations as plain SQL files.

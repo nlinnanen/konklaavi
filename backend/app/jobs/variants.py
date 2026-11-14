@@ -124,9 +124,10 @@ def update_centroids(conn: Connection, narrative_ids: set[int]) -> None:
 
 
 def narrative_text(conn: Connection, narrative_id: int) -> str | None:
-    """The narrative's title and claim, or None when there is no such narrative."""
+    """The narrative's title and claim, the title once when the claim repeats it, or None when there is no
+    such narrative."""
     row = conn.execute("SELECT title, claim FROM narrative WHERE id = %s", (narrative_id,)).fetchone()
-    return None if row is None else "\n".join(part for part in row if part)
+    return None if row is None else "\n".join(dict.fromkeys(part for part in row if part))
 
 
 def central_blocks(conn: Connection, narrative_ids: list[int]) -> dict[int, set[int]]:
