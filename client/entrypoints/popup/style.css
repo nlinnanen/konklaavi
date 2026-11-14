@@ -1,0 +1,54 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #111827;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --card: #f9fafb;
+  --misinformation: #dc2626;
+  --manipulative: #9333ea;
+  --misleading: #d97706;
+  --trustworthy: #16a34a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111827;
+    --fg: #f9fafb;
+    --muted: #9ca3af;
+    --border: #374151;
+    --card: #1f2937;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; width: 340px; padding: 14px; background: var(--bg); color: var(--fg);
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+h1 { font-size: 16px; margin: 0; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 6px; }
+section { margin-bottom: 14px; }
+.muted { color: var(--muted); }
+p { margin: 0 0 6px; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.stat { display: flex; gap: 16px; margin-bottom: 8px; }
+.stat b { display: block; font-size: 18px; }
+ul.flagged { list-style: none; margin: 0; padding: 0; max-height: 180px; overflow: auto; }
+ul.flagged li { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; }
+.chip { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #fff; padding: 1px 6px; border-radius: 4px; margin-right: 6px; }
+.chip.misinformation { background: var(--misinformation); }
+.chip.manipulative { background: var(--manipulative); }
+.chip.misleading { background: var(--misleading); }
+.chip.trustworthy { background: var(--trustworthy); }
+.bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--border); margin: 4px 0 6px; }
+.bar span { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: var(--muted); }
+details { border-top: 1px solid var(--border); padding-top: 10px; }
+summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
+form label { display: block; margin: 4px 0; }
+fieldset { border: 1px solid var(--border); border-radius: 8px; margin: 0 0 8px; padding: 6px 10px 10px; }
+legend { color: var(--muted); font-size: 12px; }
+input[type="url"] { width: 100%; margin-top: 4px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.row { display: flex; gap: 8px; margin-top: 10px; }
+button { flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer; font: inherit; }
+button.danger { color: var(--misinformation); }

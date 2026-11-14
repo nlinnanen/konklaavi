@@ -1,0 +1,25 @@
+# Dev environment for the extension; nothing to install on the host besides Docker.
+#   docker compose up                  -> dev server with hot reload
+#   docker compose run --rm dev npm test
+#   docker compose run --rm dev npm run build
+# Then load dist/chrome-mv3-dev (dev) or dist/chrome-mv3 (build) in chrome://extensions.
+services:
+  dev:
+    image: node:22-bookworm-slim
+    working_dir: /app
+    # Install deps into the volume on every start (fast no-op when up to date), then run the command.
+    entrypoint: ["sh", "-c", "npm install --no-audit --no-fund --loglevel=error && exec \"$$@\"", "--"]
+    command: ["npm", "run", "dev"]
+    environment:
+      WXT_DOCKER: "1"
+      NPM_CONFIG_UPDATE_NOTIFIER: "false"
+    ports:
+      - "3000:3000" # dev server: hot reload for the extension loaded in your host browser
+    volumes:
+      - .:/app
+      # Linux node_modules stay inside Docker, separate from any host node_modules.
+      - node_modules:/app/node_modules
+    init: true
+
+volumes:
+  node_modules:

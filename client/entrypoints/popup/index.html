@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trust Verifier</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Trust Verifier</h1>
+      <span id="mode-badge" class="badge"></span>
+    </header>
+
+    <section>
+      <h2>This page</h2>
+      <div id="page"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section>
+      <h2>Domain <span id="domain-name" class="muted"></span></h2>
+      <div id="domain"><p class="muted">Loading…</p></div>
+    </section>
+
+    <details>
+      <summary>Settings</summary>
+      <form id="settings">
+        <fieldset>
+          <legend>Backend</legend>
+          <label><input type="radio" name="backendMode" value="mock" /> Mock (stored locally)</label>
+          <label><input type="radio" name="backendMode" value="remote" /> Remote</label>
+          <input type="url" name="backendUrl" placeholder="http://localhost:8000" />
+        </fieldset>
+        <label><input type="checkbox" name="sendExcerpt" /> Send selected text with votes</label>
+        <label><input type="checkbox" name="highlight" /> Highlight flagged content</label>
+        <div class="row">
+          <button type="button" id="rescan">Rescan page</button>
+          <button type="button" id="clear-mock" class="danger">Clear mock data</button>
+        </div>
+      </form>
+    </details>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
