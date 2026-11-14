@@ -424,6 +424,7 @@ export class OverlayUi {
       input.type = 'radio';
       input.name = 'classification';
       input.value = value;
+      input.checked = value === 'misleading';
       const label = el('label', 'choice', input, el('b', undefined, title), el('span', undefined, hint));
       label.dataset.state = value === 'misleading' ? 'misleading' : 'context';
       choices.append(label);
