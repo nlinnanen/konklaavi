@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.seed.euvsdisinfo import import_cases, is_test_case, load_cases
+from app.seed.euvsdisinfo import import_cases, is_test_case, load_cases, split_urls
 
 FIXTURE = Path(__file__).parent / "fixtures" / "euvsdisinfo.jsonl"
 
@@ -16,7 +16,7 @@ def test_seed_cases_become_narratives_with_fetch_jobs(conn):
     cases = load_cases(FIXTURE)
     seed = [c for c in cases if not is_test_case(c["id"])]
     test = [c for c in cases if is_test_case(c["id"])]
-    assert seed and test
+    assert seed and test and any(split_urls(c)[1] for c in seed)
 
     import_cases(conn, cases)
 
@@ -40,7 +40,7 @@ def test_seed_cases_become_narratives_with_fetch_jobs(conn):
     jobs = conn.execute("SELECT kind, payload FROM job").fetchall()
     assert all(kind == "fetch" for kind, _ in jobs)
     assert sorted((p["url"], p["narrative_id"]) for _, p in jobs) == sorted(
-        (url, narratives[c["url"]][0]) for c in seed for url in c["article_urls"]
+        (url, narratives[c["url"]][0]) for c in seed for url in split_urls(c)[0]
     )
     assert {p["reason"] for _, p in jobs} == {"seed"}
     eval_rows = conn.execute("SELECT case_id, article_urls FROM eval_case").fetchall()
@@ -65,3 +65,18 @@ def test_reimport_changes_nothing(conn):
     assert counts(conn) == before
     assert (second.narratives, second.fetch_jobs, second.eval_cases) == (0, 0, 0)
     assert (first.narratives, first.fetch_jobs, first.eval_cases) == before
+
+
+def test_a_case_with_one_url_holds_nothing_out():
+    assert split_urls({"article_urls": ["https://a/1"]}) == (["https://a/1"], [])
+
+
+def test_a_third_of_the_urls_rounded_up_is_held_out_whatever_their_order():
+    urls = [f"https://a/{i}" for i in range(4)]
+
+    seed, held_out = split_urls({"article_urls": urls})
+    _, held_out_reversed = split_urls({"article_urls": urls[::-1]})
+
+    assert len(held_out) == 2
+    assert sorted(seed + held_out) == urls
+    assert sorted(held_out_reversed) == sorted(held_out)

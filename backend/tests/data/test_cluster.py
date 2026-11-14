@@ -23,7 +23,9 @@ def group(center, first_axis, size=4, spread=0.05):
     return [center] + [center + spread * direction(first_axis + k) for k in range(size - 1)]
 
 
-def add_fingerprint(conn, embedding, content="Text. More.", variant_id=None):
+def add_fingerprint(
+    conn, embedding, content="Text of a block long enough to carry a claim.", variant_id=None
+):
     return conn.execute(
         "INSERT INTO fingerprint (content_hash, content, embedding, variant_id)"
         " VALUES (gen_random_uuid()::text, %s, %s::real[]::vector, %s) RETURNING id",
@@ -32,8 +34,11 @@ def add_fingerprint(conn, embedding, content="Text. More.", variant_id=None):
 
 
 def add_group(conn, points, title):
-    ids = [add_fingerprint(conn, p, f"Member {i} of {title}. Rest.") for i, p in enumerate(points[1:])]
-    return [add_fingerprint(conn, points[0], f"{title}. Second sentence.")] + ids
+    ids = [
+        add_fingerprint(conn, p, f"Member {i} of {title}. The rest of the block is long enough.")
+        for i, p in enumerate(points[1:])
+    ]
+    return [add_fingerprint(conn, points[0], f"{title}. Second sentence of the block, long enough.")] + ids
 
 
 def add_narrative(conn, embeddings):
@@ -86,6 +91,17 @@ def test_cluster_near_a_narrative_joins_it_as_a_new_variant(conn):
     assert conn.execute("SELECT count(*) FROM narrative WHERE source = 'cluster'").fetchone()[0] == 1
 
 
+def test_loose_cluster_centred_near_a_narrative_stays_apart_from_it(conn):
+    known = add_narrative(conn, [direction(0), direction(0) + 0.05 * direction(200)])
+    loose = add_group(conn, group(direction(0), 100, size=6, spread=1.0), "Loose news")
+    add_group(conn, group(direction(1), 110), "Beta claim")
+
+    handle(conn, {})
+
+    assert known not in narrative_of(conn, loose)
+    assert conn.execute("SELECT count(*) FROM variant WHERE narrative_id = %s", (known,)).fetchone()[0] == 1
+
+
 def test_cluster_resembling_an_earlier_one_evolves_from_it(conn):
     add_group(conn, group(direction(0), 100), "Alpha claim")
     add_group(conn, group(direction(1), 110), "Beta claim")
@@ -127,6 +143,21 @@ def test_boilerplate_is_not_clustered(conn):
         "Beta claim.",
         "Gamma claim.",
     ]
+
+
+def test_short_and_numeric_blocks_are_not_clustered(conn):
+    short = [add_fingerprint(conn, p, "Read more on our site.") for p in group(direction(0), 100)]
+    dates = [
+        add_fingerprint(conn, p, "Updated 14.11.2026 12:30, 15.11.2026 09:00, 16.11.2026 10:15 and 2026")
+        for p in group(direction(1), 110)
+    ]
+    add_group(conn, group(direction(2), 120), "Gamma claim")
+    add_group(conn, group(direction(3), 130), "Delta claim")
+
+    handle(conn, {})
+
+    assert narrative_of(conn, short + dates) == {None}
+    assert conn.execute("SELECT count(*) FROM narrative").fetchone()[0] == 2
 
 
 def test_run_clusters_at_most_the_cap_and_records_it(conn, monkeypatch):

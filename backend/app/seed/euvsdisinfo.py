@@ -1,5 +1,7 @@
 """Import EUvsDisinfo cases: seed cases become active narratives, test cases go to eval_case.
 
+A seed case with two or more article URLs holds a third of them out of the import, for the evaluation.
+
 python -m app.seed.euvsdisinfo [--limit N] [--file PATH]
 """
 
@@ -37,6 +39,19 @@ def is_test_case(case_id: str) -> bool:
     return int.from_bytes(digest[:8]) % 100 < TEST_PERCENT
 
 
+def split_urls(case: dict) -> tuple[list[str], list[str]]:
+    """(seed URLs, held-out URLs) of a seed case, in file order.
+
+    A case with two or more URLs holds out a third of them, rounded up, chosen by a hash of each URL alone.
+    """
+    urls = list(dict.fromkeys(case["article_urls"]))
+    if len(urls) < 2:
+        return urls, []
+    ranked = sorted(urls, key=lambda url: hashlib.sha256(url.encode()).digest())
+    held_out = set(ranked[: -(-len(urls) // 3)])
+    return [u for u in urls if u not in held_out], [u for u in urls if u in held_out]
+
+
 @dataclass(frozen=True)
 class ImportResult:
     narratives: int
@@ -45,7 +60,8 @@ class ImportResult:
 
 
 def import_cases(conn: Connection, cases: list[dict]) -> ImportResult:
-    """Create a narrative and its fetch jobs per new seed case and an eval_case row per new test case."""
+    """Create a narrative and fetch jobs for its seed URLs per new seed case, and an eval_case row per new
+    test case."""
     conn.execute("SELECT pg_advisory_xact_lock(%s)", (_LOCK_KEY,))
     narratives = fetch_jobs = eval_cases = 0
     for case in cases:
@@ -56,7 +72,7 @@ def import_cases(conn: Connection, cases: list[dict]) -> ImportResult:
         if narrative_id is None:
             continue
         narratives += 1
-        for url in case["article_urls"]:
+        for url in split_urls(case)[0]:
             enqueue(conn, "fetch", {"url": url, "reason": "seed", "narrative_id": narrative_id})
             fetch_jobs += 1
     return ImportResult(narratives, fetch_jobs, eval_cases)
