@@ -1,43 +1,38 @@
-# junction26 — Crowdsourced Content Trust Verifier
+# junction26 — Content Trust Layer
 
 > Context document for humans and LLMs working on this repo. Keep it up to date as decisions are made.
 
-## What we're building
+Network-level security such as WAFs stops bad requests, but it cannot see bad content that arrives through valid, encrypted requests. This project adds the layer inside the browser: an extension that recognises known propaganda narratives as the user reads, and a backend that tracks how those narratives spread and mutate across the web. It works like antimalware for narratives. The backend keeps an index of known narrative signatures, the extension fingerprints page content and matches it locally against that index, and user reports feed new narratives into the index.
 
-A crowdsourced system for flagging misinformation and manipulative content on the web.
+Built for Junction 2026, on the "Trust the source" challenge direction.
 
-1. **Users vote on content** — A browser extension lets users select content on any website (text, claims, images, etc.) and give a verdict such as *misinformation*, *manipulative*, *misleading*, or *trustworthy*.
-2. **Content is fingerprinted** — The extension hashes and/or embeds the selected content so the same (or near-identical) content can be recognized again, even when it appears on other pages or domains.
-3. **Verdicts are aggregated** — The fingerprint, verdict and metadata (URL, domain, timestamp) are sent to the backend, which stores the votes and combines them into a trust signal per piece of content.
-4. **Content is flagged in place** — When a user visits a page, the extension checks its content against the backend and highlights anything the crowd has flagged.
-5. **Sources are traced** — Aggregated data shows which domains and sources originate or spread flagged content.
+## Documentation
+
+- [North star](docs/north-star.md): what we are building and why.
+- [Architecture](docs/architecture.md): components, page scanning, reporting and the signature lifecycle.
+- [Data model](docs/data-model.md): fingerprint levels, the narrative graph and the storage schema.
+- [Technical decisions](docs/decisions.md): fingerprinting, client-side matching, storage and the stack.
 
 ## Repository layout
 
-| Folder        | Purpose |
-|---------------|---------|
-| `client/`     | Browser extension: content selection, voting UI, hashing/embedding, on-page flagging. |
-| `backend/`    | API and storage: receives votes, stores fingerprints and verdicts, aggregates trust scores, serves lookups, does domain-level analysis. |
-| `simulation/` | Simulation and testing of the system, e.g. synthetic users, votes and content to test aggregation and resistance to manipulation. *(TBD)* |
+- `client/`: browser extension that chunks, fingerprints and matches page content, highlights matches and sends reports.
+- `backend/`: API, crawler, analysis and graph workers, and the Postgres database.
+- `simulation/`: synthetic users, reports and content for measuring precision, false-positive rate and resistance to brigading.
 
 ## Key concepts
 
-- **Fingerprint**: How a piece of content is identified across pages.
-  - *Exact hashes* (e.g. SHA-256 of normalized text) catch identical copies.
-  - *Embeddings / fuzzy hashes* catch paraphrased or slightly edited copies.
-  - Which approach (or mix) to use is still open.
-- **Verdict**: A user's label for a piece of content (misinformation, manipulative, etc.).
-- **Trust score**: The aggregated result of many verdicts on one fingerprint.
-- **Source attribution**: Linking flagged content to the domains where it appears, and especially where it first appeared.
+- Fingerprint: how a chunk of content is identified. SHA-256 catches exact copies, MinHash over shingles catches edited copies and an embedding catches paraphrases.
+- Variant: a group of fingerprints that are edited copies of each other.
+- Narrative: a group of variants that make the same claim.
+- Signature: the shipped form of a narrative, with its verdict, techniques, explanation and match data.
+- Report: a user's explicit submission of content they find manipulative. It is the only path through which text a user reads reaches the backend.
 
-## Open questions / design considerations
+## Open questions
 
-- Hashing vs. embedding (or both) for content matching. How to normalize content before hashing.
-- Vote aggregation that resists brigading and Sybil attacks (reputation, rate limits, weighting).
-- Privacy: what user and browsing data is sent to the backend, and how to minimize it.
-- Lookup performance: how the extension checks a page's content without sending the whole page.
-- Tech stack for the extension, backend and storage (e.g. a vector DB for embeddings): not yet decided.
+- Which threshold of reports and LLM verdicts promotes a candidate narrative to an active signature.
+- Which multilingual embedding model fits the extension's size and speed budget.
+- Which heuristic classifier, if any, runs in the browser for content that matches no signature.
 
 ## Status
 
-Early stage. The project is being built for Junction 2026. The folders exist, but the implementation hasn't started yet.
+The design is documented. Implementation has not started.
