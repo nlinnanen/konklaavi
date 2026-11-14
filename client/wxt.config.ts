@@ -21,6 +21,14 @@ export default defineConfig({
     host_permissions: ['https://huggingface.co/*', 'https://*.hf.co/*'],
     // The ONNX runtime compiles WebAssembly.
     content_security_policy: { extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';" },
+    // Cross-origin isolation gives the offscreen document SharedArrayBuffer, which the ONNX runtime's WASM threads need.
+    // Extension pages load only their own files and fetch the hub in CORS mode, which isolation allows.
+    ...(browser === 'firefox'
+      ? {}
+      : {
+          cross_origin_embedder_policy: { value: 'require-corp' },
+          cross_origin_opener_policy: { value: 'same-origin' },
+        }),
     // Firefox keys an add-on's storage on its id; the highlights need the CSS Custom Highlight API of Firefox 140.
     browser_specific_settings: { gecko: { id: 'hashtrust@junction26', strict_min_version: '140.0' } },
   }),

@@ -140,5 +140,5 @@ legend { padding: 0; margin-bottom: 6px; font-size: 12px; font-weight: 650; colo
 .option span { font-size: 12px; color: var(--ink-2); }
 .toggle { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
 .toggle input { accent-color: var(--action); }
-.buttons { display: flex; gap: 8px; margin-top: 12px; }
+.buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 #clear-confirm { margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
