@@ -134,7 +134,7 @@ async def rendered(url: str, fresh: bool = False) -> tuple[render.Rendered, str]
     if hit and not fresh and time.monotonic() - hit[0] < CACHE_SECONDS:
         return hit[1], f"rendered {int((time.monotonic() - hit[0]) // 60)} min ago"
     async with RENDERS:
-        result = await render.render(url)
+        result = await render.render(url, hop_reason)
     if result.status < 400:
         _cache.pop(url, None)
         _cache[url] = (time.monotonic(), result)
@@ -194,6 +194,17 @@ def private_reason(url: str) -> str | None:
     for address in addresses:
         if not ipaddress.ip_address(address.split("%")[0]).is_global:
             return f"{parsed.hostname} is not a public address."
+    return None
+
+
+def hop_reason(url: str) -> str | None:
+    """Why the proxy won't open a page it is redirected or navigated to: the same rules as for a typed
+    URL, so an allowlisted site's open redirect can't lead it elsewhere."""
+    normalized = normalize_url(url)
+    if normalized is None:
+        return f"The page redirected to an address this demo can't open: {url[:200]}"
+    if reason := private_reason(normalized):
+        return f"The page redirected to {urlparse(normalized).hostname}, which this demo doesn't open. {reason}"
     return None
 
 
@@ -350,14 +361,21 @@ def view(url: str, test: bool = False, fresh: bool = False):
 
 
 def fetch(url: str) -> render.Rendered | HTMLResponse:
-    """The page as served, without running its JavaScript, and its main text."""
+    """The page as served, without running its JavaScript, and its main text. Redirects are followed
+    one at a time, each checked by hop_reason before it is requested."""
     try:
-        response = httpx.get(
-            url,
-            follow_redirects=True,
-            timeout=20,
-            headers={"user-agent": UA, "accept-language": "en,fi;q=0.8"},
-        )
+        with httpx.Client(timeout=20, headers={"user-agent": UA, "accept-language": "en,fi;q=0.8"}) as client:
+            response = client.get(url)
+            for _ in range(render.MAX_REDIRECTS):
+                if not response.has_redirect_location:
+                    break
+                target = urljoin(str(response.url), response.headers["location"])
+                if reason := hop_reason(target):
+                    return error(url, reason, 400)
+                response = client.get(target)
+            else:
+                if response.has_redirect_location:
+                    return error(url, f"More than {render.MAX_REDIRECTS} redirects.")
     except httpx.HTTPError as e:
         return error(url, f"Fetch failed: {e}")
     if response.status_code >= 400:
@@ -387,6 +405,9 @@ async def frame_page(request: Request, url: str, test: bool, fresh: bool):
     if RENDER:
         try:
             result, mode = await rendered(url, fresh)
+        except render.Refused as e:
+            # Not a browser failure: the plain fetch would be refused the same way.
+            return error(url, e.reason, 400)
         except Exception as e:  # noqa: BLE001 - any browser failure falls back to the plain fetch
             print(f"render failed for {url}: {e!r}; falling back to a plain fetch", flush=True)
     if result is None or result.status >= 400:
