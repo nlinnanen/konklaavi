@@ -18,7 +18,7 @@
     - "{{ app_dir }}"
     - "{{ app_dir }}/deploy"
 
-- name: Install the compose files and Caddyfile
+- name: Install the compose files
   ansible.builtin.copy:
     src: "{{ app_repo_root }}/{{ item }}"
     dest: "{{ app_dir }}/{{ item }}"
@@ -28,8 +28,20 @@
   loop:
     - compose.yaml
     - deploy/compose.prod.yaml
-    - deploy/Caddyfile
   notify: Apply the app configuration
+
+# Caddy reads its Caddyfile only at start, and a container keeps seeing the file it mounted until it
+# restarts, so a changed Caddyfile restarts Caddy.
+- name: Install the Caddyfile
+  ansible.builtin.copy:
+    src: "{{ app_repo_root }}/deploy/Caddyfile"
+    dest: "{{ app_dir }}/deploy/Caddyfile"
+    owner: root
+    group: root
+    mode: "0640"
+  notify:
+    - Apply the app configuration
+    - Restart Caddy
 
 # The release script records the running release in .env; rendering .env again keeps it.
 - name: Read the current release
