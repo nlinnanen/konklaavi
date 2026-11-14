@@ -2,31 +2,45 @@
 (() => {
   const cfg = JSON.parse(document.getElementById('hashtrust-data').textContent);
 
-  // Same tiers and colours as client/lib/tier.ts.
-  const TIER_STYLE = {
-    confirmed: 'background:#dc2626!important;color:#fff!important;',
-    likely: 'background:rgba(249,115,22,.3)!important;',
-    reported: 'background:rgba(168,85,247,.15)!important;',
-    related: 'background:none!important;text-decoration:underline dotted rgba(234,179,8,.9)!important;text-decoration-thickness:2px!important;',
-    disputed: 'background:rgba(156,163,175,.25)!important;',
+  // Same states, labels and highlight styles as client/lib/state.ts.
+  const STATE_LABEL = { misleading: 'Misleading', context: 'Context added', controversial: 'Raters disagree', needs_ratings: 'Needs ratings', tracked: 'Tracked' };
+  const STATE_COLOR = { misleading: 'oklch(0.7 0.19 35)', context: 'oklch(0.74 0.11 205)', controversial: 'oklch(0.72 0.015 260)', needs_ratings: 'oklch(0.82 0.11 85)', tracked: 'oklch(0.7 0.03 260)' };
+  const STYLE = {
+    misleading: 'background-color:oklch(0.68 0.19 35 / 0.36);text-decoration:underline solid oklch(0.6 0.2 32);text-decoration-thickness:2px;',
+    'misleading-weak': 'background-color:oklch(0.68 0.19 35 / 0.14);text-decoration:underline dotted oklch(0.6 0.2 32 / 0.8);text-decoration-thickness:2px;',
+    context: 'background-color:oklch(0.74 0.1 200 / 0.24);text-decoration:underline solid oklch(0.6 0.11 205);text-decoration-thickness:2px;',
+    'context-weak': 'background-color:oklch(0.74 0.1 200 / 0.1);text-decoration:underline dotted oklch(0.6 0.11 205 / 0.8);text-decoration-thickness:2px;',
+    controversial: 'background-color:oklch(0.6 0.015 260 / 0.26);',
+    'controversial-weak': 'background-color:oklch(0.6 0.015 260 / 0.12);',
+    needs_ratings: 'background-color:oklch(0.82 0.09 85 / 0.2);',
+    'needs_ratings-weak': 'background-color:oklch(0.82 0.09 85 / 0.1);',
+    tracked: 'background:none;text-decoration:underline dotted oklch(0.58 0.03 260 / 0.75);text-decoration-thickness:1.5px;',
+    'tracked-weak': 'background:none;text-decoration:underline dotted oklch(0.58 0.03 260 / 0.4);text-decoration-thickness:1px;',
   };
-  const TIER_LABEL = { confirmed: 'Confirmed', likely: 'Likely', reported: 'Reported', related: 'Related', disputed: 'Disputed' };
-  const TIER_COLOR = { confirmed: '#dc2626', likely: '#f97316', reported: '#a855f7', related: '#eab308', disputed: '#9ca3af' };
+  const important = (css) => css.replace(/;/g, '!important;');
+  const isWeak = (level) => level === 'narrative' || level === 'related';
+  const styleOf = (result) => (isWeak(result.matchLevel) ? `${result.narrative.state}-weak` : result.narrative.state);
 
-  function tierOf(result) {
-    const s = result.signature;
-    if (!s) return result.flagged ? 'reported' : null;
-    if (s.state === 'disputed') return 'disputed';
-    if (s.state === 'under_review') return s.source === 'report' || result.flagged ? 'reported' : null;
-    if (s.matchLevel === 'related') return 'related';
-    if (s.matchLevel === 'narrative') return 'likely';
-    return s.settled ? 'confirmed' : 'likely';
+  /** The helpful note a misleading or context narrative is shown with, else its first visible note. */
+  function leadNote(n) {
+    const wanted = { misleading: 'misleading', context: 'not_misleading' }[n.state];
+    return n.notes.find((x) => x.status === 'helpful' && x.classification === wanted) || n.notes[0];
+  }
+  function spreadLine(spread) {
+    if (!spread) return '';
+    const sites = `${spread.sites} site${spread.sites === 1 ? '' : 's'}`;
+    if (!spread.firstSeen) return `Tracked on ${sites}`;
+    return `Seen on ${sites} since ${new Date(spread.firstSeen).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  }
+  function levelLine(result) {
+    const sim = result.similarity != null ? ` (${Math.round(result.similarity * 100)}% similar)` : '';
+    return `${result.matchLevel} match${sim}`;
   }
 
   const style = document.createElement('style');
   style.textContent =
     'mark.ht-mark{color:inherit;cursor:help;border-radius:2px;padding:0 1px;}' +
-    Object.entries(TIER_STYLE).map(([t, css]) => `mark.ht-${t}{${css}}`).join('') +
+    Object.entries(STYLE).map(([k, css]) => `mark.ht-${k}{${important(css)}}`).join('') +
     'mark.ht-flash{outline:3px solid #2563eb!important;outline-offset:2px;}';
   document.head.append(style);
 
@@ -124,7 +138,7 @@
   const norm = (s) => s.replace(/\s+/g, ' ').trim();
   const fold = (s) => s.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-');
 
-  function wrap(idx, start, end, tier, id) {
+  function wrap(idx, start, end, style, id) {
     const range = document.createRange();
     const [sn, so] = idx.map[start];
     const [en, eo] = idx.map[end - 1];
@@ -143,7 +157,7 @@
       if (e < node.nodeValue.length) node.splitText(e);
       if (s > 0) node = node.splitText(s);
       const mark = document.createElement('mark');
-      mark.className = `ht-mark ht-${tier}`;
+      mark.className = `ht-mark ht-${style}`;
       mark.dataset.ht = id;
       node.parentNode.insertBefore(mark, node);
       mark.append(node);
@@ -179,17 +193,17 @@
       if (cfg.test) matches = matches.concat(testMatches());
       const seen = new Set();
       for (const m of matches) {
-        const tier = tierOf(m.result);
-        if (!tier || seen.has(m.text)) continue;
+        if (!m.result?.narrative || seen.has(m.text)) continue;
+        const state = m.result.narrative.state;
         seen.add(m.text);
         const id = String(items.length);
         const hit = locate(m.text);
-        const marks = hit ? wrap(hit.idx, hit.start, hit.end, tier, id) : [];
-        items.push({ id, tier, text: m.text, sig: m.result.signature, result: m.result, marks });
+        const marks = hit ? wrap(hit.idx, hit.start, hit.end, styleOf(m.result), id) : [];
+        items.push({ id, state, text: m.text, narrative: m.result.narrative, result: m.result, marks });
       }
       const secs = ((performance.now() - t0) / 1000).toFixed(1);
       const shown = items.filter((i) => i.marks.length).length;
-      statusEl.innerHTML = `<b>${cfg.blocks.length}</b> blocks checked in ${secs}s · <b>${items.length}</b> flagged` +
+      statusEl.innerHTML = `<b>${cfg.blocks.length}</b> blocks checked in ${secs}s · <b>${items.length}</b> matched` +
         (items.length !== shown ? ` (${items.length - shown} not located in page)` : '');
       render();
     })
@@ -202,22 +216,35 @@
     let sentences = cfg.blocks.flatMap((b) => b.split(/(?<=[.!?])\s+/)).map((s) => s.trim()).filter((s) => s.length > 60);
     if (sentences.length < 3) sentences.push(...cfg.blocks.filter((b) => b.length > 30));
     const pick = [sentences[1], sentences[Math.floor(sentences.length / 2)], sentences[sentences.length - 2]].filter(Boolean);
-    const levels = [['exact', true], ['narrative', false], ['related', false]];
-    return pick.map((text, i) => ({
-      text,
-      result: { flagged: true, total: 0, signature: { title: 'TEST highlight (not a real match)', verdict: 'misleading', matchLevel: levels[i][0], settled: levels[i][1], state: 'active', source: 'test', explanation: 'Injected by test mode to check that highlighting works on this site.', techniques: [] } },
-    }));
+    const cases = [['exact', 'misleading', 'misleading'], ['narrative', 'context', 'not_misleading'], ['related', 'needs_ratings', 'misleading']];
+    return pick.map((text, i) => {
+      const [matchLevel, state, classification] = cases[i];
+      return {
+        text,
+        result: {
+          matchLevel,
+          similarity: matchLevel === 'exact' ? undefined : 0.86 - i * 0.05,
+          narrative: {
+            narrativeId: `test-${i}`,
+            title: 'TEST highlight (not a real match)',
+            state,
+            notes: [{ id: `t${i}`, classification, body: 'Injected by test mode to check that highlighting works on this site.', sources: [], status: state === 'needs_ratings' ? 'needs_more_ratings' : 'helpful', ratings: { helpful: 0, somewhat: 0, not_helpful: 0 }, createdAt: new Date().toISOString() }],
+            spread: { sites: 0, firstSeen: '' },
+          },
+        },
+      };
+    });
   }
 
   function render() {
     if (!items.length) {
-      listEl.innerHTML = '<div class="empty">Nothing on this page matches a known narrative.</div>';
+      listEl.innerHTML = '<div class="empty">Nothing on this page matches a tracked narrative.</div>';
       return;
     }
     listEl.innerHTML = items
-      .map((i) => `<div class="item" data-id="${i.id}" style="border-color:${TIER_COLOR[i.tier]}">
-        <div class="tier" style="color:${TIER_COLOR[i.tier]}">${TIER_LABEL[i.tier]}${i.sig ? ' · ' + esc(i.sig.verdict) : ''}</div>
-        <div class="title">${esc(i.sig?.title || 'Reported by users')}</div>
+      .map((i) => `<div class="item" data-id="${i.id}" style="border-color:${STATE_COLOR[i.state]}">
+        <div class="tier" style="color:${STATE_COLOR[i.state]}">${STATE_LABEL[i.state] || esc(i.state)} · ${esc(levelLine(i.result))}</div>
+        <div class="title">${esc(i.narrative.title)}</div>
         <div class="quote">“${esc(i.text.length > 180 ? i.text.slice(0, 180) + '…' : i.text)}”</div>
         ${i.marks.length ? '' : '<div class="miss">Not located in the rendered page</div>'}
       </div>`)
@@ -238,12 +265,14 @@
     const mark = e.target.closest?.('mark.ht-mark');
     if (!mark) return (tip.style.display = 'none');
     const item = items[+mark.dataset.ht];
-    const s = item.sig;
-    tip.innerHTML = `<div class="tier" style="color:${TIER_COLOR[item.tier]}">${TIER_LABEL[item.tier]}${s ? ' · ' + esc(s.verdict) + ' · ' + esc(s.matchLevel) + ' match' : ''}</div>
-      <div class="title">${esc(s?.title || 'Reported by users')}</div>
-      ${s?.explanation ? `<p>${esc(s.explanation.length > 400 ? s.explanation.slice(0, 400) + '…' : s.explanation)}</p>` : ''}
-      ${s?.techniques?.length ? `<p>Techniques: ${s.techniques.map(esc).join(', ')}</p>` : ''}
-      <div class="src">${s ? 'Source: ' + esc(s.source) : `${item.result.total} user votes`}</div>`;
+    const n = item.narrative;
+    const note = leadNote(n);
+    const clip = (t, max) => (t.length > max ? t.slice(0, max) + '…' : t);
+    tip.innerHTML = `<div class="tier" style="color:${STATE_COLOR[item.state]}">${STATE_LABEL[item.state] || esc(item.state)} · ${esc(levelLine(item.result))}</div>
+      <div class="title">${esc(n.title)}</div>
+      ${note ? `<p>${note.classification === 'misleading' ? 'Note: misleading. ' : 'Note: '}${esc(clip(note.body, 400))}</p>` : '<p>No notes yet.</p>'}
+      ${note?.sources?.length ? `<p>Sources: ${note.sources.map((u) => esc(clip(u, 60))).join(', ')}</p>` : ''}
+      <div class="src">${esc(spreadLine(n.spread))}${n.notes.length > 1 ? ` · ${n.notes.length} notes` : ''}</div>`;
     const r = mark.getBoundingClientRect();
     tip.style.display = 'block';
     const left = Math.min(r.left, window.innerWidth - 370);
