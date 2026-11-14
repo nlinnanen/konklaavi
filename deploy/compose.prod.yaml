@@ -60,7 +60,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-    networks: [default, proxy-view]
+    networks:
+      default:
+      # On the proxy view's network Caddy answers to DOMAIN itself, so the proxy view reaches the API at
+      # https://DOMAIN/api through Caddy; the host's public address is not reachable from a container.
+      proxy-view:
+        aliases: ["${DOMAIN:?set DOMAIN in .env}"]
     depends_on:
       - api
       - dashboard
