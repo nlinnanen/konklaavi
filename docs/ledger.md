@@ -101,6 +101,11 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - integrator: `LookupBlock` is defined in `client/lib/types.ts`; `client/lib/api.ts` re-exports it.
 - integrator: evaluation fetches carry reason `eval`.
 - integrator: in compose, the dashboard reaches the API at `http://api:8000` and reads eval results from `backend/app/eval/results`, mounted read-only.
+- integrator: The main evaluation splits each EUvsDisinfo case's article URLs into seed and held-out URLs, because the system detects copies and variants of known narratives; held-out whole cases are reported separately as unseen narratives.
+- integrator: Votes are weighted by user reputation and discounted in coordinated bursts, and the simulation compares raw and weighted votes.
+- integrator: Testing is the minimum necessary: tests only for logic that would fail silently or that the demo depends on, and agents run only the test file they touch while iterating, with one full run before a commit.
+- integrator: Workstreams start in parallel against contracts and mocks; nothing waits on another workstream's branch. Stacks start with `docker compose up --wait` instead of polling loops.
+- integrator: No build or merge step runs a full-scale import or evaluation. Full-scale runs happen only as separate background jobs that nothing waits on, and their results are read when they finish.
 
 ## Deferred
 
