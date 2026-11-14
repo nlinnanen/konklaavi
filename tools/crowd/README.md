@@ -42,7 +42,7 @@ uv run python -m crowd remove --config crowd.yaml --api https://konklaavi.tech/a
 
 ## What to check in the admin panel
 
-At https://konklaavi.tech/api/admin:
+At https://konklaavi.tech/admin:
 
 - Moderation: notes the moderation model held back, which should be few, since even the bad personas write civilly.
 - Notes: the bots' notes moving from needs_more_ratings to helpful, not helpful or controversial, and whether troll and brigade notes end not helpful.

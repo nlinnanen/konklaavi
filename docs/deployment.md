@@ -10,21 +10,19 @@ The VPS runs `compose.yaml` with `deploy/compose.prod.yaml` on top, from `/srv/j
 |---|---|
 | `api`, `worker` | `ghcr.io/nlinnanen/junction26-backend:sha-<commit>` |
 | `fingerprint` | `ghcr.io/nlinnanen/junction26-fingerprint:sha-<commit>` |
-| `dashboard` | `ghcr.io/nlinnanen/junction26-dashboard:sha-<commit>` |
 | `proxy-view` | `ghcr.io/nlinnanen/junction26-proxy-view:sha-<commit>` |
 | `db` | `timescale/timescaledb-ha:pg17` |
 | `caddy` | `caddy:2.11` |
 
-Caddy is the only public service. It gets a certificate for `DOMAIN` from Let's Encrypt and routes `/api/*` to the API, with the `/api` prefix removed, `/demo/*` to the web demo (the proxy view), and everything else to the dashboard. The proxy view renders pages of allowlisted sites (`ALLOWED_DOMAINS` in `demo/proxy-view/viewer.py`) in Chromium, with the extension's UI modules bundled from `client/` (so its image builds from the repository root); it runs on a network it shares only with Caddy and calls the API at its public address. The API and dashboard listen on 127.0.0.1 only; the database and the fingerprint service have no host ports.
+Caddy is the only public service. It gets a certificate for `DOMAIN` from Let's Encrypt and routes `/api/*` to the API, with the `/api` prefix removed, `/admin` to the API's admin panel, and everything else to the web demo (the proxy view); old `/demo/...` links redirect to the root. The Streamlit dashboard is not deployed. The proxy view renders pages of allowlisted sites (`ALLOWED_DOMAINS` in `demo/proxy-view/viewer.py`) in Chromium, with the extension's UI modules bundled from `client/` (so its image builds from the repository root); it runs on a network it shares only with Caddy and calls the API at its public address. The API listens on 127.0.0.1 only; the database and the fingerprint service have no host ports.
 
-The dashboard image carries `backend/app/eval/results/latest.json` at `/eval/latest.json`, passed in as the `eval` build context. In development, compose mounts the live folder over it.
 
 ## Release
 
 A push to `main` runs `.github/workflows/release.yml`:
 
 1. **ci** calls `.github/workflows/ci.yml`, which tests every package.
-2. **images** builds the backend, fingerprint and dashboard images and pushes each as `sha-<commit>`. The backend image gets `APP_VERSION=<commit>` baked in.
+2. **images** builds the backend, fingerprint and proxy-view images and pushes each as `sha-<commit>`. The backend image gets `APP_VERSION=<commit>` baked in.
 3. **deploy** connects to the VPS over SSH as the `deploy` user and sends the commit sha.
 4. On the VPS, the key's `authorized_keys` entry forces `sudo -n /usr/local/sbin/junction26-release "$SSH_ORIGINAL_COMMAND"`. Sudoers lets `deploy` run only that script, and only with a 40-character lowercase hex argument.
 5. The release script pulls the four app services' images for `sha-<commit>`, records `IMAGE_TAG=sha-<commit>` in `/srv/junction26/.env`, runs `docker compose up -d --remove-orphans --wait`, and prunes old images.

@@ -6,12 +6,20 @@
 		reverse_proxy api:8000
 	}
 
-	redir /demo /demo/
-	handle_path /demo/* {
-		reverse_proxy proxy-view:8787
+	# The moderators' admin panel, which the API serves at /admin.
+	@admin path /admin /admin/*
+	handle @admin {
+		reverse_proxy api:8000
 	}
 
+	# The web demo moved from /demo/ to the root; old links keep working.
+	redir /demo /
+	handle_path /demo/* {
+		redir * {uri} 308
+	}
+
+	# Everything else is the web demo (demo/proxy-view).
 	handle {
-		reverse_proxy dashboard:8501
+		reverse_proxy proxy-view:8787
 	}
 }

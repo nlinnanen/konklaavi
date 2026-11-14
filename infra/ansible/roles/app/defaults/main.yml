@@ -1,3 +1,3 @@
 # Services whose images CI builds; the release script pulls only these. db and caddy are pinned in compose.
-app_services: [api, worker, fingerprint, dashboard, proxy-view]
+app_services: [api, worker, fingerprint, proxy-view]
 app_repo_root: "{{ playbook_dir }}/../.."

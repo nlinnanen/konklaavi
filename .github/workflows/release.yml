@@ -51,9 +51,6 @@ jobs:
           - image: fingerprint
             context: .
             file: fingerprint-service/Dockerfile
-          - image: dashboard
-            context: dashboard
-            file: dashboard/Dockerfile
           - image: proxy-view
             context: .
             file: demo/proxy-view/Dockerfile
