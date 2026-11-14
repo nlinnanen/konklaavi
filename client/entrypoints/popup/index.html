@@ -9,51 +9,53 @@
   <body>
     <header>
       <h1>HashTrust</h1>
-      <span id="mode-badge" class="badge"></span>
+      <span id="mode-badge" class="pill"></span>
     </header>
 
     <section>
-      <h2>This page</h2>
+      <h2>On this page</h2>
       <div id="page"><p class="muted">Loading…</p></div>
     </section>
 
-    <section>
-      <h2>Highlights</h2>
-      <ul id="legend" class="legend-list"></ul>
-    </section>
-
-    <section>
-      <h2>Domain <span id="domain-name" class="muted"></span></h2>
-      <div id="domain"><p class="muted">Loading…</p></div>
-    </section>
-
-    <section id="account-section" hidden>
+    <section id="account-section">
       <h2>Account</h2>
-      <div id="account"></div>
+      <div id="account"><p class="muted">Loading…</p></div>
       <form id="sign-in" hidden>
-        <input type="email" name="email" placeholder="you@example.com" required />
-        <button type="submit">Sign in</button>
+        <p class="muted">Sign in to write notes and make your ratings count. We email you a link; no password.</p>
+        <div class="inline">
+          <input type="email" name="email" placeholder="you@example.com" autocomplete="email" aria-label="Email" required />
+          <button type="submit" class="primary">Send link</button>
+        </div>
+        <p id="sign-in-status" class="muted" role="status"></p>
       </form>
-      <p id="sign-in-status" class="muted"></p>
     </section>
+
+    <details>
+      <summary>What the highlights mean</summary>
+      <ul id="legend" class="legend"></ul>
+      <p class="muted">Lighter highlights are reworded or related passages rather than copies.</p>
+    </details>
 
     <details>
       <summary>Settings</summary>
       <form id="settings">
         <fieldset>
-          <legend>Backend</legend>
-          <label><input type="radio" name="backendMode" value="mock" /> Mock (stored locally)</label>
-          <label><input type="radio" name="backendMode" value="remote" /> Remote</label>
-          <label><input type="radio" name="backendMode" value="local" /> Local index (page content stays in the browser)</label>
-          <input type="url" name="backendUrl" placeholder="http://localhost:8000" />
+          <legend>Matching</legend>
+          <label class="option"><input type="radio" name="backendMode" value="local" /><span><b>Local index</b>Matches on this device; page text stays in the browser.</span></label>
+          <label class="option"><input type="radio" name="backendMode" value="remote" /><span><b>Remote</b>Sends sentence hashes to the backend.</span></label>
+          <label class="option"><input type="radio" name="backendMode" value="mock" /><span><b>Mock</b>Notes stored in this browser, for trying the interface.</span></label>
+          <input type="url" name="backendUrl" placeholder="http://localhost:8000" aria-label="Backend URL" />
         </fieldset>
-        <label><input type="checkbox" name="sendExcerpt" /> Send selected text with votes</label>
-        <label><input type="checkbox" name="highlight" /> Highlight flagged content</label>
-        <label><input type="checkbox" name="sendHits" /> Send detection reports (local index)</label>
-        <div class="row">
+        <label class="toggle"><input type="checkbox" name="highlight" /> Highlight tracked passages</label>
+        <label class="toggle"><input type="checkbox" name="sendHits" /> Report where narratives appear (local index)</label>
+        <div class="buttons">
           <button type="button" id="rescan">Rescan page</button>
-          <button type="button" id="clear-mock" class="danger">Clear mock data</button>
+          <button type="button" id="clear-mock" class="danger">Clear mock notes</button>
         </div>
+        <p id="clear-confirm" class="muted" hidden>
+          Delete every mock note and rating? <button type="button" id="clear-yes" class="danger">Delete</button>
+          <button type="button" id="clear-no">Keep</button>
+        </p>
       </form>
     </details>
 

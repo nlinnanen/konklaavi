@@ -1,9 +1,9 @@
 import { browser, type Browser } from 'wxt/browser';
-import { HitReporter, LocalIndexApi, MockApi, RemoteApi, type KeyValueStore, type TrustApi } from '@/lib/api';
+import { ApiError, HitReporter, LocalIndexApi, MockApi, RemoteApi, type KeyValueStore, type TrustApi } from '@/lib/api';
 import type { Embedder } from '@/lib/embed';
-import { getExtensionSettings, type ExtensionSettings } from '@/lib/extensionSettings';
 import type { BackgroundRequest, EmbedRequest, Envelope } from '@/lib/messages';
-import type { LookupResult } from '@/lib/types';
+import { getSettings, onSettingsChanged } from '@/lib/settings';
+import type { Helpfulness, LookupResult, Settings } from '@/lib/types';
 
 const localStore: KeyValueStore = {
   async get<T>(key: string) {
@@ -73,9 +73,10 @@ function deviceEmbedder(): Embedder {
 const mockApi = new MockApi(localStore);
 const embedder = deviceEmbedder();
 const indexStore = indexedDbStore('hashtrust');
+/** Kept across mode switches, so switching back to the local index reuses the parsed index. */
 let localApi: LocalIndexApi | undefined;
 
-function getApi(settings: ExtensionSettings): TrustApi {
+function getApi(settings: Settings): TrustApi {
   switch (settings.backendMode) {
     case 'remote':
       return new RemoteApi(settings.backendUrl);
@@ -89,10 +90,18 @@ function getApi(settings: ExtensionSettings): TrustApi {
   }
 }
 
+/** Loads and parses the local index as soon as it is chosen, before the pages' lookups wait for it. */
+function warmUp(settings: Settings) {
+  if (settings.backendMode !== 'local') return;
+  getApi(settings)
+    .lookup([])
+    .catch((e) => console.warn('[hashtrust] loading the index failed', e));
+}
+
 const hitReporters = new Map<string, HitReporter>();
 
-/** Reports a local lookup's flagged matches on the sender's page, unless detection reports are off. */
-function reportHits(settings: ExtensionSettings, pageUrl: string | undefined, results: LookupResult[]): void {
+/** Reports a local lookup's narrative matches on the sender's page, unless detection reports are off. */
+function reportHits(settings: Settings, pageUrl: string | undefined, results: LookupResult[]): void {
   if (settings.backendMode !== 'local' || !settings.sendHits || !pageUrl) return;
   let reporter = hitReporters.get(settings.backendUrl);
   if (!reporter) {
@@ -111,19 +120,16 @@ async function getUserId(): Promise<string> {
   return id;
 }
 
+const RATINGS_KEY = 'myRatings';
+
+async function myRatings(): Promise<Record<string, Helpfulness>> {
+  return ((await browser.storage.local.get(RATINGS_KEY))[RATINGS_KEY] as Record<string, Helpfulness> | undefined) ?? {};
+}
+
 async function handle(msg: BackgroundRequest, sender: Browser.runtime.MessageSender): Promise<unknown> {
-  const settings = await getExtensionSettings();
+  const settings = await getSettings();
   const api = getApi(settings);
   switch (msg.type) {
-    case 'vote': {
-      await api.submitVote({
-        ...msg.payload,
-        excerpt: settings.sendExcerpt ? msg.payload.excerpt : undefined,
-        userId: await getUserId(),
-        createdAt: new Date().toISOString(),
-      });
-      return null;
-    }
     case 'lookup': {
       const results = await api.lookup(msg.payload.hashes, msg.payload.blocks);
       reportHits(settings, sender.url, results);
@@ -134,19 +140,34 @@ async function handle(msg: BackgroundRequest, sender: Browser.runtime.MessageSen
       reportHits(settings, sender.url, results);
       return results;
     }
-    case 'domainStats':
-      return api.domainStats(msg.payload);
+    case 'narrative':
+      return api.narrative(msg.payload);
+    case 'addNote': {
+      const res = await api.addNote({ ...msg.payload, userId: await getUserId() });
+      // The new narrative or note is in the index from now on.
+      if (api instanceof LocalIndexApi) await api.refresh().catch((e) => console.warn('[hashtrust] index refresh failed', e));
+      return res;
+    }
+    case 'rateNote': {
+      await api.rateNote(msg.payload.noteId, await getUserId(), msg.payload.helpfulness);
+      await browser.storage.local.set({ [RATINGS_KEY]: { ...(await myRatings()), [msg.payload.noteId]: msg.payload.helpfulness } });
+      return null;
+    }
+    case 'reportNote':
+      await api.reportNote(msg.payload.noteId, await getUserId(), msg.payload.reason);
+      return null;
+    case 'myRatings':
+      return myRatings();
     case 'clearMock':
       await mockApi.clear();
       return null;
     case 'requestMagicLink': {
-      if (settings.backendMode === 'mock') throw new Error('Accounts need a backend');
+      if (settings.backendMode === 'mock') throw new Error('Signing in needs a backend; the mock is always signed in');
       await new RemoteApi(settings.backendUrl).requestMagicLink({ userId: await getUserId(), email: msg.payload });
       return null;
     }
     case 'me':
-      if (settings.backendMode === 'mock') return null;
-      return new RemoteApi(settings.backendUrl).me(await getUserId());
+      return api.me(await getUserId());
     default:
       throw new Error(`Unknown request ${(msg as { type?: unknown }).type}`);
   }
@@ -154,12 +175,19 @@ async function handle(msg: BackgroundRequest, sender: Browser.runtime.MessageSen
 
 export default defineBackground(() => {
   browser.runtime.onInstalled.addListener(() => void getUserId());
+  onSettingsChanged(warmUp);
+  void getSettings().then(warmUp);
 
   browser.runtime.onMessage.addListener((msg: any, sender, sendResponse: (r: Envelope<unknown>) => void) => {
     if (msg?.target !== 'background') return false;
     handle(msg as BackgroundRequest, sender).then(
       (data) => sendResponse({ ok: true, data }),
-      (err) => sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }),
+      (err) =>
+        sendResponse({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+          status: err instanceof ApiError ? err.status : undefined,
+        }),
     );
     return true; // keep the channel open for the async response
   });
