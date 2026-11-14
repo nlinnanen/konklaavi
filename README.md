@@ -35,11 +35,13 @@ Using it:
 
 The extension matches on your device: it downloads the narrative index, and page text leaves the browser only when you submit a note. The first match by meaning downloads the embedding model (about 120 MB) into the browser cache.
 
-### Proxy view (no extension needed)
+### Web demo (no extension needed)
 
-**https://srv2160986.hstgr.cloud/proxy/** opens an article in a page that shows the same highlights and a side panel of matches, without installing anything in the browser. The server renders the article in headless Chromium, so comments and other content its JavaScript loads are included, removes its scripts and sends its visible text to the API's `/check`. Rendering takes 10 to 25 seconds.
+**https://srv2160986.hstgr.cloud/demo/** opens an article and shows what the extension would show on it: the highlights, the cards with readers' notes, rating and reporting notes, adding a note to a selected passage, and signing in. It runs the extension's own UI code. A side panel lists the matched narratives.
 
-It opens Reddit and the major Finnish news sites (Yle, HS, Ilta-Sanomat, Iltalehti, MTV Uutiset and others; the start page lists them). To run it locally, with any site allowed:
+It is a demo, not the product. The server renders the article again in headless Chromium, so comments and other content its JavaScript loads are included, removes its scripts and sends its visible text to the API's `/check`; that takes 10 to 25 seconds, and some sites don't work. It opens the major Finnish news sites (Yle, HS, Ilta-Sanomat, Iltalehti, MTV Uutiset and others; the start page lists them) and Reddit, which currently shows automated browsers a bot check.
+
+To run it locally, with any site allowed (needs Node and `npm install` in `client/`, since the overlay is built from the extension's modules):
 
 ```sh
 ALLOWED_DOMAINS='*' uv run demo/proxy-view/viewer.py    # then open http://localhost:8787
@@ -67,7 +69,7 @@ ALLOWED_DOMAINS='*' uv run demo/proxy-view/viewer.py    # then open http://local
 - `backend/`: the FastAPI API, the job worker, SQL migrations and the offline benchmark in `backend/app/eval/benchmark/`.
 - `dashboard/`: a Streamlit app for narratives, notes, the moderation queue and reputation.
 - `simulation/`: synthetic crowd runs against the API. They post to `/votes`, which the notes API does not serve.
-- `demo/proxy-view/`: a proxy that shows an article with the extension's highlights, for demos without the extension.
+- `demo/proxy-view/`: the web demo, which shows an article with the extension's highlights and cards without installing the extension.
 - `deploy/` and `infra/ansible/`: the production compose file and the VPS configuration.
 
 ## Running locally
