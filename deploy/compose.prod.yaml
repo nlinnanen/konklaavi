@@ -46,6 +46,7 @@ services:
     image: caddy:2.11
     environment:
       DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      ALT_DOMAINS: ${ALT_DOMAINS:-}
     ports:
       - "80:80"
       - "443:443"

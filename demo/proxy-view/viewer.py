@@ -43,7 +43,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 # HASHTRUST_API is the name before the rename, which a server not yet reconfigured still sets.
-API = os.environ.get("KONKLAAVI_API", os.environ.get("HASHTRUST_API", "https://srv2160986.hstgr.cloud/api")).rstrip("/")
+API = os.environ.get("KONKLAAVI_API", os.environ.get("HASHTRUST_API", "https://konklaavi.tech/api")).rstrip("/")
 PORT = int(os.environ.get("PORT", "8787"))
 HERE = Path(__file__).parent
 UA = render.UA

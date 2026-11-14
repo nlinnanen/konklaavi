@@ -32,8 +32,12 @@ docker_daemon_options:
 # --- App (app.yml) ----------------------------------------------------------
 
 app_dir: /srv/junction26
-# Public hostname Caddy gets a certificate for, e.g. srv123456.hstgr.cloud.
-app_domain: "{{ ansible_host }}"
+# Public hostname Caddy gets a certificate for and the app's links use. Its DNS A (and AAAA) records
+# must point at the VPS before Ansible applies it, or Caddy can't get a certificate.
+app_domain: konklaavi.tech
+# Further hostnames Caddy also serves the app on, space-separated: the VPS's own name keeps old links
+# and installed extensions working.
+app_alt_domains: "{{ ansible_host }}"
 compose_project_name: junction26
 image_prefix: ghcr.io/nlinnanen/junction26
 
@@ -60,4 +64,4 @@ agreement_helpful: ""
 agreement_not_helpful: ""
 narrative_match_threshold: ""
 # Comma-separated hosts Konklaavi serves from, its demo proxy included; never tracked as pages.
-own_hosts: "{{ app_domain }}"
+own_hosts: "{{ ([app_domain] + app_alt_domains.split()) | join(',') }}"
