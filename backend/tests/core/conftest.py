@@ -1,9 +1,23 @@
 import uuid
 
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
 from app.api.main import app
+
+
+@pytest.fixture(scope="session", autouse=True)
+def narrative_vector_table(database_url):
+    """The pipeline's narrative_vector table, for a stack whose migrations lack it."""
+    with psycopg.connect(database_url) as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS narrative_vector ("
+            " narrative_id bigint NOT NULL REFERENCES narrative(id) ON DELETE CASCADE,"
+            " kind text NOT NULL CHECK (kind IN ('block', 'claim')),"
+            " fingerprint_id bigint REFERENCES fingerprint(id) ON DELETE CASCADE,"
+            " embedding vector(384) NOT NULL)"
+        )
 
 
 @pytest.fixture
