@@ -11,7 +11,6 @@ flowchart LR
   Sys["HashTrust"]
   Web["Public web pages"]
   LLM["Claude via Hostinger AI Router"]
-  Mail["SMTP server"]
 
   Reader -->|"notes, ratings, reports"| Sys
   Sys -->|"highlights with narrative state and notes"| Reader
@@ -20,10 +19,9 @@ flowchart LR
   Web -->|page text| Sys
   Sys -->|note text| LLM
   LLM -->|"review: clean or flagged, reason"| Sys
-  Sys -->|sign-in links| Mail
 
   classDef ext fill:#999,stroke:#666,stroke-dasharray:4,color:#fff
-  class Web,LLM,Mail ext
+  class Web,LLM ext
 ```
 
 ## Containers
@@ -109,7 +107,7 @@ flowchart LR
 
 - Fingerprint library: normalisation, sentence splitting, sentence and content hashes, MinHash and LSH bands, embedding units and the int8 vector format, written once in TypeScript in `client/lib/`. The extension bundles it, and the fingerprint service runs it in Node.
 - Extension: the scanner, highlighter and page UI in the content script, the background with the local index, the offscreen embedder and the popup.
-- API: lookup, `/check` and the index; notes, ratings, reports and the moderation queue; sign-in by emailed link and `/me`; detection hits.
+- API: lookup, `/check` and the index; notes, ratings, reports and the moderation queue; sign-in by email and password, and `/me`; detection hits.
 - Worker: `fetch`, `match_variants`, `narrative_vectors`, `cluster`, `score_notes` and `moderate_note`.
 - Dashboard: Streamlit pages for narratives and their spread, a narrative's detail, notes, the moderation queue, reputation and checking a text. It reads Postgres directly and acts through the API.
 - Offline benchmark: imports EUvsDisinfo cases into its own database and measures narrative recognition, described in [evaluation.md](evaluation.md).

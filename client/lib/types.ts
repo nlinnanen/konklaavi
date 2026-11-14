@@ -155,16 +155,16 @@ export const DEFAULT_SETTINGS: Settings = {
   sendHits: true,
 };
 
-/** Body of POST /auth/magic-link: emails a sign-in link that links this install to an account. */
-export interface MagicLinkRequest {
-  userId: string;
+export const MIN_PASSWORD_LENGTH = 8;
+
+export interface Credentials {
   email: string;
+  password: string;
 }
 
-/** Response of POST /auth/magic-link; `signedIn` when the server skips email verification (demo servers). */
-export interface MagicLinkResponse {
-  ok: true;
-  signedIn?: boolean;
+/** Body of POST /auth/register and POST /auth/login, which link this install to the account; both answer as GET /me. */
+export interface AuthRequest extends Credentials {
+  userId: string;
 }
 
 /** A note the user wrote, as GET /me lists it. */

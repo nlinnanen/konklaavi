@@ -98,9 +98,13 @@ h3 { margin: 14px 0 6px; font-size: 12px; font-weight: 650; color: var(--ink-3);
 .meter span { display: block; height: 100%; background: var(--context); }
 
 #sign-in .muted { margin-bottom: 10px; }
+.error { color: var(--danger); }
 #sign-in-status { margin: 8px 0 0; }
+#sign-in-status:empty { display: none; }
+#sign-out { margin-top: 12px; }
+.fields { display: grid; gap: 8px; margin-bottom: 8px; }
 .inline { display: flex; gap: 8px; }
-input[type="email"], input[type="url"] {
+input[type="email"], input[type="password"], input[type="url"] {
   flex: 1; min-width: 0; width: 100%; font: 13px/1.4 var(--font); color: var(--ink); background: var(--paper);
   border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
 }

@@ -1,115 +1,113 @@
 """Accounts and a user's standing.
 
-A magic link sent by email links the extension's install to an account for that email. Tokens are
-single-use, stored as hashes, and expire after TOKEN_LIFETIME. With AUTH_SKIP_EMAIL_VERIFICATION, a
-demo setting, requesting a link links the install at once.
+An install signs in to an account with its email and password, which links the install to the account.
+The email is not verified: it names the account and decides moderators through MODERATOR_EMAILS.
 """
 
-import hashlib
-import html
-import logging
-import secrets
-import smtplib
 from datetime import timedelta
 from typing import Annotated
-from urllib.parse import urlencode
 from uuid import UUID
 
+from argon2 import PasswordHasher
+from argon2.exceptions import VerificationError
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from psycopg import Connection
 from pydantic import Field
 
-from app import mail
 from app.api.narratives import Body
-from app.config import settings
 from app.db import connection
 from app.trust import standing
 
 router = APIRouter()
-log = logging.getLogger(__name__)
+hasher = PasswordHasher()
 
-TOKEN_LIFETIME = timedelta(minutes=30)
-# Links sent per email, and per install, within RATE_WINDOW.
-RATE_LIMIT = 5
+# Sign-in and registration attempts allowed per email, and per install, within RATE_WINDOW.
+RATE_LIMIT = 10
 RATE_WINDOW = timedelta(hours=1)
 
 
-class MagicLinkRequest(Body):
+class Credentials(Body):
     user_id: UUID
     email: str = Field(max_length=254, pattern=r"^\s*[^@\s]+@[^@\s]+\.[^@\s]+\s*$")
+    password: str = Field(min_length=8, max_length=1024)
 
 
-def token_hash(token: str) -> bytes:
-    return hashlib.sha256(token.encode()).digest()
+class Install(Body):
+    user_id: UUID
 
 
-def link_account(conn, install_id: UUID, email: str) -> None:
-    """Link the install to the account for the email, creating the account."""
-    account_id = conn.execute(
-        "INSERT INTO user_account (email) VALUES (%s)"
-        " ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email RETURNING id",
-        (email,),
-    ).fetchone()[0]
-    conn.execute("UPDATE install SET account_id = %s WHERE id = %s", (account_id, install_id))
-
-
-@router.post("/auth/magic-link")
-def post_magic_link(request: MagicLinkRequest) -> dict:
-    """Email a sign-in link, or log it when SMTP_URL is unset."""
+def attempt(conn: Connection, request: Credentials) -> str:
+    """Record a sign-in attempt and return the lowercased email; 429 past the rate limit."""
     email = request.email.strip().lower()
-    token = secrets.token_urlsafe(32)
-    with connection() as conn:
-        conn.execute("INSERT INTO install (id) VALUES (%s) ON CONFLICT DO NOTHING", (request.user_id,))
-        if settings.auth_skip_email_verification:
-            link_account(conn, request.user_id, email)
-            return {"ok": True, "signedIn": True}
-        per_email, per_install = conn.execute(
-            "SELECT count(*) FILTER (WHERE email = %(email)s), count(*) FILTER (WHERE install_id = %(install)s)"
-            " FROM login_token WHERE (email = %(email)s OR install_id = %(install)s)"
-            " AND created_at > now() - %(window)s",
-            {"email": email, "install": request.user_id, "window": RATE_WINDOW},
-        ).fetchone()
-        if max(per_email, per_install) >= RATE_LIMIT:
-            raise HTTPException(429, "too many sign-in links, try again later")
-        conn.execute(
-            "INSERT INTO login_token (token_hash, install_id, email, expires_at) VALUES (%s, %s, %s, now() + %s)",
-            (token_hash(token), request.user_id, email, TOKEN_LIFETIME),
-        )
-    link = f"{settings.public_api_url}/auth/verify?{urlencode({'token': token})}"
-    if not settings.smtp_url:
-        log.warning("SMTP_URL is unset; sign-in link for %s: %s", email, link)
-        return {"ok": True}
-    body = f"Open this link to sign in to HashTrust:\n\n{link}\n\nThe link works once, within 30 minutes."
-    try:
-        mail.send(email, "Sign in to HashTrust", body)
-    except (OSError, smtplib.SMTPException) as error:
-        log.exception("sending the sign-in link failed")
-        raise HTTPException(502, "could not send the sign-in email") from error
-    return {"ok": True}
+    per_email, per_install = conn.execute(
+        "SELECT count(*) FILTER (WHERE email = %(email)s), count(*) FILTER (WHERE install_id = %(install)s)"
+        " FROM auth_attempt WHERE (email = %(email)s OR install_id = %(install)s)"
+        " AND created_at > now() - %(window)s",
+        {"email": email, "install": request.user_id, "window": RATE_WINDOW},
+    ).fetchone()
+    if max(per_email, per_install) >= RATE_LIMIT:
+        raise HTTPException(429, "too many sign-in attempts, try again later")
+    conn.execute("INSERT INTO auth_attempt (email, install_id) VALUES (%s, %s)", (email, request.user_id))
+    # The attempt counts even when the request fails.
+    conn.commit()
+    return email
 
 
-def page(message: str, status_code: int = 200) -> HTMLResponse:
-    return HTMLResponse(
-        "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'>"
-        f"<title>HashTrust</title><p style='font:16px system-ui;margin:3em auto;max-width:30em'>{message}</p>",
-        status_code=status_code,
+def link(conn: Connection, install_id: UUID, account_id: UUID) -> None:
+    conn.execute(
+        "INSERT INTO install (id, account_id) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET account_id = %s",
+        (install_id, account_id, account_id),
     )
 
 
-@router.get("/auth/verify", response_class=HTMLResponse)
-def get_verify(token: str) -> HTMLResponse:
-    """Consume the token and link its install to the account for its email, creating the account."""
+@router.post("/auth/register")
+def post_register(request: Credentials) -> dict:
+    """Create the account for the email and sign the install in; 409 when the email has a password.
+
+    An account without a password, made before sign-in had passwords, takes the new one.
+    """
     with connection() as conn:
+        email = attempt(conn, request)
         row = conn.execute(
-            "UPDATE login_token SET used_at = now()"
-            " WHERE token_hash = %s AND used_at IS NULL AND expires_at > now() RETURNING install_id, email",
-            (token_hash(token),),
+            "INSERT INTO user_account (email, password_hash) VALUES (%s, %s)"
+            " ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash"
+            " WHERE user_account.password_hash IS NULL RETURNING id",
+            (email, hasher.hash(request.password)),
         ).fetchone()
         if row is None:
-            return page("This sign-in link is invalid, used or expired. Request a new one.", 400)
-        install_id, email = row
-        link_account(conn, install_id, email)
-    return page(f"Signed in as {html.escape(email)}, you can close this tab.")
+            raise HTTPException(409, "an account with this email exists, sign in instead")
+        link(conn, request.user_id, row[0])
+    return get_me(request.user_id)
+
+
+@router.post("/auth/login")
+def post_login(request: Credentials) -> dict:
+    """Sign the install in to the account; 401 for an unknown email or a wrong password."""
+    with connection() as conn:
+        email = attempt(conn, request)
+        row = conn.execute("SELECT id, password_hash FROM user_account WHERE email = %s", (email,)).fetchone()
+        try:
+            if row is None or row[1] is None:
+                raise VerificationError
+            hasher.verify(row[1], request.password)
+        except VerificationError as error:
+            raise HTTPException(401, "wrong email or password") from error
+        account_id, password_hash = row
+        if hasher.check_needs_rehash(password_hash):
+            conn.execute(
+                "UPDATE user_account SET password_hash = %s WHERE id = %s",
+                (hasher.hash(request.password), account_id),
+            )
+        link(conn, request.user_id, account_id)
+    return get_me(request.user_id)
+
+
+@router.post("/auth/logout")
+def post_logout(request: Install) -> dict:
+    """Unlink the install from its account."""
+    with connection() as conn:
+        conn.execute("UPDATE install SET account_id = NULL WHERE id = %s", (request.user_id,))
+    return get_me(request.user_id)
 
 
 @router.get("/me")

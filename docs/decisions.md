@@ -26,7 +26,7 @@ Notes are scored with the open-source Community Notes matrix factorisation, with
 
 ## Accounts and reputation
 
-The install id identifies a reader, and an emailed single-use link ties installs to an account. Writing and reporting notes need a verified account, and only verified ratings count. Reputation is `(good + 1) / (good + bad + 4)` per account, earned by notes that become helpful and by early ratings that agree with the outcome; its reasons are in the docstring of `backend/app/trust.py`. High reputation grants moderator rights.
+The install id identifies a reader, and signing in with an email and a password ties installs to an account; the email is not verified. Writing and reporting notes need a verified account, and only verified ratings count. Reputation is `(good + 1) / (good + bad + 4)` per account, earned by notes that become helpful and by early ratings that agree with the outcome; its reasons are in the docstring of `backend/app/trust.py`. High reputation grants moderator rights.
 
 ## Moderation
 

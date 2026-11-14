@@ -57,7 +57,6 @@ erDiagram
   USER_ACCOUNT ||--o{ INSTALL : links
   USER_ACCOUNT ||--o{ NOTE : writes
   INSTALL ||--o{ NOTE_RATING : casts
-  INSTALL ||--o{ LOGIN_TOKEN : requests
 
   OBSERVATION {
     timestamptz seen_at
@@ -131,16 +130,11 @@ erDiagram
   USER_ACCOUNT {
     uuid id PK
     text email
+    text password_hash
   }
   INSTALL {
     uuid id PK
     uuid account_id FK
-  }
-  LOGIN_TOKEN {
-    bytea token_hash PK
-    uuid install_id FK
-    text email
-    timestamptz expires_at
   }
   INDEX_CHANGE {
     xid8 xid
