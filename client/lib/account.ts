@@ -1,34 +1,41 @@
-import { SOURCE_LABELS, sourceHref } from './messages';
-import type { AccountReport, MeResponse } from './types';
+import type { AccountNote, MeResponse, NoteStatus } from './types';
 
 export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
-/** A report's outcome as HTML: who confirmed it, linking to their write-up, or Pending / Rejected. */
-export function renderOutcome(report: AccountReport): string {
-  if (report.outcome === 'pending') return `<span class="outcome pending">Pending</span>`;
-  if (report.outcome === 'rejected') return `<span class="outcome rejected">Rejected</span>`;
-  const by = report.settledBy;
-  if (!by) return `<span class="outcome confirmed">Confirmed</span>`;
-  const label = `Confirmed by ${escapeHtml(SOURCE_LABELS[by.source])}: ${escapeHtml(by.title)}`;
-  const href = sourceHref(by);
-  const text = href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${label}</a>` : label;
-  return `<span class="outcome confirmed">${text}</span>`;
+const STATUS: Record<NoteStatus, [label: string, state: string]> = {
+  helpful: ['Helpful', 'context'],
+  not_helpful: ['Not helpful', 'tracked'],
+  controversial: ['Raters disagree', 'controversial'],
+  needs_more_ratings: ['Needs ratings', 'needs_ratings'],
+};
+
+/** A note's standing as a badge: moderation first, since a held note is not shown at all. */
+function noteBadge(note: AccountNote): string {
+  if (note.moderation === 'pending_review') return `<span class="badge" data-state="needs_ratings">In review</span>`;
+  if (note.moderation === 'hidden') return `<span class="badge" data-state="tracked">Hidden</span>`;
+  const [label, state] = STATUS[note.status];
+  return `<span class="badge" data-state="${state}">${label}</span>`;
 }
 
-/** The signed-in account: reputation, agreement counts and the user's reports with their outcomes. */
+/** The signed-in account: reputation, ratings and the user's notes with their status. */
 export function renderAccount(me: MeResponse): string {
-  const reports = me.reports
-    .map((r) => `<li><b>${escapeHtml(r.title)}</b><div>${renderOutcome(r)}</div></li>`)
+  const notes = me.notes
+    .map(
+      (n) => `<li>
+        <div class="row"><b>${escapeHtml(n.narrative.title)}</b>${noteBadge(n)}</div>
+        <p class="clamp">${escapeHtml(n.body)}</p>
+      </li>`,
+    )
     .join('');
+  const reputation = Math.round(me.reputation * 100);
   return `
-    <p>${me.email ? `Signed in as <b>${escapeHtml(me.email)}</b>` : `<span class="muted">Not signed in</span>`}</p>
-    <div class="stat">
-      <div><b>${Math.round(me.reputation * 100)}%</b><span class="muted">reputation</span></div>
-      <div><b>${me.weight.toFixed(2)}×</b><span class="muted">vote weight</span></div>
-      <div><b>${me.agreed}</b><span class="muted">agreed</span></div>
-      <div><b>${me.disagreed}</b><span class="muted">disagreed</span></div>
-    </div>
-    ${reports ? `<ul class="flagged reports">${reports}</ul>` : `<p class="muted">No reports yet.</p>`}`;
+    <p class="who">${escapeHtml(me.email ?? '')}</p>
+    <dl class="stats">
+      <div><dt>Reputation</dt><dd>${reputation}<span class="meter"><span style="width:${reputation}%"></span></span></dd></div>
+      <div><dt>Notes</dt><dd>${me.notes.length}</dd></div>
+      <div><dt>Ratings</dt><dd>${me.ratings.count}<small>${me.ratings.agreed} matched the outcome</small></dd></div>
+    </dl>
+    ${notes ? `<h3>Your notes</h3><ul class="list">${notes}</ul>` : `<p class="muted">Notes you write appear here with their status.</p>`}`;
 }

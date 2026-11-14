@@ -1,8 +1,4 @@
-export function domainOf(hostname: string): string {
-  return hostname.toLowerCase().replace(/^www\./, '');
-}
-
-/** URL without fragment; the part we store with a vote. */
+/** URL without fragment; the part sent with a note. */
 export function cleanUrl(href: string): string {
   const u = new URL(href);
   u.hash = '';
