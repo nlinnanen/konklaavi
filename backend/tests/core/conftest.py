@@ -1,5 +1,6 @@
 import uuid
 
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
@@ -58,3 +59,18 @@ def narrative(conn):
         return narrative_id
 
     return add
+
+
+@pytest.fixture(scope="session")
+def settlement_columns(database_url):
+    """narrative.settled_by and settled_at, which the pipeline's 2xx migration adds."""
+    with psycopg.connect(database_url) as admin:
+        admin.execute(
+            "ALTER TABLE narrative ADD COLUMN IF NOT EXISTS settled_by bigint REFERENCES narrative(id),"
+            " ADD COLUMN IF NOT EXISTS settled_at timestamptz"
+        )
+
+
+@pytest.fixture
+def conn(conn, settlement_columns):
+    return conn

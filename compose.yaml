@@ -1,12 +1,12 @@
 x-backend: &backend
   build: ./backend
   image: ${COMPOSE_PROJECT_NAME:-junction26}-backend
-  environment:
-    - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
-    - FP_URL=http://fingerprint:8100
-    - ANTHROPIC_API_KEY
-    - ANTHROPIC_BASE_URL
-    - ANALYSIS_MODEL
+  environment: &backend-env
+    DATABASE_URL: postgresql://postgres:postgres@db:5432/postgres
+    FP_URL: http://fingerprint:8100
+    ANTHROPIC_API_KEY:
+    ANTHROPIC_BASE_URL:
+    ANALYSIS_MODEL:
   depends_on:
     db:
       condition: service_healthy
@@ -53,6 +53,11 @@ services:
 
   api:
     <<: *backend
+    environment:
+      <<: *backend-env
+      SMTP_URL:
+      MAIL_FROM:
+      PUBLIC_API_URL:
     ports:
       - "${API_PORT:-8000}:8000"
     healthcheck:
