@@ -1,3 +1,4 @@
+import { displayVerdict } from '@/lib/messages';
 import { NEGATIVE_VERDICTS, type LookupResult, type NegativeVerdict } from '@/lib/types';
 
 export interface FlaggedRange {
@@ -61,7 +62,7 @@ export class Highlighter {
   }
 
   private highlightFor(item: FlaggedRange): Highlight | undefined {
-    return this.highlights.get(item.result.topVerdict as NegativeVerdict);
+    return this.highlights.get(displayVerdict(item.result) as NegativeVerdict);
   }
 
   /** Drop blocks that were removed from the page. */
