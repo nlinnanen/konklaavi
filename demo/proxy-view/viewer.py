@@ -72,26 +72,10 @@ PRODUCT = (
     f"The real product is the <b>browser extension</b>, which checks pages as you read them, on your own "
     f"device. <a href='{html.escape(README_URL, quote=True)}' target=_blank rel=noopener>How to install it</a>."
 )
-# Sites the proxy opens, with their subdomains. ALLOWED_DOMAINS (comma-separated) replaces the
-# list, and "*" allows any public site, for local testing.
-DEFAULT_DOMAINS = [
-    "reddit.com", "redd.it", "wikipedia.org",
-    # Finnish news
-    "yle.fi", "hs.fi", "is.fi", "iltalehti.fi", "mtvuutiset.fi", "kauppalehti.fi", "talouselama.fi",
-    "aamulehti.fi", "ts.fi", "kaleva.fi", "ksml.fi", "savonsanomat.fi", "satakunnankansa.fi",
-    "uusisuomi.fi", "verkkouutiset.fi", "maaseuduntulevaisuus.fi", "hbl.fi", "vasabladet.fi",
-    "suomenuutiset.fi", "apu.fi", "seura.fi",
-    # International news
-    "bbc.com", "bbc.co.uk", "theguardian.com", "reuters.com", "apnews.com", "nytimes.com",
-    "washingtonpost.com", "wsj.com", "ft.com", "economist.com", "bloomberg.com", "cnn.com",
-    "nbcnews.com", "cbsnews.com", "abcnews.go.com", "npr.org", "politico.com", "politico.eu", "axios.com",
-    "theatlantic.com", "time.com", "usatoday.com", "latimes.com", "independent.co.uk", "telegraph.co.uk",
-    "thetimes.com", "aljazeera.com", "dw.com", "france24.com", "euronews.com", "lemonde.fr", "spiegel.de",
-    "zeit.de", "faz.net", "elpais.com", "corriere.it", "abc.net.au", "cbc.ca", "scmp.com",
-    "kyivindependent.com", "meduza.io", "rferl.org", "euobserver.com",
-    # Nordic and Baltic public broadcasters and dailies
-    "svt.se", "dn.se", "nrk.no", "dr.dk", "err.ee", "lrt.lt", "lsm.lv",
-]
+# Sites the proxy opens, with their subdomains: the sites whose articles are scraped for narratives and
+# notes (the feeds in tools/crowd/crowd.yaml), so pages opened in the demo are the ones with matches.
+# ALLOWED_DOMAINS (comma-separated) replaces the list, and "*" allows any public site, for local testing.
+DEFAULT_DOMAINS = ["rt.com", "sputnikglobe.com", "yle.fi", "bbc.com", "bbc.co.uk"]
 _allowed = os.environ.get("ALLOWED_DOMAINS", "").strip()
 ALLOWED = None if _allowed == "*" else [d.strip().lower() for d in _allowed.split(",") if d.strip()] or DEFAULT_DOMAINS
 
