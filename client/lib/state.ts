@@ -34,6 +34,20 @@ export function leadNote(narrative: Pick<Narrative, 'state' | 'notes'>): Note | 
   return narrative.notes.find((n) => n.status === 'helpful' && n.classification === classification);
 }
 
+const ratingCount = (n: Note) => n.ratings.helpful + n.ratings.somewhat + n.ratings.not_helpful;
+
+/**
+ * The note a highlight's card leads with: the decided helpful note, else the
+ * most-rated note not rated unhelpful, which readers can still decide on.
+ */
+export function featuredNote(narrative: Pick<Narrative, 'state' | 'notes'>): Note | undefined {
+  const lead = leadNote(narrative);
+  if (lead) return lead;
+  return narrative.notes
+    .filter((n) => n.status !== 'not_helpful')
+    .reduce<Note | undefined>((best, n) => (!best || ratingCount(n) > ratingCount(best) ? n : best), undefined);
+}
+
 /** Narrative-level and related matches are drawn lighter than exact and variant ones. */
 export function isWeak(level: MatchLevel): boolean {
   return level === 'narrative' || level === 'related';

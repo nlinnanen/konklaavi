@@ -1,5 +1,5 @@
 import { MAX_NOTE_LENGTH, noteProblem, safeHref } from '@/lib/api';
-import { leadNote, spreadLine, STATE_LABELS } from '@/lib/state';
+import { featuredNote, spreadLine, STATE_LABELS } from '@/lib/state';
 import type {
   Classification,
   Credentials,
@@ -139,16 +139,18 @@ a { color: inherit; }
 .card-top { display: flex; align-items: center; gap: 8px; min-height: 28px; }
 .match { margin-left: auto; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
 .card-top .icon-btn { margin-right: -6px; }
-.title { margin-top: 8px; font-size: 15px; line-height: 1.35; font-weight: 650; letter-spacing: -.005em; text-wrap: pretty; }
 .spread { margin-top: 4px; font-size: 12px; color: var(--ink-2); }
+.card > .spread { margin: 0; padding: 2px 16px 10px; }
 .notes { padding: 0 8px 8px; display: grid; gap: 6px; }
 .note { padding: 12px; border-radius: 10px; background: var(--paper-2); }
 .note.lead { background: var(--c-soft); }
 .note-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11.5px; color: var(--ink-3); }
 .status { font-weight: 650; color: var(--ink-2); }
 .note.lead .status { color: var(--c); }
+.context-label { margin-bottom: 6px; font-size: 12px; font-weight: 650; color: var(--c); }
+.note-status { margin-top: 8px; font-size: 11.5px; }
 .body { font-size: 13px; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
-.card:not(.pinned) .body { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.note.lead .body { font-size: 13.5px; }
 .sources { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; font-size: 12px; }
 .sources a { color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
 .sources a:hover { color: var(--ink); text-decoration-color: currentColor; }
@@ -179,6 +181,10 @@ a { color: inherit; }
 .card-foot .btn { margin-left: auto; flex: none; }
 .hint { padding: 0 16px 12px; font-size: 11.5px; color: var(--ink-3); }
 .others { padding: 4px 8px 2px; font-size: 11.5px; font-weight: 650; color: var(--ink-3); }
+.matched { margin: 0 16px 12px; font-size: 11.5px; color: var(--ink-3); }
+.matched summary { cursor: pointer; width: fit-content; }
+.matched summary:hover { color: var(--ink-2); }
+.matched p { margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--paper-2); color: var(--ink-2); font-size: 12px; line-height: 1.5; }
 
 /* Panel: the note form and the sign-in prompt */
 .panel {
@@ -290,6 +296,20 @@ function chip(state: NarrativeState): HTMLElement {
   return c;
 }
 
+/** The text cut at a word boundary to at most `max` characters, with an ellipsis when cut. */
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  return (space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s.,;:!?-]+$/, '') + '…';
+}
+
+const squash = (text: string) => text.replace(/\s+/g, ' ').trim().toLowerCase();
+
+/** What readers say about the passage, as the lead note is introduced. */
+const contextLabel = (note: Note) =>
+  `Readers added context: ${CLASSIFICATION_LABELS[note.classification].toLowerCase()}`;
+
 /** Host name of a source link, without www. */
 function sourceLabel(href: string): string {
   return new URL(href).hostname.replace(/^www\./, '');
@@ -300,6 +320,14 @@ export interface CardActions {
   report(noteId: string, reason: string): Promise<void>;
   /** Opens the note form for the highlighted passage. */
   addNote(): void;
+}
+
+/** A highlight's narrative and how its passage matched; `passage` is the highlighted text. */
+export interface CardView {
+  narrative: Narrative;
+  matchLevel: MatchLevel;
+  similarity?: number;
+  passage: string;
 }
 
 export interface NoteFormResult {
@@ -529,7 +557,7 @@ export class OverlayUi {
   showCard(
     x: number,
     y: number,
-    view: { narrative: Narrative; matchLevel: MatchLevel; similarity?: number },
+    view: CardView,
     pinned: boolean,
     myRatings: Record<string, Helpfulness>,
     actions?: CardActions,
@@ -539,7 +567,7 @@ export class OverlayUi {
     this.renderCard(view, pinned, myRatings, actions);
     this.card.classList.toggle('pinned', pinned);
     this.card.setAttribute('role', pinned ? 'dialog' : 'tooltip');
-    this.card.setAttribute('aria-label', view.narrative.title);
+    this.card.setAttribute('aria-label', `HashTrust: ${STATE_LABELS[view.narrative.state]}`);
     this.card.classList.remove('hidden');
     if (visible && key === this.cardKey) return;
     this.cardKey = key;
@@ -549,7 +577,7 @@ export class OverlayUi {
 
   /** Re-renders a pinned card in place, as after its narrative was fetched again. */
   updateCard(
-    view: { narrative: Narrative; matchLevel: MatchLevel; similarity?: number },
+    view: CardView,
     myRatings: Record<string, Helpfulness>,
     actions: CardActions,
   ) {
@@ -558,7 +586,7 @@ export class OverlayUi {
   }
 
   private renderCard(
-    view: { narrative: Narrative; matchLevel: MatchLevel; similarity?: number },
+    view: CardView,
     pinned: boolean,
     myRatings: Record<string, Helpfulness>,
     actions?: CardActions,
@@ -569,51 +597,55 @@ export class OverlayUi {
     if (view.similarity !== undefined) match.title = `Similarity ${view.similarity.toFixed(2)}`;
     const top = el('div', 'card-top', chip(narrative.state), match);
     if (pinned) top.append(closeButton(() => this.hideCard()));
-    const head = el(
-      'div',
-      'card-head',
-      top,
-      el('p', 'title', narrative.title),
-      el('p', 'spread', narrative.state === 'tracked' ? `Part of a narrative ${spreadLine(narrative.spread).replace(/^S/, 's')}` : spreadLine(narrative.spread)),
-    );
+    const head = el('div', 'card-head', top);
     const children: Node[] = [head];
+    const featured = featuredNote(narrative);
+    const spread = featured
+      ? spreadLine(narrative.spread)
+      : `Part of a narrative ${spreadLine(narrative.spread).replace(/^[ST]/, (c) => c.toLowerCase())}`;
 
-    const lead = leadNote(narrative);
-    const rest = narrative.notes.filter((n) => n !== lead);
-    if (lead) children.push(el('div', 'notes', this.note(lead, true, pinned, myRatings, actions)));
-    if (pinned && rest.length) {
-      if (lead) children.push(el('p', 'others', `Other notes (${rest.length})`));
+    if (!pinned) {
+      if (featured) children.push(el('div', 'notes', this.note(featured, true, false, myRatings)));
+      children.push(el('p', 'spread', spread));
+      children.push(el('p', 'hint', featured ? 'Click to rate the notes' : 'Click to add context'));
+      this.card.replaceChildren(...children);
+      return;
+    }
+
+    head.append(el('p', 'spread', spread));
+    const rest = narrative.notes.filter((n) => n !== featured);
+    if (featured) children.push(el('div', 'notes', this.note(featured, true, true, myRatings, actions)));
+    if (rest.length) {
+      if (featured) children.push(el('p', 'others', `Other notes (${rest.length})`));
       children.push(el('div', 'notes', ...rest.map((n) => this.note(n, false, true, myRatings, actions))));
     }
-    if (!lead && !pinned) {
-      const summary =
-        narrative.state === 'controversial'
-          ? 'Raters disagree on the notes so far.'
-          : narrative.notes.length
-            ? `${narrative.notes.length} note${narrative.notes.length === 1 ? '' : 's'} waiting for ratings.`
-            : 'No notes yet.';
-      children.push(el('p', 'empty', summary));
+    if (!narrative.notes.length) children.push(el('p', 'empty', 'No reader has added context yet.'));
+    // The narrative's title is the first sentence of the passage its first note was written on.
+    if (!squash(view.passage).includes(squash(narrative.title))) {
+      children.push(el('details', 'matched', el('summary', undefined, 'Matched text'), el('p', undefined, narrative.title)));
     }
-    if (pinned && !narrative.notes.length) children.push(el('p', 'empty', 'No reader has added context yet.'));
 
-    if (pinned && actions) {
+    if (actions) {
       const foot = el('div', 'card-foot', 'Ratings from readers who usually disagree decide what is shown.');
       foot.append(button('Add a note', 'btn', () => actions.addNote()));
       children.push(foot);
-    } else children.push(el('p', 'hint', narrative.notes.length ? 'Click to rate the notes' : 'Click to add context'));
+    }
     this.card.replaceChildren(...children);
   }
 
   private note(note: Note, lead: boolean, pinned: boolean, myRatings: Record<string, Helpfulness>, actions?: CardActions): HTMLElement {
     const box = el('article', lead ? 'note lead' : 'note');
     const total = note.ratings.helpful + note.ratings.somewhat + note.ratings.not_helpful;
-    const meta = el(
-      'div',
-      'note-meta',
-      el('span', 'status', STATUS_LABELS[note.status]),
-      el('span', undefined, `Says: ${CLASSIFICATION_LABELS[note.classification].toLowerCase()}`),
-    );
-    box.append(meta, el('p', 'body', note.body));
+    if (lead) box.append(el('p', 'context-label', contextLabel(note)), el('p', 'body', pinned ? note.body : truncate(note.body, 220)));
+    else {
+      const meta = el(
+        'div',
+        'note-meta',
+        el('span', 'status', STATUS_LABELS[note.status]),
+        el('span', undefined, `Says: ${CLASSIFICATION_LABELS[note.classification].toLowerCase()}`),
+      );
+      box.append(meta, el('p', 'body', note.body));
+    }
 
     const links = note.sources.flatMap((s) => {
       const href = safeHref(s);
@@ -626,6 +658,7 @@ export class OverlayUi {
       return [a];
     });
     if (links.length) box.append(el('div', 'sources', ...links));
+    if (lead) box.append(el('p', 'note-status status', STATUS_LABELS[note.status]));
     if (!pinned || !actions) return box;
 
     const seg = el('div', 'seg');

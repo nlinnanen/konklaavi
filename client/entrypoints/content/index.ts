@@ -223,6 +223,7 @@ function setupCards(ui: OverlayUi, highlighter: Highlighter, notes: NoteFlow) {
     narrative,
     matchLevel: item.result.matchLevel,
     similarity: item.result.similarity,
+    passage: item.text,
   });
 
   const pin = (x: number, y: number, item: FlaggedRange) => {
