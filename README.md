@@ -12,7 +12,7 @@ The demo deployment is at **https://konklaavi.tech/**: the web demo is at the ro
 
 The extension isn't in a web store, so you load it unpacked. That needs no review and takes a minute.
 
-1. Download the zip from the [`latest-demo` release](https://github.com/nlinnanen/junction26/releases/tag/latest-demo). Every deploy rebuilds it against the demo API.
+1. Download the zip from the [`latest-demo` release](https://github.com/nlinnanen/konklaavi/releases/tag/latest-demo). Every deploy rebuilds it against the demo API.
 2. Unzip it into a folder you keep.
 3. Open `chrome://extensions` (or Edge or Brave), turn on **Developer mode** and click **Load unpacked**. Choose the unzipped folder.
 4. Pin Konklaavi from the puzzle-piece menu and open an article.

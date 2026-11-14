@@ -37,7 +37,7 @@ A push during a release waits for it, and only the newest waiting push is releas
 Run the release workflow by hand with the sha of an earlier `main` commit:
 
 ```sh
-gh workflow run release.yml --repo nlinnanen/junction26 -f sha=<40-character sha>
+gh workflow run release.yml --repo nlinnanen/konklaavi -f sha=<40-character sha>
 ```
 
 That skips ci and images and releases the images already in GHCR for that commit. A commit whose images were never built fails at the pull.
@@ -66,10 +66,10 @@ ssh admin@$VPS_HOST ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 The two fingerprints must match. Then:
 
 ```sh
-gh secret set VPS_HOST --repo nlinnanen/junction26 --body "$VPS_HOST"
-gh secret set VPS_SSH_KEY --repo nlinnanen/junction26 < junction26-deploy
-gh secret set VPS_KNOWN_HOSTS --repo nlinnanen/junction26 < junction26-known-hosts
-gh variable set PUBLIC_URL --repo nlinnanen/junction26 --body "https://$VPS_HOST"
+gh secret set VPS_HOST --repo nlinnanen/konklaavi --body "$VPS_HOST"
+gh secret set VPS_SSH_KEY --repo nlinnanen/konklaavi < junction26-deploy
+gh secret set VPS_KNOWN_HOSTS --repo nlinnanen/konklaavi < junction26-known-hosts
+gh variable set PUBLIC_URL --repo nlinnanen/konklaavi --body "https://$VPS_HOST"
 rm junction26-deploy junction26-known-hosts
 ```
 
