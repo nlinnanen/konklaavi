@@ -29,6 +29,8 @@ import os
 import re
 import socket
 import subprocess
+import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote, urljoin, urlparse
 
@@ -61,12 +63,22 @@ PRODUCT = (
 # Sites the proxy opens, with their subdomains. ALLOWED_DOMAINS (comma-separated) replaces the
 # list, and "*" allows any public site, for local testing.
 DEFAULT_DOMAINS = [
-    "reddit.com", "redd.it",
+    "reddit.com", "redd.it", "wikipedia.org",
     # Finnish news
     "yle.fi", "hs.fi", "is.fi", "iltalehti.fi", "mtvuutiset.fi", "kauppalehti.fi", "talouselama.fi",
     "aamulehti.fi", "ts.fi", "kaleva.fi", "ksml.fi", "savonsanomat.fi", "satakunnankansa.fi",
     "uusisuomi.fi", "verkkouutiset.fi", "maaseuduntulevaisuus.fi", "hbl.fi", "vasabladet.fi",
     "suomenuutiset.fi", "apu.fi", "seura.fi",
+    # International news
+    "bbc.com", "bbc.co.uk", "theguardian.com", "reuters.com", "apnews.com", "nytimes.com",
+    "washingtonpost.com", "wsj.com", "ft.com", "economist.com", "bloomberg.com", "cnn.com",
+    "nbcnews.com", "cbsnews.com", "abcnews.go.com", "npr.org", "politico.com", "politico.eu", "axios.com",
+    "theatlantic.com", "time.com", "usatoday.com", "latimes.com", "independent.co.uk", "telegraph.co.uk",
+    "thetimes.com", "aljazeera.com", "dw.com", "france24.com", "euronews.com", "lemonde.fr", "spiegel.de",
+    "zeit.de", "faz.net", "elpais.com", "corriere.it", "abc.net.au", "cbc.ca", "scmp.com",
+    "kyivindependent.com", "meduza.io", "rferl.org", "euobserver.com",
+    # Nordic and Baltic public broadcasters and dailies
+    "svt.se", "dn.se", "nrk.no", "dr.dk", "err.ee", "lrt.lt", "lsm.lv",
 ]
 _allowed = os.environ.get("ALLOWED_DOMAINS", "").strip()
 ALLOWED = None if _allowed == "*" else [d.strip().lower() for d in _allowed.split(",") if d.strip()] or DEFAULT_DOMAINS
@@ -76,10 +88,52 @@ def allowed(url: str) -> bool:
     host = (urlparse(url).hostname or "").lower()
     return ALLOWED is None or any(host == d or host.endswith("." + d) for d in ALLOWED)
 
+# Rendered pages are kept this long, so opening one again only runs the check.
+CACHE_SECONDS = 60 * float(os.environ.get("CACHE_MINUTES", "15"))
+CACHE_SIZE = 50
+# Pages to render at startup and keep fresh, comma-separated, such as the articles a demo will show.
+PREWARM = [u.strip() for u in os.environ.get("PREWARM_URLS", "").split(",") if u.strip()]
 # Pages rendered at once; each is a Chromium tab.
 RENDERS = asyncio.Semaphore(int(os.environ.get("MAX_RENDERS", "2")))
 
-app = FastAPI(title="HashTrust proxy view")
+_cache: dict[str, tuple[float, render.Rendered]] = {}
+
+
+async def rendered(url: str, fresh: bool = False) -> tuple[render.Rendered, str]:
+    """The rendered page, from the cache when it is recent, and how it was got."""
+    hit = _cache.get(url)
+    if hit and not fresh and time.monotonic() - hit[0] < CACHE_SECONDS:
+        return hit[1], f"rendered {int((time.monotonic() - hit[0]) // 60)} min ago"
+    async with RENDERS:
+        result = await render.render(url)
+    if result.status < 400:
+        _cache.pop(url, None)
+        _cache[url] = (time.monotonic(), result)
+        while len(_cache) > CACHE_SIZE:
+            _cache.pop(next(iter(_cache)))
+    return result, "rendered"
+
+
+async def prewarm() -> None:
+    """Renders PREWARM_URLS now and again before they expire."""
+    while True:
+        for url in PREWARM:
+            try:
+                await rendered(url, fresh=True)
+            except Exception as e:  # noqa: BLE001 - a failing page must not stop the others
+                print(f"prewarm failed for {url}: {e!r}", flush=True)
+        await asyncio.sleep(max(60, CACHE_SECONDS * 0.8))
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    task = asyncio.create_task(prewarm()) if PREWARM and RENDER else None
+    yield
+    if task:
+        task.cancel()
+
+
+app = FastAPI(title="HashTrust proxy view", lifespan=lifespan)
 
 
 def page(title: str, body: str) -> HTMLResponse:
@@ -101,6 +155,9 @@ def private_reason(url: str) -> str | None:
         return "Only http(s) URLs can be opened."
     if not allowed(url):
         return f"{parsed.hostname} is not one of the sites this demo opens: {', '.join(ALLOWED)}."
+    # Behind an HTTP proxy without DNS (some sandboxes), the address check can't run.
+    if os.environ.get("SKIP_ADDRESS_CHECK") == "1":
+        return None
     try:
         addresses = {info[4][0] for info in socket.getaddrinfo(parsed.hostname, parsed.port or 443)}
     except OSError:
@@ -217,7 +274,7 @@ li.done{{color:var(--ink-2)}} li.done::before{{background:var(--ink-3);animation
 </div></div>
 <script>
 // Rendering happens on the server in one request; the steps advance on a typical schedule, not on progress.
-const items = [...document.querySelectorAll('#ht-loading li')], at = [0, 3, 7, 16, 22];
+const items = [...document.querySelectorAll('#ht-loading li')], at = [0, 1, 2.5, 4.5, 6];
 const t0 = Date.now(), time = document.querySelector('#ht-loading .time');
 const tick = () => {{
   const s = (Date.now() - t0) / 1000;
@@ -238,9 +295,9 @@ document.getElementById('ht-frame').addEventListener('load', (e) => {{
 
 
 @app.get("/view", response_class=HTMLResponse)
-def view(url: str, test: bool = False):
+def view(url: str, test: bool = False, fresh: bool = False):
     """The shell: the page in a same-origin frame left of the panel, so its layout gets the real width."""
-    src = "frame?url=" + quote(url, safe="") + ("&test=1" if test else "")
+    src = "frame?url=" + quote(url, safe="") + ("&test=1" if test else "") + ("&fresh=1" if fresh else "")
     return SHELL.format(
         src=html.escape(src, quote=True),
         host=html.escape(urlparse(url).hostname or url),
@@ -271,22 +328,20 @@ def fetch(url: str) -> render.Rendered | HTMLResponse:
 
 
 @app.get("/frame")
-async def frame(request: Request, url: str, test: bool = False):
+async def frame(request: Request, url: str, test: bool = False, fresh: bool = False):
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     if reason := await asyncio.to_thread(private_reason, url):
         return error(url, reason, 400)
-    async with RENDERS:
-        return await frame_page(request, url, test)
+    return await frame_page(request, url, test, fresh)
 
 
-async def frame_page(request: Request, url: str, test: bool):
+async def frame_page(request: Request, url: str, test: bool, fresh: bool):
     result = None
     mode = "plain fetch"
     if RENDER:
         try:
-            result = await render.render(url)
-            mode = "rendered"
+            result, mode = await rendered(url, fresh)
         except Exception as e:  # noqa: BLE001 - any browser failure falls back to the plain fetch
             print(f"render failed for {url}: {e!r}; falling back to a plain fetch", flush=True)
     if result is None or result.status >= 400:

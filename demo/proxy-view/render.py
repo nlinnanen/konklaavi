@@ -10,7 +10,9 @@ import asyncio
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 from playwright.async_api import Browser, Error, Page, async_playwright
 
@@ -33,6 +35,34 @@ EXPAND = re.compile(
     r"more replies|see more comments|\d+ (replies|vastausta)",
     re.IGNORECASE,
 )
+
+# Requests the snapshot doesn't need. Ads and trackers keep the network busy, so without blocking them
+# the page never goes quiet and every wait runs to its limit; their scripts are stripped anyway.
+BLOCKED_HOSTS = re.compile(
+    r"(^|\.)("
+    r"doubleclick\.net|googlesyndication\.com|googleadservices\.com|googletagmanager\.com|"
+    r"googletagservices\.com|google-analytics\.com|adservice\.google\.[a-z.]+|adnxs\.com|"
+    r"amazon-adsystem\.com|criteo\.(com|net)|rubiconproject\.com|pubmatic\.com|openx\.net|"
+    r"casalemedia\.com|smartadserver\.com|adform\.net|adsafeprotected\.com|moatads\.com|"
+    r"scorecardresearch\.com|chartbeat\.(com|net)|cxense\.com|hotjar\.com|facebook\.(com|net)|"
+    r"connect\.facebook\.net|twitter\.com|ads-twitter\.com|tiktok\.com|linkedin\.com|"
+    r"taboola\.com|outbrain\.com|teads\.tv|improvedigital\.com|yieldlab\.net|gemius\.pl|"
+    r"permutive\.(com|app)|tealiumiq\.com|segment\.(com|io)|newrelic\.com|nr-data\.net|"
+    r"sentry\.io|bing\.com|clarity\.ms|parsely\.com|kilkaya\.com|lytics\.io|alma\.fi"
+    r")$"
+    r"|(^|[.-])(ads?|adserver|analytics|tracking|tracker|metrics|stats|pixel)[0-9]*\.",
+    re.IGNORECASE,
+)
+BLOCKED_TYPES = {"media", "websocket", "eventsource", "beacon", "ping"}
+
+
+async def block_noise(route, request) -> None:
+    host = urlparse(request.url).hostname or ""
+    if request.resource_type in BLOCKED_TYPES or BLOCKED_HOSTS.search(host):
+        await route.abort()
+    else:
+        await route.continue_()
+
 
 # Freezes the page and returns its text blocks. A block is the text of the nearest block-level
 # ancestor of each visible text node, so inline markup (links, emphasis) stays inside its sentence.
@@ -176,7 +206,7 @@ async def scroll_to_end(page: Page, rounds: int = 12) -> None:
     for _ in range(rounds):
         height = await page.evaluate("document.documentElement.scrollHeight")
         await page.mouse.wheel(0, 2500)
-        await page.wait_for_timeout(500)
+        await page.wait_for_timeout(250)
         at = await page.evaluate("window.scrollY + window.innerHeight")
         if at >= height and height == last:
             break
@@ -194,20 +224,33 @@ async def render(url: str) -> Rendered:
     context = await (await browser()).new_context(
         user_agent=UA, locale="fi-FI", viewport={"width": 1280, "height": 900}, java_script_enabled=True
     )
+    await context.route("**/*", block_noise)
     page = await context.new_page()
+    t0 = time.monotonic()
+    marks: list[str] = []
+    mark = lambda name: marks.append(f"{name} {time.monotonic() - t0:.1f}s")
     try:
         response = await page.goto(url, wait_until="domcontentloaded", timeout=30000)
         status = response.status if response else 0
-        await settle(page, 6000)
+        mark("dom")
+        await settle(page, 4000)
+        mark("settle")
         await click_all(page, CONSENT, 1)
+        mark("consent")
         await scroll_to_end(page)
+        mark("scroll")
         for _ in range(3):
             if not await click_all(page, EXPAND, 15):
                 break
-            await settle(page, 3000)
-        await scroll_to_end(page, rounds=4)
-        await settle(page, 2000)
+            await settle(page, 2000)
+        mark("expand")
+        await scroll_to_end(page, rounds=3)
+        await settle(page, 1500)
+        mark("scroll2")
         blocks = await page.evaluate(SNAPSHOT_JS)
-        return Rendered(url=page.url, status=status, html=await page.content(), blocks=blocks)
+        html = await page.content()
+        mark("snapshot")
+        print(f"render {url}: " + ", ".join(marks), flush=True)
+        return Rendered(url=page.url, status=status, html=html, blocks=blocks)
     finally:
         await context.close()

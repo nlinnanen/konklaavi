@@ -39,7 +39,7 @@ The extension matches on your device: it downloads the narrative index, and page
 
 **https://srv2160986.hstgr.cloud/demo/** opens an article and shows what the extension would show on it: the highlights, the cards with readers' notes, rating and reporting notes, adding a note to a selected passage, and signing in. It runs the extension's own UI code. A side panel lists the matched narratives.
 
-It is a demo, not the product. The server renders the article again in headless Chromium, so comments and other content its JavaScript loads are included, removes its scripts and sends its visible text to the API's `/check`; that takes 10 to 25 seconds, and some sites don't work. It opens the major Finnish news sites (Yle, HS, Ilta-Sanomat, Iltalehti, MTV Uutiset and others; the start page lists them) and Reddit, which currently shows automated browsers a bot check.
+It is a demo, not the product. The server renders the article again in headless Chromium, so comments and other content its JavaScript loads are included, removes its scripts and sends its visible text to the API's `/check`; that takes 10 to 25 seconds, and some sites don't work. It opens Wikipedia, the major Finnish news sites (Yle, HS, Ilta-Sanomat, Iltalehti, MTV Uutiset and others), major international news sites (BBC, the Guardian, the New York Times, DW, Al Jazeera and others) and Reddit; the start page lists them. Some of them (Reddit, Reuters, AP, Euronews) show automated browsers a bot check, so they don't load. A rendered page is kept for 15 minutes, so opening it again is instant.
 
 To run it locally, with any site allowed (needs Node and `npm install` in `client/`, since the overlay is built from the extension's modules):
 
