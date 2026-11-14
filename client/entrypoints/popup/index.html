@@ -29,10 +29,12 @@
           <legend>Backend</legend>
           <label><input type="radio" name="backendMode" value="mock" /> Mock (stored locally)</label>
           <label><input type="radio" name="backendMode" value="remote" /> Remote</label>
+          <label><input type="radio" name="backendMode" value="local" /> Local index (page content stays in the browser)</label>
           <input type="url" name="backendUrl" placeholder="http://localhost:8000" />
         </fieldset>
         <label><input type="checkbox" name="sendExcerpt" /> Send selected text with votes</label>
         <label><input type="checkbox" name="highlight" /> Highlight flagged content</label>
+        <label><input type="checkbox" name="sendHits" /> Send detection reports (local index)</label>
         <div class="row">
           <button type="button" id="rescan">Rescan page</button>
           <button type="button" id="clear-mock" class="danger">Clear mock data</button>
