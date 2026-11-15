@@ -40,6 +40,7 @@ input:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px o
 .btn:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .status { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 8px; }
 .status b { color: var(--ink); font-weight: 650; }
+.btn.toggle[aria-pressed="true"] { background: var(--paper); border-color: var(--line); color: var(--ink); }
 .btn.next[hidden] { display: none; }
 .btn.next .pos { margin-left: 4px; font-weight: 500; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .btn.next:hover { border-color: var(--ink-3); }

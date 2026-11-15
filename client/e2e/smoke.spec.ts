@@ -185,9 +185,9 @@ test.describe('remote backend', () => {
     await page.mouse.click(box!.x + 20, box!.y + box!.height / 2);
 
     await expect(card()).toBeVisible();
-    await expect(card()).toContainText('Misleading');
+    await expect(card()).toContainText('Readers flagged this as misleading');
     await expect(card()).toContainText('Edited copy');
-    await expect(card()).toContainText('Seen on 4 sites since');
+    await expect(card()).toContainText('On 4 sites since');
     await expect(card()).toContainText(NOTE_BODY);
     await expect(card().getByRole('link', { name: 'factcheck.example' })).toHaveAttribute('href', SOURCE_URL);
 

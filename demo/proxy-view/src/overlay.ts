@@ -108,6 +108,7 @@ root.innerHTML = `<style>${barCss}</style>
   <span class="badge" title="A copy of the page rendered by Konklaavi; links, videos and logins on it may not work">DEMO</span>
   <form target="_top"><input name="url" type="url" required aria-label="Article address"><button class="btn primary">Open</button></form>
   <div class="status" role="status"></div>
+  <button class="btn quiet toggle" data-act="all" aria-pressed="false" title="Also highlight passages readers checked and found accurate">Show all</button>
   <button class="btn next" data-act="next" hidden title="Jump to the next narrative on the page (N)">Next narrative <span class="pos"></span></button>
   <button class="btn quiet" data-act="guide">How it works</button>
   <a class="readme" target="_blank" rel="noopener">Get the extension →</a>
@@ -118,6 +119,7 @@ $<HTMLFormElement>('form').action = cfg.proxy + 'view';
 $<HTMLAnchorElement>('.readme').href = cfg.readme;
 $<HTMLButtonElement>('[data-act=guide]').addEventListener('click', () => showGuide());
 $<HTMLButtonElement>('[data-act=next]').addEventListener('click', () => nextNarrative());
+$<HTMLButtonElement>('[data-act=all]').addEventListener('click', () => setShowAll(!showAll));
 const statusEl = $<HTMLDivElement>('.status');
 const esc = (s: unknown) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -170,6 +172,10 @@ const overlaps = (a: Range, b: Range) =>
 
 const highlighter = new Highlighter();
 const ui = new OverlayUi();
+/** As the extension's "Show all highlights" setting: also highlight narratives readers found accurate. */
+let showAll = store.get('konklaavi.showAll', false);
+highlighter.setShowAll(showAll);
+$('[data-act=all]').setAttribute('aria-pressed', String(showAll));
 const flagged: FlaggedRange[] = [];
 const groups = new Map<string, { narrative: Narrative; best: FlaggedRange; items: FlaggedRange[]; missing: number }>();
 
@@ -369,8 +375,9 @@ let narrativeAt = -1;
 
 /** The narratives with highlights, in the order they first appear, each with its passages in order. */
 function narrativesInOrder(): FlaggedRange[][] {
+  const shown = new Set(highlighter.all());
   return [...groups.values()]
-    .map((g) => [...g.items].sort((a, b) => (before(a.range, b.range) ? -1 : 1)))
+    .map((g) => g.items.filter((item) => shown.has(item)).sort((a, b) => (before(a.range, b.range) ? -1 : 1)))
     .filter((items) => items.length)
     .sort((a, b) => (before(a[0].range, b[0].range) ? -1 : 1));
 }
@@ -480,7 +487,7 @@ function bringIntoView(el: Element | null) {
 }
 
 function steps(): Step[] {
-  const first = flagged[0];
+  const first = highlighter.all()[0];
   const swatch = (state: NarrativeState) =>
     `<span class="swatch" style="${HIGHLIGHT_STYLES[state]}">${esc(STATE_LABELS[state])}</span>`;
   const paragraph = [...document.querySelectorAll('p')].find(
@@ -641,6 +648,33 @@ function showGuide() {
   q<HTMLButtonElement>('.next').focus();
 }
 
+// ---- Show all: the bar's toggle, and the counts it changes.
+
+let checked = false;
+
+/** The bar's narrative and passage counts, and the Next narrative button, for the highlights shown. */
+function showCounts() {
+  if (!checked) return;
+  const highlighted = highlighter.all();
+  const shown = new Set(highlighted.map((f) => f.result.narrative.narrativeId)).size;
+  statusEl.innerHTML = shown
+    ? `<b>${shown}</b> narrative${shown === 1 ? '' : 's'} on this page, <b>${highlighted.length}</b> passage${highlighted.length === 1 ? '' : 's'} highlighted`
+    : 'No tracked narratives on this page';
+  const count = narrativesInOrder().length;
+  narrativeAt = -1;
+  $<HTMLButtonElement>('[data-act=next]').hidden = !count;
+  $('.pos').textContent = `0 / ${count}`;
+}
+
+function setShowAll(on: boolean) {
+  showAll = on;
+  store.set('konklaavi.showAll', on);
+  $('[data-act=all]').setAttribute('aria-pressed', String(on));
+  ui.hideCard();
+  highlighter.setShowAll(on);
+  showCounts();
+}
+
 // ---- Run.
 
 setupSelection();
@@ -660,17 +694,10 @@ if (!cfg.blocks.length) {
     .then(({ matches }) => {
       if (cfg.test) matches = matches.concat(testMatches());
       place(matches);
+      checked = true;
       const secs = ((performance.now() - t0) / 1000).toFixed(1);
-      const shown = new Set(flagged.map((f) => f.result.narrative.narrativeId)).size;
-      statusEl.innerHTML = shown
-        ? `<b>${shown}</b> narrative${shown === 1 ? '' : 's'} on this page, <b>${flagged.length}</b> passage${flagged.length === 1 ? '' : 's'} highlighted`
-        : 'No tracked narratives on this page';
       statusEl.title = `${cfg.blocks.length} text blocks (${cfg.mode}) checked in ${secs}s`;
-      const count = narrativesInOrder().length;
-      if (count) {
-        $<HTMLButtonElement>('[data-act=next]').hidden = false;
-        $('.pos').textContent = `0 / ${count}`;
-      }
+      showCounts();
       if (firstVisit) showGuide();
     })
     .catch((e) => {

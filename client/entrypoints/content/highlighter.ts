@@ -1,4 +1,4 @@
-import { HIGHLIGHT_STYLES, type HighlightStyle } from '@/lib/state';
+import { HIGHLIGHT_STYLES, isHighlighted, type HighlightStyle } from '@/lib/state';
 import type { LookupResult } from '@/lib/types';
 
 export interface FlaggedRange {
@@ -27,6 +27,7 @@ export class Highlighter {
   private highlights = new Map<string, Highlight>();
   private byBlock = new Map<Element, FlaggedRange[]>();
   private enabled = true;
+  private showAll = false;
 
   constructor() {
     if (!highlightSupported) return;
@@ -54,11 +55,21 @@ export class Highlighter {
     else for (const name of this.highlights.keys()) CSS.highlights.delete(name);
   }
 
+  private shown = (item: FlaggedRange) => isHighlighted(item.result.narrative.state, this.showAll);
+
+  /** Whether narratives readers found accurate are highlighted too. */
+  setShowAll(showAll: boolean) {
+    if (showAll === this.showAll) return;
+    this.showAll = showAll;
+    for (const h of this.highlights.values()) h.clear();
+    for (const item of this.all()) this.highlights.get(highlightName(item.style))?.add(item.range);
+  }
+
   setBlock(block: Element, items: FlaggedRange[]) {
     for (const old of this.byBlock.get(block) ?? []) this.highlights.get(highlightName(old.style))?.delete(old.range);
     if (items.length) this.byBlock.set(block, items);
     else this.byBlock.delete(block);
-    for (const item of items) this.highlights.get(highlightName(item.style))?.add(item.range);
+    for (const item of items.filter(this.shown)) this.highlights.get(highlightName(item.style))?.add(item.range);
   }
 
   /** Drop blocks that were removed from the page. */
@@ -66,8 +77,9 @@ export class Highlighter {
     for (const block of this.byBlock.keys()) if (!block.isConnected) this.setBlock(block, []);
   }
 
+  /** The highlighted ranges. */
   all(): FlaggedRange[] {
-    return [...this.byBlock.values()].flat();
+    return [...this.byBlock.values()].flat().filter(this.shown);
   }
 
   /**
@@ -81,7 +93,7 @@ export class Highlighter {
     for (let el = node instanceof Element ? node : node?.parentElement; el; el = el.parentElement) {
       const items = this.byBlock.get(el);
       if (!items) continue;
-      for (const item of items) {
+      for (const item of items.filter(this.shown)) {
         for (const r of item.range.getClientRects()) {
           if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return item;
         }

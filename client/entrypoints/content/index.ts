@@ -24,12 +24,14 @@ export default defineContentScript({
 
     const settings = await getSettings();
     highlighter.setEnabled(settings.highlight);
+    highlighter.setShowAll(settings.showAll);
     // Remote lookups answer from the backend at the time; the local index pushes its changes instead.
     const resultAge = (s: Settings) => (s.backendMode === 'remote' ? INDEX_REFRESH_MS : Infinity);
     scanner.maxResultAge = resultAge(settings);
     let backendKey = `${settings.backendMode}|${settings.backendUrl}`;
     onSettingsChanged((s) => {
       highlighter.setEnabled(s.highlight);
+      highlighter.setShowAll(s.showAll);
       scanner.maxResultAge = resultAge(s);
       const key = `${s.backendMode}|${s.backendUrl}`;
       if (key !== backendKey) {

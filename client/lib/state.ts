@@ -1,12 +1,12 @@
-import type { MatchLevel, Narrative, NarrativeState, Note } from './types';
+import type { Classification, MatchLevel, Narrative, NarrativeState, Note } from './types';
 
 /** Display states, most urgent first: the order of the legend and of the tie-break between matches. */
 export const STATES = ['misleading', 'controversial', 'context', 'needs_ratings', 'tracked'] as const satisfies readonly NarrativeState[];
 
 export const STATE_LABELS: Record<NarrativeState, string> = {
   misleading: 'Misleading',
-  context: 'Context added',
-  controversial: 'Raters disagree',
+  context: 'No issues found',
+  controversial: 'Readers disagree',
   needs_ratings: 'Needs ratings',
   tracked: 'Tracked',
 };
@@ -27,26 +27,96 @@ export function displayState(notes: Pick<Note, 'classification' | 'status'>[]): 
   return 'tracked';
 }
 
-/** The helpful note a misleading or context narrative is shown with. */
-export function leadNote(narrative: Pick<Narrative, 'state' | 'notes'>): Note | undefined {
-  const classification = { misleading: 'misleading', context: 'not_misleading' }[narrative.state as string];
-  if (!classification) return undefined;
-  return narrative.notes.find((n) => n.status === 'helpful' && n.classification === classification);
-}
+const ratingCount = (n: Pick<Note, 'ratings'>) => n.ratings.helpful + n.ratings.somewhat + n.ratings.not_helpful;
 
-const ratingCount = (n: Note) => n.ratings.helpful + n.ratings.somewhat + n.ratings.not_helpful;
+const mostRated = (notes: Note[]) =>
+  notes.reduce<Note | undefined>((best, n) => (!best || ratingCount(n) > ratingCount(best) ? n : best), undefined);
+
+/** Notes readers rated not helpful are counted but not shown. */
+export const shownNotes = (notes: Note[]) => notes.filter((n) => n.status !== 'not_helpful');
 
 /**
- * The note a highlight's card leads with: the decided helpful note, else the
- * most-rated note not rated unhelpful, which readers can still decide on.
+ * The note a highlight leads with: the helpful note, a misleading one first as
+ * the display state puts it; else the note the reader hasn't rated that is
+ * closest to being decided, by its ratings; else the most-rated note.
  */
-export function featuredNote(narrative: Pick<Narrative, 'state' | 'notes'>): Note | undefined {
-  const lead = leadNote(narrative);
-  if (lead) return lead;
-  return narrative.notes
-    .filter((n) => n.status !== 'not_helpful')
-    .reduce<Note | undefined>((best, n) => (!best || ratingCount(n) > ratingCount(best) ? n : best), undefined);
+export function leadNote(narrative: Pick<Narrative, 'notes'>, myRatings: Record<string, unknown> = {}): Note | undefined {
+  const shown = shownNotes(narrative.notes);
+  const helpful = shown.filter((n) => n.status === 'helpful');
+  if (helpful.length) return helpful.find((n) => n.classification === 'misleading') ?? helpful[0];
+  return mostRated(shown.filter((n) => !(n.id in myRatings))) ?? mostRated(shown);
 }
+
+/** The best-rated shown note of each classification, for the two sides of a disputed claim. */
+export function bothSides(notes: Note[]): Partial<Record<Classification, Note>> {
+  const shown = shownNotes(notes);
+  return {
+    misleading: mostRated(shown.filter((n) => n.classification === 'misleading')),
+    not_misleading: mostRated(shown.filter((n) => n.classification === 'not_misleading')),
+  };
+}
+
+/** Narratives readers found accurate are highlighted only when the reader asks to see all. */
+export const isHighlighted = (state: NarrativeState, showAll: boolean) => showAll || state !== 'context';
+
+const dayMonth = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+const dayMonthYear = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** "3 Nov", with the year when it isn't this year. */
+function shortDate(iso: string, now = new Date()): string {
+  const date = new Date(iso);
+  return (date.getFullYear() === now.getFullYear() ? dayMonth : dayMonthYear).format(date);
+}
+
+const sitesText = (sites: number) => `${sites} site${sites === 1 ? '' : 's'}`;
+
+/** "On 3 sites since 4 Nov", the narrative's spread. */
+export function spreadLine(spread: Narrative['spread'], now = new Date()): string {
+  const since = spread.firstSeen ? ` since ${shortDate(spread.firstSeen, now)}` : '';
+  return `On ${sitesText(spread.sites)}${since}`;
+}
+
+/** One plain sentence on what readers concluded about a narrative, coloured by its state. */
+export function headline(narrative: Pick<Narrative, 'state' | 'spread'>, now = new Date()): string {
+  switch (narrative.state) {
+    case 'misleading':
+      return 'Readers flagged this as misleading';
+    case 'context':
+      return 'Readers checked this: no issues found';
+    case 'controversial':
+      return 'Readers disagree about this claim';
+    case 'needs_ratings':
+      return 'Readers are reviewing this — help rate it';
+    case 'tracked': {
+      const { sites, firstSeen } = narrative.spread;
+      return `This text appears on ${sitesText(sites)}${firstSeen ? ` since ${shortDate(firstSeen, now)}` : ''}`;
+    }
+  }
+}
+
+/** Why a note is trusted: who rated it helpful, how many ratings and sources it has. */
+export function trustLine(note: Pick<Note, 'status' | 'decidedBy' | 'ratings' | 'sources'>): string {
+  const parts: string[] = [];
+  if (note.status === 'helpful') {
+    parts.push(note.decidedBy === 'agreement' ? 'Rated helpful by agreement' : 'Rated helpful by people who usually disagree');
+  }
+  const total = ratingCount(note);
+  if (total) parts.push(`${total} rating${total === 1 ? '' : 's'}`);
+  if (note.sources.length) parts.push(`${note.sources.length} source${note.sources.length === 1 ? '' : 's'}`);
+  return parts.join(' · ');
+}
+
+/** The text cut at a word boundary to at most `max` characters, with an ellipsis when cut. */
+export function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const space = cut.lastIndexOf(' ');
+  return (space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s.,;:!?-]+$/, '') + '…';
+}
+
+/** A note in at most `max` characters: its summary, else its body on one line, cut short. */
+export const noteSnippet = (note: Pick<Note, 'body' | 'summary'>, max: number) =>
+  note.summary || truncate(note.body.replace(/\s+/g, ' ').trim(), max);
 
 /** Narrative-level and related matches are drawn lighter than exact and variant ones. */
 export function isWeak(level: MatchLevel): boolean {
@@ -88,12 +158,3 @@ export const HIGHLIGHT_STYLES: Record<HighlightStyle, string> = {
   'tracked-weak':
     'text-decoration: underline dotted oklch(0.58 0.03 260 / 0.4); text-decoration-thickness: 1px;',
 };
-
-const dateFormat = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-
-/** "Seen on 3 sites since 4 Nov 2026", the narrative's spread. */
-export function spreadLine(spread: Narrative['spread']): string {
-  const sites = `${spread.sites} site${spread.sites === 1 ? '' : 's'}`;
-  if (!spread.firstSeen) return `Tracked on ${sites}`;
-  return `Seen on ${sites} since ${dateFormat.format(new Date(spread.firstSeen))}`;
-}

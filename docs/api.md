@@ -36,10 +36,10 @@ A narrative's `state` follows its notes shown to readers (`display_state` in `ba
 | State | Rule | Highlight (`HIGHLIGHT_STYLES` in `client/lib/state.ts`) |
 | --- | --- | --- |
 | misleading | a helpful note classified misleading | strong warm fill and solid underline; the card leads with that note |
-| controversial | otherwise, a controversial note | grey fill; "Raters disagree" |
-| context | otherwise, a helpful note classified not misleading | calm blue-green fill and underline; the card leads with that note |
+| controversial | otherwise, a controversial note | grey fill; "Readers disagree about this claim" |
+| context | otherwise, a helpful note classified not misleading | calm blue-green fill and underline, only with the "Show all highlights" setting; the card leads with that note |
 | needs_ratings | otherwise, notes waiting for ratings | faint fill |
-| tracked | no note shown | subtle dotted underline; "Part of a narrative seen on N sites since <date>" |
+| tracked | no note shown | subtle dotted underline; "This text appears on N sites since <date>" |
 
 The table lists states in order of urgency, which breaks ties between matches. Each sentence takes its strongest match: match level first (exact and variant above narrative above related), then urgency. Narrative and related matches use a lighter variant of their state's style. Consecutive sentences with the same match form one range, so highlights never overlap. The popup shows a legend.
 
