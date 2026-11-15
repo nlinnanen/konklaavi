@@ -1,0 +1,60 @@
+# What the demo opens and suggests. Edit this file to change either; the server reads it at start.
+
+# Sites the proxy opens, with their subdomains: the news sites the crowd's readers read
+# (tools/crowd/crowd-overnight.yaml), so their articles carry narratives and notes. A redirect is
+# followed only while every hop stays on this list, so a site that redirects to another domain
+# (rt.com to rt-english.com) needs both. The ALLOWED_DOMAINS environment variable replaces the list.
+domains = [
+  # International public and mainstream
+  "bbc.co.uk", "bbc.com", "theguardian.com", "dw.com", "france24.com", "aljazeera.com", "npr.org",
+  "cbc.ca", "abc.net.au", "politico.eu", "euronews.com", "independent.co.uk", "thehill.com",
+  "newsweek.com", "kyivindependent.com", "meduza.io", "err.ee", "tagesschau.de",
+  # Finnish and Nordic
+  "yle.fi", "iltalehti.fi", "is.fi", "helsinkitimes.fi", "svt.se", "aftonbladet.se", "nrk.no", "dr.dk",
+  # Partisan and state media
+  "foxnews.com", "newsmax.com", "breitbart.com", "theblaze.com", "thegatewaypundit.com", "zerohedge.com",
+  "dailykos.com", "commondreams.org", "motherjones.com", "alternet.org", "theintercept.com",
+  "rt.com", "rt-english.com", "sputnikglobe.com", "tass.com", "cgtn.com",
+  "naturalnews.com", "activistpost.com", "lewrockwell.com", "off-guardian.org", "lifesitenews.com",
+  "consortiumnews.com", "noahpinion.blog",
+]
+
+# Articles listed under "Try these" on the home page and on the error page for a site not on the
+# list. Each is an article that renders in the demo and has a passage with a visible reader's note;
+# `note` says what the reader will see.
+
+[[examples]]
+site = "RT"
+title = "Former Ukrainian PM's aide targeted in Moscow car bombing"
+url = "https://www.rt.com/russia/648797-moscow-car-bombing-writer/"
+note = "a helpful note: \"Western-backed overthrow\" is a contested characterization"
+
+[[examples]]
+site = "Yle News"
+title = "Russia demands Finland leave Nato in Ukraine peace talks"
+url = "https://yle.fi/a/74-20256829"
+note = "notes that disagree on Russia's claim of a promise not to expand Nato"
+
+[[examples]]
+site = "BBC"
+title = "Ebola in DR Congo: My mother told me I would die if I sought treatment"
+url = "https://www.bbc.co.uk/news/articles/cmvg2e2q28w1o"
+note = "a note on the incubation period that needs more ratings: rate it"
+
+[[examples]]
+site = "Euronews"
+title = "Moscow says it will not dictate EU delegation's participation in Ukraine talks"
+url = "https://www.euronews.com/2026/11/14/moscow-says-it-will-not-dictate-eu-delegations-participation-in-ukraine-talks"
+note = "a helpful note: the full-scale invasion began in 2022, not 2024"
+
+[[examples]]
+site = "The Gateway Pundit"
+title = "Woke Formula One driver visits, condemns wall imprisoning Palestinians"
+url = "https://www.thegatewaypundit.com/2026/11/woke-formula-one-driver-visits-condemns-wall-imprisoning/"
+note = "contested notes on who controls the Rafah crossing"
+
+[[examples]]
+site = "Sputnik"
+title = "Meeting of Russian, US, Chinese leaders at APEC would be relevant"
+url = "https://sputnikglobe.com/20261114/meeting-of-russian-us-chinese-leaders-at-apec-summit-would-be-relevant---diplomat-1125071762.html"
+note = "a contested note: the diplomat's claim is unsourced"
