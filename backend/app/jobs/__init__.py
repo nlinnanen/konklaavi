@@ -13,9 +13,12 @@ PERIODIC: list[tuple[str, int]] = [
     ("cluster", 300),
     ("narrative_vectors", 300),
     ("score_notes", 300),
+    ("summarize_notes", 60),
 ]
 # Kinds a reader waits on, claimed before every other due job.
 URGENT = ("moderate_note", "score_notes")
+# Backfill kinds, claimed after every other due job.
+BACKGROUND = ("summarize_notes",)
 MAX_ATTEMPTS = 5
 # A job running longer than this is taken to have lost its worker and can be claimed again.
 LEASE = timedelta(minutes=10)
@@ -64,8 +67,8 @@ def enqueue_unless_queued(conn: Connection, kind: str) -> None:
 def claim(conn: Connection) -> Job | None:
     """Mark the next due job running and count the attempt. Commit before running the handler.
 
-    URGENT kinds go first; the worker runs one job per loop, so a backlog of page jobs delays them by
-    at most the one job already running.
+    URGENT kinds go first and BACKGROUND kinds last; the worker runs one job per loop, so a backlog of
+    page jobs delays urgent ones by at most the one job already running.
 
     A job whose lease expired is due again, or failed when it is out of attempts.
     """
@@ -80,13 +83,13 @@ def claim(conn: Connection) -> Job | None:
         WHERE id = (
           SELECT id FROM job
           WHERE (state = 'queued' AND run_after <= now()) OR (state = 'running' AND updated_at < now() - %s)
-          ORDER BY kind = ANY(%s) DESC, run_after, id
+          ORDER BY kind = ANY(%s) DESC, kind = ANY(%s), run_after, id
           LIMIT 1
           FOR UPDATE SKIP LOCKED
         )
         RETURNING id, kind, payload, attempts
         """,
-        (LEASE, list(URGENT)),
+        (LEASE, list(URGENT), list(BACKGROUND)),
     ).fetchone()
     return Job(*row) if row else None
 
@@ -117,4 +120,4 @@ def fail(conn: Connection, job: Job, error: str, retry: bool = True) -> None:
 
 
 # Owner modules register their handlers on import.
-from app.jobs import cluster, fetch, moderate, score, variants  # noqa: F401
+from app.jobs import cluster, fetch, moderate, score, summarize, variants  # noqa: F401

@@ -186,8 +186,8 @@ def get_recent(
     with connection() as conn:
         rows = conn.execute(
             """
-            SELECT n.id, n.narrative_id, r.title, r.claim, r.source_url, n.classification, n.body, n.sources,
-                   n.status, n.decided_by, n.created_at
+            SELECT n.id, n.narrative_id, r.title, r.claim, r.source_url, n.classification, n.body, n.summary,
+                   n.sources, n.status, n.decided_by, n.created_at
             FROM note n JOIN narrative r ON r.id = n.narrative_id
             WHERE n.moderation = 'visible' AND (%(since)s::timestamptz IS NULL OR n.created_at > %(since)s)
             ORDER BY n.created_at DESC, n.id DESC
@@ -205,12 +205,26 @@ def get_recent(
                 "url": url,
                 "classification": classification,
                 "body": body,
+                "summary": summary,
                 "sources": sources,
                 "status": status,
                 "decidedBy": decided_by,
                 "createdAt": created.isoformat(),
             }
-            for id_, narrative_id, title, claim, url, classification, body, sources, status, decided_by, created in rows
+            for (
+                id_,
+                narrative_id,
+                title,
+                claim,
+                url,
+                classification,
+                body,
+                summary,
+                sources,
+                status,
+                decided_by,
+                created,
+            ) in rows
         ]
     }
 
@@ -277,8 +291,8 @@ def get_queue(user_id: Annotated[UUID, Query(alias="userId")]) -> dict:
         require_moderator(conn, user_id)
         rows = conn.execute(
             """
-            SELECT n.id, n.narrative_id, r.title, r.claim, r.source_url, n.classification, n.body, n.sources,
-                   n.moderation_reason, n.created_at
+            SELECT n.id, n.narrative_id, r.title, r.claim, r.source_url, n.classification, n.body, n.summary,
+                   n.sources, n.moderation_reason, n.created_at
             FROM note n JOIN narrative r ON r.id = n.narrative_id
             WHERE n.moderation = 'pending_review'
             ORDER BY n.created_at
@@ -294,11 +308,12 @@ def get_queue(user_id: Annotated[UUID, Query(alias="userId")]) -> dict:
                 "url": url,
                 "classification": classification,
                 "body": body,
+                "summary": summary,
                 "sources": sources,
                 "reason": reason,
                 "createdAt": created.isoformat(),
             }
-            for id_, narrative_id, title, claim, url, classification, body, sources, reason, created in rows
+            for id_, narrative_id, title, claim, url, classification, body, summary, sources, reason, created in rows
         ]
     }
 

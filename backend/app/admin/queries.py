@@ -104,7 +104,7 @@ def narrative(conn: Connection, narrative_id: int) -> dict | None:
 # whose install is linked to an account).
 NOTES = """
 SELECT nt.id, nt.narrative_id, n.title AS narrative, n.claim AS passage, n.source_url AS url,
-       nt.classification, nt.status, nt.moderation, nt.moderation_reason, nt.body, nt.sources,
+       nt.classification, nt.status, nt.moderation, nt.moderation_reason, nt.body, nt.summary, nt.sources,
        nt.intercept, nt.factor, nt.decided_at, nt.created_at, a.email AS author,
        count(r.note_id) AS ratings,
        count(r.note_id) FILTER (WHERE i.account_id IS NOT NULL) AS counted,
