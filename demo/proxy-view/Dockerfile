@@ -21,7 +21,7 @@ RUN uv export --script viewer.py --frozen --no-hashes -o requirements.txt \
  && apt-get update && apt-get install -y --no-install-recommends libatomic1 \
  && playwright install --with-deps chromium \
  && rm -rf /var/lib/apt/lists/*
-COPY demo/proxy-view/*.py demo/proxy-view/*.css ./
+COPY demo/proxy-view/*.py demo/proxy-view/*.css demo/proxy-view/sites.toml ./
 COPY --from=overlay /src/demo/proxy-view/overlay.bundle.js ./
 # Playwright starts Chromium without its own sandbox; the unprivileged container is the boundary.
 RUN useradd --create-home --uid 10001 viewer

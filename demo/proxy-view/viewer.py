@@ -30,6 +30,7 @@ import re
 import socket
 import subprocess
 import time
+import tomllib
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote, urljoin, urlparse
@@ -72,12 +73,12 @@ PRODUCT = (
     f"The real product is the <b>browser extension</b>, which checks pages as you read them, on your own "
     f"device. <a href='{html.escape(README_URL, quote=True)}' target=_blank rel=noopener>How to install it</a>."
 )
-# Sites the proxy opens, with their subdomains: the sites whose articles are scraped for narratives and
-# notes (the feeds in tools/crowd/crowd.yaml), so pages opened in the demo are the ones with matches.
-# ALLOWED_DOMAINS (comma-separated) replaces the list, and "*" allows any public site, for local testing.
-DEFAULT_DOMAINS = ["rt.com", "sputnikglobe.com", "yle.fi", "bbc.com", "bbc.co.uk"]
+# The sites the proxy opens and the example articles: sites.toml. ALLOWED_DOMAINS (comma-separated)
+# replaces its list, and "*" allows any public site, for local testing.
+SITES = tomllib.loads((HERE / "sites.toml").read_text())
+EXAMPLES: list[dict[str, str]] = SITES.get("examples", [])
 _allowed = os.environ.get("ALLOWED_DOMAINS", "").strip()
-ALLOWED = None if _allowed == "*" else [d.strip().lower() for d in _allowed.split(",") if d.strip()] or DEFAULT_DOMAINS
+ALLOWED = None if _allowed == "*" else [d.strip().lower() for d in _allowed.split(",") if d.strip()] or SITES["domains"]
 
 
 def allowed(url: str) -> bool:
@@ -183,7 +184,7 @@ def private_reason(url: str) -> str | None:
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
         return "Only http(s) URLs can be opened."
     if not allowed(url):
-        return f"{parsed.hostname} is not one of the sites this demo opens: {', '.join(ALLOWED)}."
+        return f"{parsed.hostname} is not one of the news sites this demo opens. Try one of the articles below."
     # Behind an HTTP proxy without DNS (some sandboxes), the address check can't run.
     if os.environ.get("SKIP_ADDRESS_CHECK") == "1":
         return None
@@ -224,7 +225,8 @@ def home():
         "Konklaavi demo",
         "<main><h1>Konklaavi <span>demo</span></h1><p class=lede>Open an article and see which passages "
         f"in it and its comments belong to a tracked narrative, and what readers' notes say.</p>{form()}"
-        + (f"<p class=meta>Works with {html.escape(', '.join(ALLOWED))}.</p>" if ALLOWED else "")
+        + examples()
+        + sites_list()
         + f"<div class=notice><p>{html.escape(NOTICE)}</p><p>{PRODUCT}</p></div>"
         + f"<a class=source href='{html.escape(SOURCE_URL, quote=True)}' target=_blank rel=noopener>"
         f"{GITHUB_MARK}<span>Source code on GitHub</span></a>"
@@ -232,10 +234,33 @@ def home():
     )
 
 
+def examples() -> str:
+    """The "Try these" list: articles known to render with a visible note. Links open in the top
+    window, since the error page that also shows them is inside the demo's frame."""
+    if not EXAMPLES:
+        return ""
+    items = "".join(
+        f"<li><a href='view?url={quote(e['url'], safe='')}' target=_top>{html.escape(e['title'])}</a>"
+        f"<span>{html.escape(e['site'])} · {html.escape(e['note'])}</span></li>"
+        for e in EXAMPLES
+    )
+    return f"<section class=examples><h2>Try these</h2><ul>{items}</ul></section>"
+
+
+def sites_list() -> str:
+    if ALLOWED is None:
+        return ""
+    return (
+        f"<details class=meta><summary>Works with {len(ALLOWED)} news sites</summary>"
+        f"<p>{html.escape(', '.join(ALLOWED))}</p></details>"
+    )
+
+
 def error(url: str, message: str, status: int = 502) -> HTMLResponse:
     response = page(
         "Could not load page",
-        f"<main><h1>Could not load the page</h1><p class=err>{html.escape(message)}</p>{form(url)}</main>",
+        f"<main><h1>Could not load the page</h1><p class=err>{html.escape(message)}</p>{form(url)}"
+        f"{examples()}{sites_list()}</main>",
     )
     response.status_code = status
     return response
