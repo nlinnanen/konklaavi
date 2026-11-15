@@ -24,9 +24,13 @@ export interface Note {
   /** Source URLs. */
   sources: string[];
   status: NoteStatus;
+  /** The scoring rule behind a decided status; absent or null while undecided. */
+  decidedBy?: 'bridging' | 'agreement' | null;
   ratings: RatingCounts;
   /** ISO 8601. */
   createdAt: string;
+  /** A short summary of the body, null until one is written. */
+  summary?: string | null;
 }
 
 /** A narrative as lookups and the index ship it. */
@@ -146,6 +150,8 @@ export interface Settings {
   highlight: boolean;
   /** Send detection hits to the backend in local index mode. */
   sendHits: boolean;
+  /** Also highlight narratives readers found accurate, which are left unhighlighted otherwise. */
+  showAll: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -153,6 +159,7 @@ export const DEFAULT_SETTINGS: Settings = {
   backendUrl: 'http://localhost:8000',
   highlight: true,
   sendHits: true,
+  showAll: false,
 };
 
 export const MIN_PASSWORD_LENGTH = 8;

@@ -19,13 +19,13 @@ The extension isn't in a web store, so you load it unpacked. That needs no revie
 
 Using it:
 
-- **Highlights** mark passages that belong to a tracked narrative. Hover one to see the narrative, the note shown for it and where it has spread. The colour is the narrative's state, and a lighter highlight means the passage only matched by meaning, not by wording:
+- **Highlights** mark passages that belong to a tracked narrative. Hover one for a short preview: what readers concluded, the lead note, why it is trusted and where the text has spread; click it for the full card. The colour is the narrative's state, and a lighter highlight means the passage only matched by meaning, not by wording:
 
   | State | Meaning |
   |---|---|
   | Misleading | a note rated helpful says the narrative is misleading |
-  | Context added | a note rated helpful adds context without calling it misleading |
-  | Raters disagree | raters from different viewpoints don't agree on its notes |
+  | No issues found | a note rated helpful says the text is accurate; highlighted only with **Show all highlights** on in the popup's settings |
+  | Readers disagree | raters from different viewpoints don't agree on its notes |
   | Needs ratings | its notes are waiting for enough ratings |
   | Tracked | the narrative is tracked but no note is shown for it yet |
 
@@ -37,7 +37,7 @@ The extension matches on your device: it downloads the narrative index and compa
 
 ### Web demo (no extension needed)
 
-**https://konklaavi.tech/** opens an article and shows what the extension would show on it: the highlights, the cards with readers' notes, rating and reporting notes, and adding a note to a selected passage (reporting needs sign-in, as in the extension). It runs the extension's own UI code, so the page looks as it would with the extension. A top bar marks the page as a demo copy and holds the address bar, a **Next narrative** button (or the N key) that jumps between highlights, and a link to the extension. A guided tour walks through the features on the first visit, and **How it works** in the bar replays it.
+**https://konklaavi.tech/** opens an article and shows what the extension would show on it: the highlights, the cards with readers' notes, rating and reporting notes, and adding a note to a selected passage (reporting needs sign-in, as in the extension). It runs the extension's own UI code, so the page looks as it would with the extension. A top bar marks the page as a demo copy and holds the address bar, a **Show all** toggle that also highlights passages readers found accurate, a **Next narrative** button (or the N key) that jumps between highlights, and a link to the extension. A guided tour walks through the features on the first visit, and **How it works** in the bar replays it.
 
 It is a demo, not the product. The server renders the article again in headless Chromium, so comments and other content its JavaScript loads are included, removes its scripts and sends its visible text to the API's `/check`; that takes about 5 to 10 seconds the first time, and some pages may not work. It opens the news sites whose articles the crowd reads, listed with the home page's **Try these** articles in `demo/proxy-view/sites.toml`; a redirect is followed only while each hop stays on that list. A rendered page is kept for 15 minutes, so opening it again is instant.
 

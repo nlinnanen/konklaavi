@@ -19,8 +19,8 @@ async function sendToContent<T>(req: Omit<ContentRequest, 'target'>): Promise<T 
 
 const STATE_MEANINGS: Record<NarrativeState, string> = {
   misleading: 'A note saying it is misleading was rated helpful.',
-  context: 'A note adding context was rated helpful.',
-  controversial: 'Raters split on the notes so far.',
+  context: 'Readers checked it and found no issues. Highlighted only with "Show all highlights" on.',
+  controversial: 'Readers split on the notes so far.',
   needs_ratings: 'Notes are waiting for ratings.',
   tracked: 'A known narrative with no note shown yet.',
 };
@@ -101,6 +101,8 @@ async function loadSettingsForm() {
   field('backendUrl').value = s.backendUrl;
   field('backendUrl').disabled = s.backendMode === 'mock';
   field('highlight').checked = s.highlight;
+  field('showAll').checked = s.showAll;
+  field('showAll').disabled = !s.highlight;
   field('sendHits').checked = s.sendHits;
   field('sendHits').disabled = s.backendMode !== 'local';
   $('#clear-mock').hidden = s.backendMode !== 'mock';
@@ -122,6 +124,7 @@ async function main() {
       backendMode: mode === 'remote' || mode === 'local' ? mode : 'mock',
       backendUrl: (form.elements.namedItem('backendUrl') as HTMLInputElement).value,
       highlight: data.has('highlight'),
+      showAll: (form.elements.namedItem('showAll') as HTMLInputElement).checked,
       sendHits: (form.elements.namedItem('sendHits') as HTMLInputElement).checked,
     });
     await loadSettingsForm();
