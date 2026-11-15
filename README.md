@@ -1,6 +1,6 @@
 # Konklaavi
 
-Konklaavi is a content trust layer for the browser. Its extension recognises passages that belong to a tracked narrative, by sentence hashes (exact copies), MinHash bands (edited copies) and on-device embeddings (the same claim in other words), and highlights them with the state that crowdsourced context notes give the narrative. Readers add notes to a selected passage and rate other readers' notes, and the Community Notes bridging algorithm decides which note is shown. The backend tracks where each narrative spreads: extensions report the pages it is seen on, and the backend fetches those public pages to record where it appeared first and how far it has spread.
+Konklaavi is a content trust layer for the browser. The browser extension recognises passages that belong to a tracked narrative using sentence hashes (exact copies), MinHash bands (edited copies) and on-device embeddings (the same claim in other words), and displays useful context that other users have added. Readers add notes to a selected passage and rate other readers' notes, and the Community Notes bridging algorithm decides which note is shown. The backend tracks where each narrative spreads: extensions report the pages it is seen on, and the backend fetches those public pages to record where it appeared first and how far it has spread.
 
 Built for Junction 2026 for Hostinger's "Decode the Noise" challenge.
 
