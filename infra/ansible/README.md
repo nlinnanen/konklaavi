@@ -94,7 +94,7 @@ Rerunning either playbook is safe. A run that changes the compose files or `.env
 
 ## Notes
 
-- Docker publishes container ports past ufw. Only Caddy publishes ports to the internet; the API and dashboard bind to 127.0.0.1, and the database and fingerprint service publish none.
+- Docker publishes container ports past ufw. Only Caddy publishes ports to the internet; the API binds to 127.0.0.1, and the database, fingerprint service and web demo publish none. The dashboard is not deployed.
 - Turning on `live-restore` takes a Docker restart, which stops running containers that one time. They come back with `restart: unless-stopped`. Later Docker restarts leave containers running.
 - GitHub Actions connects from changing IPs, so `ssh_allowed_sources` is `any` by default. Restricting it also blocks releases.
 
@@ -120,7 +120,7 @@ git push origin --delete deploy
 
 After `site.yml`, push to `main` or run the release workflow by hand. The first start downloads the embedding model and initialises the database, so it takes several minutes.
 
-The dashboard is at `https://$VPS_HOST/`. In the extension, set the backend URL to `https://$VPS_HOST/api`.
+The web demo is at `https://$VPS_HOST/`, the API at `https://$VPS_HOST/api` and the admin panel at `https://$VPS_HOST/admin`. In the extension, set the backend URL to `https://$VPS_HOST/api`.
 
 ## Operations
 
@@ -135,8 +135,8 @@ sudo ufw status verbose
 sudo fail2ban-client status sshd
 ```
 
-The API and dashboard are reachable from a laptop through an SSH tunnel:
+The API is also reachable from a laptop through an SSH tunnel:
 
 ```sh
-ssh -L 8501:localhost:8501 -L 8000:localhost:8000 admin@$VPS_HOST
+ssh -L 8000:localhost:8000 admin@$VPS_HOST
 ```
