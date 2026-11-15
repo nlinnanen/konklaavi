@@ -50,7 +50,7 @@
   {% for note in notes %}
   <tr>
     <td>{{ status_badge(note) }}<br>{{ moderation_tag(note.moderation) }}</td>
-    <td class="note-cell"><span class="sub">{{ 'Misleading' if note.classification == 'misleading' else 'Not misleading' }} · {{ note.author }}</span>{{ note.body }}</td>
+    <td class="note-cell"><span class="sub">{{ 'Misleading' if note.classification == 'misleading' else 'Not misleading' }} · {{ note.author }}</span><span title="{{ note.body }}">{{ note.summary or note.body|truncate(140, True, '…', 0) }}</span></td>
     <td class="title-cell"><a href="narratives/{{ note.narrative_id }}#note-{{ note.id }}">{{ note.narrative }}</a><span class="sub">#{{ note.narrative_id }}</span></td>
     <td>{{ ratings(note) }}</td>
     <td>{{ score(note) }}</td>

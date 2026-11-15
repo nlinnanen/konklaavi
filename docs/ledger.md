@@ -248,6 +248,7 @@ Decisions made during the build, newest last, and nits deferred for later. Desig
 - team: Sign-in is optional: anonymous installs write and rate notes with reputation fixed at the default; signing in lets reputation grow.
 - team: Konklaavi never tracks its own domain; pages shown through its proxy are recorded under their original URL.
 - team: Test data comes from LLM crowd bots (tools/crowd) that read real sites and write and rate notes through the public API; bot accounts live under crowd.hashtrust.test and are removable.
+- team: The moderation worker writes a summary of at most 140 characters for each note and backfills existing notes in small batches; clients show the summary and fall back to truncating the note.
 
 ## Deferred
 
